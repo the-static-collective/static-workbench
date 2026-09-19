@@ -1,0 +1,23 @@
+[Unit]
+Description=Static Workbench local supervisor
+After=default.target
+
+[Service]
+Type=simple
+WorkingDirectory=__WORKING_DIRECTORY__
+ExecStart=__EXEC_START__
+Environment=STATIC_WORKBENCH_CONFIG=%h/.config/static-workbench/config.toml
+Environment=PYTHONUNBUFFERED=1
+Restart=on-failure
+RestartSec=2
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectControlGroups=true
+ProtectKernelModules=true
+ProtectKernelTunables=true
+RestrictSUIDSGID=true
+LockPersonality=true
+
+[Install]
+WantedBy=default.target

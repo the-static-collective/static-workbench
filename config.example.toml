@@ -1,0 +1,16 @@
+# Static Workbench v0.2 — local-only example configuration
+bind_host = "127.0.0.1"
+port = 13700
+state_dir = "~/.local/state/static-workbench"
+max_repo_depth = 4
+preview_bytes = 131072
+
+# Point this at the parent directory that will contain your Static Collective repos.
+[[roots]]
+id = "static"
+path = "~/static"
+
+# Add more roots only when you intentionally want the Workbench to see them.
+# [[roots]]
+# id = "archive"
+# path = "~/Documents/static-archive"

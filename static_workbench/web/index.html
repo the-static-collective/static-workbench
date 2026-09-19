@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="color-scheme" content="dark">
+  <title>Static Workbench</title>
+  <link rel="stylesheet" href="/assets/styles.css">
+</head>
+<body>
+  <header class="topbar">
+    <div>
+      <div class="brand">STATIC / WORKBENCH</div>
+      <div class="subbrand">local habitat / provenance desk</div>
+    </div>
+    <div class="node-state"><span class="status-dot" id="node-dot"></span><span id="node-label">connecting</span></div>
+  </header>
+
+  <main class="shell">
+    <aside class="navigator" data-region="navigator" aria-label="Navigator">
+      <div class="region-title">Navigator</div>
+      <nav class="nav-stack" aria-label="Workbench views">
+        <button class="nav-button active" data-view="house">House <span class="nav-count" id="house-count">—</span></button>
+        <button class="nav-button" data-view="machine">Machine <span class="nav-count" id="machine-temp">—</span></button>
+        <button class="nav-button" data-view="repos">Repositories <span class="nav-count" id="repo-count">—</span></button>
+        <button class="nav-button" data-view="objects">Objects</button>
+        <button class="nav-button" data-view="humanterminal">HumanTerminal</button>
+      </nav>
+
+      <section class="nav-section">
+        <div class="eyebrow">Configured roots</div>
+        <div id="root-list" class="root-list"><span class="muted">Loading…</span></div>
+      </section>
+
+      <section class="nav-section boundary-note">
+        <div class="eyebrow">v0.2 boundary</div>
+        <p>Presence, readiness, compatibility, and authority stay separate. Project state remains read-only; HumanTerminal writes only Workbench-owned local receipts.</p>
+      </section>
+    </aside>
+
+    <section class="workspace" data-region="workspace" aria-live="polite">
+      <div class="workspace-toolbar">
+        <div>
+          <div class="eyebrow" id="workspace-eyebrow">House</div>
+          <h1 id="workspace-title">Local habitat</h1>
+        </div>
+        <button class="quiet-button" id="refresh-view">Refresh</button>
+      </div>
+      <div id="workspace-body">
+        <div class="empty-state">Connecting to the local supervisor…</div>
+      </div>
+    </section>
+
+    <aside class="witness" data-region="witness" aria-label="Witness rail">
+      <div class="witness-heading">
+        <div>
+          <div class="region-title">Witness</div>
+          <div class="muted tiny">local witness / operational receipts</div>
+        </div>
+        <button class="icon-button" id="refresh-events" aria-label="Refresh witness events">↻</button>
+      </div>
+      <div id="event-list" class="event-list"><div class="muted">No events loaded.</div></div>
+    </aside>
+  </main>
+
+
+  <template id="humanterminal-template">
+    <section class="humanterminal">
+      <article class="card terminal-compose">
+        <div class="terminal-law">possible meaning != intended meaning</div>
+        <form id="humanterminal-form">
+          <label for="humanterminal-input">RAW</label>
+          <textarea id="humanterminal-input" rows="4" maxlength="20000" placeholder="Type a carrier exactly as given…" required></textarea>
+          <label for="humanterminal-context">Context for a later cut <span class="muted">optional</span></label>
+          <textarea id="humanterminal-context" rows="3" maxlength="20000" placeholder="Add attributable context without rewriting the raw carrier…"></textarea>
+          <div class="terminal-actions">
+            <button class="action-button" type="submit">Open aperture</button>
+            <button class="quiet-button" type="button" id="humanterminal-new">New root cut</button>
+            <span class="muted tiny" id="humanterminal-parent">No parent cut selected.</span>
+          </div>
+        </form>
+      </article>
+      <div id="humanterminal-result"></div>
+      <section class="terminal-history-wrap">
+        <div class="eyebrow">Sense-field history</div>
+        <div id="humanterminal-history" class="terminal-history"><div class="muted">No cuts yet.</div></div>
+      </section>
+    </section>
+  </template>
+
+  <template id="error-template">
+    <div class="notice error"></div>
+  </template>
+  <script src="/assets/app.js" defer></script>
+</body>
+</html>
