@@ -14,6 +14,7 @@ from . import __version__
 from .aperture import analyze_aperture
 from .config import RootConfig, WorkbenchConfig, load_config
 from .creator import creator_desk_status, search_sources
+from .broadcast import broadcast_door
 from .journal import Journal, SenseFieldRecord
 from .house import build_house_status
 from .machine import sample_machine
@@ -175,6 +176,11 @@ def create_app(config: WorkbenchConfig | None = None) -> FastAPI:
             return search_sources(config.roots, repos, root_id, repo_path, query)
         except (ValueError, OSError) as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    @app.get("/api/broadcast/door")
+    def local_broadcast_door():
+        repos = discover_repositories(config.roots, config.max_repo_depth)
+        return broadcast_door(config, repos)
 
     @app.get("/api/machine")
     def machine():
