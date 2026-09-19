@@ -5,6 +5,10 @@ state_dir = "~/.local/state/static-workbench"
 max_repo_depth = 4
 preview_bytes = 131072
 
+# Optional: explicit port chosen when starting the project-owned Static Broadcast console.
+# Uncomment only after updating Static Live and starting its local service on this port.
+# broadcast_port = 3008
+
 # Point this at the parent directory that will contain your Static Collective repos.
 [[roots]]
 id = "static"
