@@ -80,3 +80,7 @@ class CreatorDraftRequest(BaseModel):
         if not value.strip():
             raise ValueError("title must not be blank")
         return value
+
+
+class CreatorPackSaveRequest(CreatorPackRequest):
+    expected_pack_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
