@@ -15,7 +15,7 @@ from .repos import RepoStatus
 
 _IDENTITY = "static-live.broadcast"
 _CONTRACT = "static-live.broadcast-house-door/v0.1"
-_STATES = frozenset({"ready", "recording", "recording_only", "live", "fault", "idle", "unavailable", "error", "preflight_failed"})
+_STATES = frozenset({"ready", "recording", "recording_only", "live", "faulted", "boot", "preflight", "blocked", "ending", "preserved"})
 _LIMIT = 16384
 
 
