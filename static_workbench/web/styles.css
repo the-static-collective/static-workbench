@@ -193,3 +193,20 @@ input:focus, select:focus { border-color: var(--green-dim); outline: 2px solid r
   .house-pulse { text-align: left; }
   .repo-tools { grid-template-columns: 1fr; }
 }
+
+/* Creator Desk v0.1 — local-source handoff, no external execution */
+.creator-workflow { display: grid; align-content: start; gap: 9px; }
+.creator-workflow h2 { margin: 0; }
+.creator-workflow p { margin: 0 0 6px; }
+.creator-source-button { justify-self: start; text-align: left; }
+.creator-search { margin-top: 20px; }
+.creator-form { display: grid; grid-template-columns: minmax(130px, 1fr) minmax(150px, 1fr) auto; gap: 10px; margin: 14px 0; }
+.creator-results { display: grid; gap: 10px; }
+.creator-hit { display: grid; gap: 9px; }
+.creator-hit .raw-carrier { margin: 0; }
+.creator-hit > button { justify-self: start; }
+.creator-feedback { overflow-wrap: anywhere; }
+.handoff-manual { width: 100%; min-height: 125px; margin-top: 9px; color: var(--ink); background: #0f1512; border: 1px solid var(--line); border-radius: 8px; padding: 9px; resize: vertical; font: 12px/1.5 ui-monospace, monospace; }
+@media (max-width: 720px) {
+  .creator-form { grid-template-columns: 1fr; }
+}
