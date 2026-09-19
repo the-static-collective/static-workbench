@@ -68,6 +68,17 @@ function stackLabel(repo) {
   return repo.stacks && repo.stacks.length ? repo.stacks.join(' + ') : 'unclassified';
 }
 
+function isSafeBroadcastUrl(value) {
+  if (typeof value !== 'string') return false;
+  try {
+    const url = new URL(value);
+    return url.protocol === 'http:' && url.hostname === '127.0.0.1'
+      && url.port !== '' && url.pathname === '/' && url.search === '' && url.hash === ''
+      && url.username === '' && url.password === ''
+      && value === `http://127.0.0.1:${url.port}/`;
+  } catch (_) { return false; }
+}
+
 function renderHouse() {
   state.view = 'house'; syncNav('house');
   setWorkspace('House', 'The local habitat');
@@ -118,7 +129,7 @@ function renderHouse() {
     const door = state.broadcast;
     const broadcast = el('article', 'action-card broadcast-door');
     broadcast.appendChild(el('strong', '', 'Static Broadcast / local operator door'));
-    if (door?.connection === 'reachable' && /^http:\/\/127\\.0\\.0\\.1:[0-9]{1,5}\/$/.test(door.open_url || '')) {
+    if (door?.connection === 'reachable' && isSafeBroadcastUrl(door.open_url)) {
       broadcast.append(
         el('span', 'muted', `${door.event.title} · ${door.broadcast_state}`),
         el('span', 'muted tiny', `Recording: ${door.recording ? 'active' : 'off'} · Streaming: ${door.stream ? 'live' : 'off'} · Self-reported local service, not an identity proof.`)
