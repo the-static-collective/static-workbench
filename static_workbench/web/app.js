@@ -1,4 +1,4 @@
-const state = { bootstrap: null, machine: null, repos: [], house: null, view: 'house', apertureHistory: [], apertureCurrent: null, apertureParentId: null };
+const state = { bootstrap: null, machine: null, repos: [], house: null, view: 'house', creator: null, apertureHistory: [], apertureCurrent: null, apertureParentId: null };
 const APERTURE_BOUNDARY = 'possible meaning != intended meaning';
 
 const $ = (selector) => document.querySelector(selector);
@@ -105,7 +105,10 @@ function renderHouse() {
   const terminal = el('button', 'action-card');
   terminal.append(el('strong', '', 'Open HumanTerminal'), el('span', 'muted', 'Preserve a raw carrier and bounded sense-field cut without promoting meaning to authority.'));
   terminal.addEventListener('click', renderHumanTerminal);
-  actions.append(inspect, terminal);
+  const creator = el('button', 'action-card');
+  creator.append(el('strong', '', 'Open Creator Desk'), el('span', 'muted', 'Search a chosen local source and carry its exact provenance into a draft or research brief.'));
+  creator.addEventListener('click', renderCreatorDesk);
+  actions.append(inspect, terminal, creator);
   const staticLive = house.organs.find(organ => organ.id === 'static-live' && organ.present);
   if (staticLive) {
     const live = el('button', 'action-card');
@@ -142,6 +145,111 @@ function renderHouse() {
   workspaceBody.appendChild(organs);
 
   $('#house-count').textContent = `${house.summary.core_organs_present}/${house.summary.core_organs_total}`;
+}
+
+async function copyCreatorHandoff(hit, output) {
+  const ref = `${hit.root_id}:${hit.repo_path}/${hit.source_path}#L${hit.line}`;
+  const head = hit.head ? `HEAD ${hit.head}` : 'no committed HEAD';
+  const worktree = hit.dirty ? 'DIRTY worktree: content may not match HEAD' : 'working-tree excerpt; compare to HEAD before treating as commit evidence';
+  const payload = [
+    'CREATOR DESK / SOURCE HANDOFF (local, selected by human)',
+    `Source: ${ref}`, `Git: ${head}`, worktree,
+    `Excerpt: ${hit.snippet}`,
+    'Task: Recall relevant context before creating. Separate source evidence, interpretation and unresolved gaps.',
+    'This excerpt is a search hit, not the entire source or a verified project-native receipt.'
+  ].join('\n');
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    try { await navigator.clipboard.writeText(payload); output.textContent = 'Handoff copied; paste into the chosen Creator Workspace conversation.'; return; }
+    catch (_) { /* manual fallback below */ }
+  }
+  const manual = el('textarea', 'handoff-manual');
+  manual.readOnly = true; manual.value = payload;
+  output.textContent = 'Clipboard unavailable. Select and copy this handoff manually:';
+  output.appendChild(manual); manual.focus(); manual.select();
+}
+
+function renderCreatorHits(body, host) {
+  clear(host);
+  const note = el('div', 'muted tiny',
+    `${body.hits.length} local hits / ${body.files_examined} bounded files inspected${body.truncated ? ' · LIMIT REACHED' : ''}. Search results do not establish project authority.`);
+  host.appendChild(note);
+  if (!body.hits.length) { host.appendChild(el('div', 'empty-state', 'No matching Markdown or plain-text lines in this checkout.')); return; }
+  for (const hit of body.hits) {
+    const card = el('article', 'card creator-hit');
+    const marker = `${hit.root_id}:${hit.repo_path}/${hit.source_path}#L${hit.line}`;
+    card.append(el('div', 'repo-name', marker), el('pre', 'raw-carrier', hit.snippet));
+    card.appendChild(el('div', 'muted tiny', `${hit.head || 'unborn HEAD'} · ${hit.dirty ? 'DIRTY WORKTREE; excerpt not commit-anchored' : 'working tree; verify against commit before citing'}`));
+    const button = el('button', 'quiet-button', 'Copy source handoff');
+    button.type = 'button';
+    const output = el('div', 'muted tiny creator-feedback');
+    button.addEventListener('click', () => copyCreatorHandoff(hit, output));
+    card.append(button, output);
+    host.appendChild(card);
+  }
+}
+
+function renderCreatorDesk() {
+  state.view = 'creator'; syncNav('creator');
+  setWorkspace('Creator Desk', 'Sources before synthesis');
+  clear(workspaceBody);
+  const desk = state.creator;
+  if (!desk) { workspaceBody.appendChild(el('div', 'empty-state', 'Creator Desk registry unavailable.')); return; }
+  const header = el('article', 'card');
+  header.append(el('div', 'eyebrow', 'LOCAL SOURCES / HUMAN HANDOFF'),
+    el('h2', '', 'Find a thread. Keep its origin.'),
+    el('p', 'muted', 'Creator Workspace routing patterns are available as workflow guides. HOUSE does not invoke the plugin or send source material to external services.'));
+  const laws = el('div', 'law-strip');
+  desk.laws.forEach(item => laws.appendChild(el('span', 'law-chip', item)));
+  header.appendChild(laws); workspaceBody.appendChild(header);
+
+  const section = el('section', 'house-section');
+  section.appendChild(el('div', 'section-heading', 'WORKFLOW DOORS / LOCAL PRESENCE ONLY'));
+  const grid = el('div', 'action-grid');
+  for (const workflow of desk.workflows) {
+    const card = el('article', 'card creator-workflow');
+    card.append(el('div', 'eyebrow', workflow.route), el('h2', '', workflow.label),
+      el('p', 'muted', workflow.job),
+      el('div', 'muted tiny', workflow.local_sources.length
+        ? `${workflow.local_sources.length} checkout(s) discovered; inspection only`
+        : 'No matching checkout discovered under configured roots.'));
+    for (const repo of workflow.local_sources) {
+      const button = el('button', 'quiet-button creator-source-button', `Inspect ${repo.name}`);
+      button.type = 'button'; button.addEventListener('click', () => renderRepoDetail(repo));
+      card.appendChild(button);
+    }
+    grid.appendChild(card);
+  }
+  section.appendChild(grid); workspaceBody.appendChild(section);
+
+  const search = el('section', 'card creator-search');
+  search.append(el('div', 'eyebrow', 'LOCAL SOURCE RECALL'),
+    el('h2', '', 'Search one chosen checkout'),
+    el('p', 'muted', 'Bounded README / Markdown / text inspection under configured roots. Select a source before drafting; no whole-repository upload.'));
+  const form = el('form', 'creator-form');
+  const chooser = el('select'); chooser.setAttribute('aria-label', 'Choose a local repository');
+  for (const [i, repo] of state.repos.entries()) {
+    const option = el('option', '', `${repo.root_id}:${repo.relative_path}`); option.value = String(i); chooser.appendChild(option);
+  }
+  const query = el('input'); query.type = 'search'; query.minLength = 2; query.maxLength = 100;
+  query.required = true; query.placeholder = 'Search phrase'; query.setAttribute('aria-label', 'Search local source text');
+  const submit = el('button', 'action-button', 'Find source lines'); submit.type = 'submit';
+  if (!state.repos.length) submit.disabled = true;
+  const results = el('div', 'creator-results');
+  form.append(chooser, query, submit); search.append(form, results);
+  form.addEventListener('submit', async event => {
+    event.preventDefault();
+    const repo = state.repos[Number(chooser.value)];
+    if (!repo) return;
+    results.textContent = 'Searching selected local checkout…';
+    try {
+      const params = new URLSearchParams({ root_id: repo.root_id, repo_path: repo.relative_path, query: query.value });
+      const body = await api(`/api/creator/sources?${params}`);
+      renderCreatorHits(body, results);
+    } catch (error) {
+      clear(results); results.appendChild(el('div', 'notice error', error.message || String(error)));
+    }
+  });
+  workspaceBody.appendChild(search);
 }
 
 function renderMachine() {
@@ -397,6 +505,7 @@ function renderHumanTerminal() {
   renderApertureHistory();
 }
 
+async function loadCreatorDesk() { state.creator = await api('/api/creator/desk'); if (state.view === 'creator') renderCreatorDesk(); }
 async function loadMachine() { state.machine = await api('/api/machine'); if (state.view === 'machine') renderMachine(); }
 async function loadRepos() { const body = await api('/api/repos'); state.repos = body.repos; $('#repo-count').textContent = String(state.repos.length); if (state.view === 'repos') renderRepos(); }
 async function loadHouse() { state.house = await api('/api/house'); $('#house-count').textContent = `${state.house.summary.core_organs_present}/${state.house.summary.core_organs_total}`; if (state.view === 'house') renderHouse(); }
@@ -424,6 +533,7 @@ async function refreshCurrent() {
     else if (state.view === 'machine') await loadMachine();
     else if (state.view === 'repos') await loadRepos();
     else if (state.view === 'objects') renderObjects();
+    else if (state.view === 'creator') await Promise.all([loadRepos(), loadCreatorDesk()]);
     else { await loadApertureHistory(); renderHumanTerminal(); }
     await loadEvents();
   } catch (error) { showError(error); }
@@ -434,7 +544,7 @@ async function start() {
     state.bootstrap = await api('/api/bootstrap');
     $('#node-dot').classList.add('online'); $('#node-label').textContent = 'local supervisor online';
     renderRoots();
-    await Promise.all([loadMachine(), loadRepos(), loadHouse(), loadApertureHistory()]);
+    await Promise.all([loadMachine(), loadRepos(), loadHouse(), loadCreatorDesk(), loadApertureHistory()]);
     renderHouse();
     await loadEvents();
     window.setInterval(() => loadEvents().catch(() => {}), 5000);
@@ -446,7 +556,7 @@ async function start() {
 
 document.querySelectorAll('.nav-button').forEach(button => button.addEventListener('click', () => {
   const view = button.dataset.view;
-  if (view === 'house') renderHouse(); else if (view === 'machine') renderMachine(); else if (view === 'repos') renderRepos(); else if (view === 'objects') renderObjects(); else renderHumanTerminal();
+  if (view === 'house') renderHouse(); else if (view === 'machine') renderMachine(); else if (view === 'repos') renderRepos(); else if (view === 'objects') renderObjects(); else if (view === 'creator') renderCreatorDesk(); else renderHumanTerminal();
 }));
 $('#refresh-view').addEventListener('click', refreshCurrent);
 $('#refresh-events').addEventListener('click', () => loadEvents().catch(showError));

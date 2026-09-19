@@ -180,3 +180,11 @@ workbench receipt != project receipt
 ```
 
 Repository manifests are treated as data. Stack detection does not run install hooks, package scripts, project CLIs, or arbitrary shell commands.
+
+## Creator Desk v0.1 — local source handoff
+
+Use **Creator Desk** in the navigator or House actions to inspect the discovered local media, research, live, and community repos through Creator Workspace-inspired workflow doors. Choose **one** discovered checkout and search its bounded Markdown/text sources. Each hit carries its configured root, repository-relative path, line, working-tree HEAD, and dirty marker; **Copy source handoff** prepares one explicitly selected excerpt for pasting into a separate Creator Workspace conversation.
+
+The workflow registry borrows routing patterns, **not the Creator Workspace plugin runtime**. HOUSE does not invoke the plugin, send notes to a model, publish a draft, start OBS, or mutate a Help Slip. Search excludes symlinks, hidden paths and sensitive-looking filenames, but is not a secret scanner; configure roots deliberately. See [Creator Desk boundary and use](docs/creator-desk-v01.md).
+
+A source handoff is an invitation to inspect, **not** an authoritative interpretation of the source.
