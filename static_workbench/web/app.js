@@ -216,6 +216,7 @@ function renderCreatorHits(body, host) {
     button.type = 'button';
     const output = el('div', 'muted tiny creator-feedback');
     button.addEventListener('click', () => copyCreatorHandoff(hit, output));
+    creatorV2Attach(card, hit, output);
     card.append(button, output);
     host.appendChild(card);
   }
@@ -283,6 +284,7 @@ function renderCreatorDesk() {
     }
   });
   workspaceBody.appendChild(search);
+  creatorV2Render();
 }
 
 function renderMachine() {
@@ -579,6 +581,7 @@ async function start() {
     $('#node-dot').classList.add('online'); $('#node-label').textContent = 'local supervisor online';
     renderRoots();
     await Promise.all([loadMachine(), loadRepos(), loadHouse(), loadCreatorDesk(), loadApertureHistory(), loadBroadcastDoor()]);
+    await creatorV2Load();
     renderHouse();
     await loadEvents();
     window.setInterval(() => loadEvents().catch(() => {}), 5000);
@@ -590,7 +593,7 @@ async function start() {
 
 document.querySelectorAll('.nav-button').forEach(button => button.addEventListener('click', () => {
   const view = button.dataset.view;
-  if (view === 'house') renderHouse(); else if (view === 'machine') renderMachine(); else if (view === 'repos') renderRepos(); else if (view === 'objects') renderObjects(); else if (view === 'creator') renderCreatorDesk(); else renderHumanTerminal();
+  if (view === 'house') renderHouse(); else if (view === 'machine') renderMachine(); else if (view === 'repos') renderRepos(); else if (view === 'objects') renderObjects(); else if (view === 'creator') { renderCreatorDesk(); creatorV2Load().catch(showError); } else renderHumanTerminal();
 }));
 $('#refresh-view').addEventListener('click', refreshCurrent);
 $('#refresh-events').addEventListener('click', () => loadEvents().catch(showError));
