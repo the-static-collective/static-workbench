@@ -6,6 +6,7 @@ to project authority. A person explicitly chooses a local checkout and a search 
 from __future__ import annotations
 
 import os
+import hashlib
 from dataclasses import asdict
 from pathlib import Path
 from typing import Any
@@ -140,6 +141,7 @@ def search_sources(
                 if needle not in line.casefold():
                     continue
                 hits.append({
+                    "file_sha256": hashlib.sha256(body.encode("utf-8")).hexdigest(),
                     "root_id": root_id,
                     "repo_path": repo_path,
                     "source_path": resolved.relative_to(repo_real).as_posix(),
