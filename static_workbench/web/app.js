@@ -1,4 +1,4 @@
-const state = { bootstrap: null, machine: null, repos: [], house: null, view: 'house', creator: null, apertureHistory: [], apertureCurrent: null, apertureParentId: null };
+const state = { bootstrap: null, machine: null, repos: [], house: null, view: 'house', creator: null, broadcast: null, apertureHistory: [], apertureCurrent: null, apertureParentId: null };
 const APERTURE_BOUNDARY = 'possible meaning != intended meaning';
 
 const $ = (selector) => document.querySelector(selector);
@@ -115,6 +115,28 @@ function renderHouse() {
     live.append(el('strong', '', 'Inspect first-heartbeat lane'), el('span', 'muted', 'Static Live is present. Open its exact local checkout before running any project-owned commands.'));
     live.addEventListener('click', () => renderRepoDetail(staticLive.repo));
     actions.appendChild(live);
+    const door = state.broadcast;
+    const broadcast = el('article', 'action-card broadcast-door');
+    broadcast.appendChild(el('strong', '', 'Static Broadcast / local operator door'));
+    if (door?.connection === 'reachable' && /^http:\/\/127\\.0\\.0\\.1:[0-9]{1,5}\/$/.test(door.open_url || '')) {
+      broadcast.append(
+        el('span', 'muted', `${door.event.title} · ${door.broadcast_state}`),
+        el('span', 'muted tiny', `Recording: ${door.recording ? 'active' : 'off'} · Streaming: ${door.stream ? 'live' : 'off'} · Self-reported local service, not an identity proof.`)
+      );
+      const open = el('a', 'action-button', 'Open Static Broadcast');
+      open.href = door.open_url; open.target = '_blank'; open.rel = 'noopener noreferrer';
+      open.setAttribute('aria-label', 'Open the configured local Static Broadcast operator console');
+      broadcast.appendChild(open);
+    } else {
+      const labels = {
+        unconfigured: 'Not configured. Set broadcast_port in the local HOUSE config; checkout presence is not running-service readiness.',
+        offline_or_incompatible: 'No compatible local console is responding on the declared port.',
+        unrecognized_service: 'Another service or incompatible console answered. Opening is refused.',
+        invalid_configuration: 'Invalid local broadcast port. Correct the HOUSE configuration.',
+      };
+      broadcast.appendChild(el('span', 'muted', labels[door?.connection] || 'Checking local broadcast connection…'));
+    }
+    actions.appendChild(broadcast);
   }
   ready.appendChild(actions);
   workspaceBody.appendChild(ready);
@@ -505,6 +527,7 @@ function renderHumanTerminal() {
   renderApertureHistory();
 }
 
+async function loadBroadcastDoor() { state.broadcast = await api('/api/broadcast/door'); if (state.view === 'house') renderHouse(); }
 async function loadCreatorDesk() { state.creator = await api('/api/creator/desk'); if (state.view === 'creator') renderCreatorDesk(); }
 async function loadMachine() { state.machine = await api('/api/machine'); if (state.view === 'machine') renderMachine(); }
 async function loadRepos() { const body = await api('/api/repos'); state.repos = body.repos; $('#repo-count').textContent = String(state.repos.length); if (state.view === 'repos') renderRepos(); }
@@ -529,7 +552,7 @@ function renderRoots() {
 
 async function refreshCurrent() {
   try {
-    if (state.view === 'house') await Promise.all([loadHouse(), loadRepos(), loadMachine()]);
+    if (state.view === 'house') await Promise.all([loadHouse(), loadRepos(), loadMachine(), loadBroadcastDoor()]);
     else if (state.view === 'machine') await loadMachine();
     else if (state.view === 'repos') await loadRepos();
     else if (state.view === 'objects') renderObjects();
@@ -544,7 +567,7 @@ async function start() {
     state.bootstrap = await api('/api/bootstrap');
     $('#node-dot').classList.add('online'); $('#node-label').textContent = 'local supervisor online';
     renderRoots();
-    await Promise.all([loadMachine(), loadRepos(), loadHouse(), loadCreatorDesk(), loadApertureHistory()]);
+    await Promise.all([loadMachine(), loadRepos(), loadHouse(), loadCreatorDesk(), loadApertureHistory(), loadBroadcastDoor()]);
     renderHouse();
     await loadEvents();
     window.setInterval(() => loadEvents().catch(() => {}), 5000);
