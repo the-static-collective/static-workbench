@@ -23,6 +23,7 @@ class WorkbenchConfig:
     roots: tuple[RootConfig, ...]
     max_repo_depth: int = 4
     preview_bytes: int = 131072
+    broadcast_port: int | None = None
 
 
 def _expand_path(value: str | os.PathLike[str]) -> Path:
@@ -58,6 +59,9 @@ def load_config(path: Path | None = None) -> WorkbenchConfig:
         state_dir = _expand_path(str(raw.get("state_dir", "~/.local/state/static-workbench")))
         max_repo_depth = int(raw.get("max_repo_depth", 4))
         preview_bytes = int(raw.get("preview_bytes", 131072))
+        broadcast_port = raw.get("broadcast_port")
+        if broadcast_port is not None and (type(broadcast_port) is not int):
+            raise ValueError("broadcast_port must be an integer")
     else:
         home = Path.home()
         roots = (RootConfig("static", (home / "static").resolve(strict=False)),)
@@ -66,6 +70,7 @@ def load_config(path: Path | None = None) -> WorkbenchConfig:
         state_dir = (home / ".local" / "state" / "static-workbench").resolve(strict=False)
         max_repo_depth = 4
         preview_bytes = 131072
+        broadcast_port = None
 
     if bind_host not in {"127.0.0.1", "::1", "localhost"}:
         raise ValueError("v0.1 only supports loopback bind hosts")
@@ -75,6 +80,9 @@ def load_config(path: Path | None = None) -> WorkbenchConfig:
         raise ValueError("max_repo_depth must be between 0 and 12")
     if not 1024 <= preview_bytes <= 4 * 1024 * 1024:
         raise ValueError("preview_bytes must be between 1 KiB and 4 MiB")
+
+    if broadcast_port is not None and (not 1 <= broadcast_port <= 65535 or broadcast_port == port):
+        raise ValueError("broadcast_port must be a valid, separate TCP port")
 
     ids = [root.id for root in roots]
     if len(ids) != len(set(ids)):
@@ -87,4 +95,5 @@ def load_config(path: Path | None = None) -> WorkbenchConfig:
         roots=roots,
         max_repo_depth=max_repo_depth,
         preview_bytes=preview_bytes,
+        broadcast_port=broadcast_port,
     )

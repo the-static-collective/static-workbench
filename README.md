@@ -188,3 +188,35 @@ Use **Creator Desk** in the navigator or House actions to inspect the discovered
 The workflow registry borrows routing patterns, **not the Creator Workspace plugin runtime**. HOUSE does not invoke the plugin, send notes to a model, publish a draft, start OBS, or mutate a Help Slip. Search excludes symlinks, hidden paths and sensitive-looking filenames, but is not a secret scanner; configure roots deliberately. See [Creator Desk boundary and use](docs/creator-desk-v01.md).
 
 A source handoff is an invitation to inspect, **not** an authoritative interpretation of the source.
+
+## HOUSE ↔ Static Broadcast v0.1 — an operator door, not an operator proxy
+
+To enable the **Open Static Broadcast** action in HOUSE, first install/checkout
+[Static Live](https://github.com/the-static-collective/static-live) under a
+configured HOUSE root. Start its own STREAM-001 server with a real project-owned
+broadcast packet and OBS preflight; note the *actual* local port printed by
+Static Live. Set that specific number in your HOUSE config:
+
+```toml
+broadcast_port = 3008 # replace with Static Live's actual chosen port
+```
+
+Restart HOUSE. Its default House action area distinguishes: downloaded
+checkout, unconfigured console, offline/incompatible local service, incompatible
+self-reported identity, and reachable local console. Only a reachable service
+whose `/api/house/identity` matches the Static Live contract and whose
+`/api/status` reports the same event and valid state enables a manual
+`http://127.0.0.1:<declared-port>/` link. It reports the controller's
+recording, streaming and state flags separately; these remain self-reported,
+not independent proof that OBS or a streaming platform succeeded.
+
+HOUSE does **not** autostart OBS, run project scripts, proxy control requests,
+store stream keys or OBS credentials, create a remote/LAN control surface, or
+write project-native receipts. The destination service itself owns GO LIVE,
+scene selection, END + PRESERVE, preflight, event and stream-state authority.
+Neither a running port nor a descriptive identity response constitutes
+cryptographic service authentication.
+
+Use the Static Live [STREAM-001 setup](https://github.com/the-static-collective/static-live/blob/main/examples/stream-001/README.md)
+for real OBS configuration. No real performance or stream is claimed by this
+integration's isolated service tests.
