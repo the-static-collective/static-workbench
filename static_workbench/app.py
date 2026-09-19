@@ -14,6 +14,7 @@ from . import __version__
 from .aperture import analyze_aperture
 from .config import RootConfig, WorkbenchConfig, load_config
 from .creator import creator_desk_status, search_sources
+from .creator_shelf import CreatorShelf, CreatorConflict, preview_pack
 from .broadcast import broadcast_door
 from .journal import Journal, SenseFieldRecord
 from .house import build_house_status
@@ -22,6 +23,9 @@ from .paths import PathOutsideRoot, resolve_under_root
 from .repos import discover_repositories
 from .schemas import (
     ApertureAnalyzeRequest,
+    CreatorPackRequest,
+    CreatorPackSaveRequest,
+    CreatorDraftRequest,
     ApertureHistoryResponse,
     ApertureRecordResponse,
     BootstrapResponse,
@@ -107,6 +111,7 @@ def _sense_field_response(record: SenseFieldRecord) -> ApertureRecordResponse:
 def create_app(config: WorkbenchConfig | None = None) -> FastAPI:
     config = config or load_config()
     journal = Journal(config.state_dir / "workbench.sqlite3")
+    creator_shelf = CreatorShelf(config.state_dir / "creator.sqlite3")
     session_token = secrets.token_urlsafe(32)
 
     @asynccontextmanager
@@ -117,6 +122,7 @@ def create_app(config: WorkbenchConfig | None = None) -> FastAPI:
     app = FastAPI(title="Static Workbench", version=__version__, lifespan=lifespan)
     app.state.config = config
     app.state.journal = journal
+    app.state.creator_shelf = creator_shelf
     app.state.session_token = session_token
 
     web_dir = Path(__file__).resolve().parent / "web"
@@ -176,6 +182,91 @@ def create_app(config: WorkbenchConfig | None = None) -> FastAPI:
             return search_sources(config.roots, repos, root_id, repo_path, query)
         except (ValueError, OSError) as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    def _creator_write_guard(request: Request) -> None:
+        origin = request.headers.get("origin")
+        host = request.headers.get("host", "")
+        if origin is not None and origin != f"http://{host}":
+            raise HTTPException(status_code=403, detail="cross-origin creator writes are refused")
+        token = request.headers.get("x-workbench-session", "")
+        if not secrets.compare_digest(token, session_token):
+            raise HTTPException(status_code=403, detail="creator write requires a local session token")
+
+    def _pack_for_request(payload: CreatorPackRequest):
+        try:
+            repos = discover_repositories(config.roots, config.max_repo_depth)
+            return preview_pack(config.roots, repos, [item.model_dump() for item in payload.selections])
+        except (CreatorConflict, ValueError, OSError) as exc:
+            raise HTTPException(status_code=409 if isinstance(exc, CreatorConflict) else 400, detail=str(exc)) from exc
+
+    @app.post("/api/creator/packs/preview")
+    def creator_pack_preview(payload: CreatorPackRequest, request: Request):
+        _creator_write_guard(request)
+        return _pack_for_request(payload)
+
+    @app.post("/api/creator/packs")
+    def creator_pack_save(payload: CreatorPackSaveRequest, request: Request):
+        _creator_write_guard(request)
+        pack = _pack_for_request(payload)
+        if pack["pack_sha256"] != payload.expected_pack_sha256:
+            raise HTTPException(status_code=409, detail="source pack differs from preview; review again")
+        saved = creator_shelf.save_pack(pack)
+        journal.append("creator.pack.saved", {"pack_id": saved["id"], "source_count": saved["source_count"]})
+        return saved
+
+    @app.get("/api/creator/packs")
+    def creator_packs():
+        return {"packs": creator_shelf.list_packs()}
+
+    @app.get("/api/creator/packs/{pack_id}")
+    def creator_pack(pack_id: int):
+        result = creator_shelf.get_pack(pack_id)
+        if result is None:
+            raise HTTPException(status_code=404, detail="source pack not found")
+        return result
+
+    def _save_draft(payload: CreatorDraftRequest, draft_id: int | None = None):
+        try:
+            saved = creator_shelf.save_revision(
+                draft_id,
+                payload.expected_revision,
+                payload.model_dump(exclude={"expected_revision"}),
+            )
+        except CreatorConflict as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        journal.append("creator.draft.saved", {"draft_id": saved["id"], "revision": saved["revision"]})
+        return saved
+
+    @app.post("/api/creator/drafts")
+    def creator_draft_create(payload: CreatorDraftRequest, request: Request):
+        _creator_write_guard(request)
+        return _save_draft(payload)
+
+    @app.post("/api/creator/drafts/{draft_id}/revisions")
+    def creator_draft_rev(draft_id: int, payload: CreatorDraftRequest, request: Request):
+        _creator_write_guard(request)
+        if draft_id < 1:
+            raise HTTPException(status_code=404, detail="draft not found")
+        return _save_draft(payload, draft_id)
+
+    @app.get("/api/creator/drafts")
+    def creator_drafts():
+        return {"drafts": creator_shelf.list_drafts()}
+
+    @app.get("/api/creator/drafts/{draft_id}")
+    def creator_draft(draft_id: int):
+        draft = creator_shelf.get_draft(draft_id)
+        if draft is None:
+            raise HTTPException(status_code=404, detail="draft not found")
+        return draft
+
+    @app.get("/api/creator/drafts/{draft_id}/revisions")
+    def creator_draft_revisions(draft_id: int):
+        if creator_shelf.get_draft(draft_id) is None:
+            raise HTTPException(status_code=404, detail="draft not found")
+        return {"revisions": creator_shelf.revisions(draft_id)}
 
     @app.get("/api/broadcast/door")
     def local_broadcast_door():
