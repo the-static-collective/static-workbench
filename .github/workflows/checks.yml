@@ -21,4 +21,6 @@ jobs:
       - name: Python tests
         run: python -m pytest -q
       - name: Browser JavaScript syntax
-        run: node --check static_workbench/web/app.js
+        run: |
+          node --check static_workbench/web/app.js
+          node --check static_workbench/web/creator-v02.js
