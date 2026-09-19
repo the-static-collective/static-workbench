@@ -157,7 +157,7 @@ async function copyCreatorHandoff(hit, output) {
     `Excerpt: ${hit.snippet}`,
     'Task: Recall relevant context before creating. Separate source evidence, interpretation and unresolved gaps.',
     'This excerpt is a search hit, not the entire source or a verified project-native receipt.'
-  ].join('\\n');
+  ].join('\n');
   if (navigator.clipboard && navigator.clipboard.writeText) {
     try { await navigator.clipboard.writeText(payload); output.textContent = 'Handoff copied; paste into the chosen Creator Workspace conversation.'; return; }
     catch (_) { /* manual fallback below */ }
