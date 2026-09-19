@@ -134,14 +134,15 @@ def search_sources(
                 if not resolved.is_file() or resolved.stat().st_size > _MAX_BYTES:
                     continue
                 examined += 1
-                body = resolved.read_text(encoding="utf-8")
+                raw = resolved.read_bytes()
+                body = raw.decode("utf-8")
             except (OSError, UnicodeError, ValueError):
                 continue
             for line_number, line in enumerate(body.splitlines(), start=1):
                 if needle not in line.casefold():
                     continue
                 hits.append({
-                    "file_sha256": hashlib.sha256(body.encode("utf-8")).hexdigest(),
+                    "file_sha256": hashlib.sha256(raw).hexdigest(),
                     "root_id": root_id,
                     "repo_path": repo_path,
                     "source_path": resolved.relative_to(repo_real).as_posix(),
