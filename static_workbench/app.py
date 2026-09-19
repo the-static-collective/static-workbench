@@ -13,6 +13,7 @@ from fastapi.staticfiles import StaticFiles
 from . import __version__
 from .aperture import analyze_aperture
 from .config import RootConfig, WorkbenchConfig, load_config
+from .creator import creator_desk_status, search_sources
 from .journal import Journal, SenseFieldRecord
 from .house import build_house_status
 from .machine import sample_machine
@@ -157,6 +158,23 @@ def create_app(config: WorkbenchConfig | None = None) -> FastAPI:
         status = build_house_status(result)
         journal.append("house.scanned", status["summary"])
         return status
+
+    @app.get("/api/creator/desk")
+    def creator_desk():
+        repos = discover_repositories(config.roots, config.max_repo_depth)
+        return creator_desk_status(repos)
+
+    @app.get("/api/creator/sources")
+    def creator_sources(
+        root_id: str,
+        repo_path: str,
+        query: str = Query(min_length=2, max_length=100),
+    ):
+        repos = discover_repositories(config.roots, config.max_repo_depth)
+        try:
+            return search_sources(config.roots, repos, root_id, repo_path, query)
+        except (ValueError, OSError) as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
 
     @app.get("/api/machine")
     def machine():
