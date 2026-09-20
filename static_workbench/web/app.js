@@ -98,6 +98,10 @@ function renderHouse() {
   hero.append(copy, pulse);
   workspaceBody.appendChild(hero);
   workspaceBody.appendChild(branchDeckTeaser());
+  const launch = el('button', 'action-card');
+  launch.append(el('strong', '', 'Start the STATIC OS train'), el('span', 'muted', 'Open the staged first-run plan, exact source setup and independent VM gates.'));
+  launch.addEventListener('click', () => renderLaunchpad().catch(showError));
+  workspaceBody.appendChild(launch);
 
   const summary = el('div', 'metric-grid house-metrics');
   summary.append(
@@ -602,6 +606,7 @@ function renderRoots() {
 async function refreshCurrent() {
   try {
     if (state.view === 'house') await Promise.all([loadHouse(), loadRepos(), loadMachine(), loadBroadcastDoor()]);
+    else if (state.view === 'launchpad') await renderLaunchpad();
     else if (state.view === 'machine') await loadMachine();
     else if (state.view === 'repos') await loadRepos();
     else if (state.view === 'branches') await Promise.all([loadBranchDeck(), loadBranchRadar()]);
@@ -649,7 +654,7 @@ async function start() {
 
 document.querySelectorAll('.nav-button').forEach(button => button.addEventListener('click', () => {
   const view = button.dataset.view;
-  if (view === 'house') renderHouse(); else if (view === 'machine') renderMachine(); else if (view === 'repos') renderRepos(); else if (view === 'branches') { branchDeckOpen().catch(showError); } else if (view === 'objects') renderObjects(); else if (view === 'returns') renderReturnShelf(); else if (view === 'attention') { state.view = 'attention'; window.HumanValueBar.openShelf(); } else if (view === 'creator') { renderCreatorDesk(); creatorV2Load().catch(showError); } else if (view === 'maxhinal') { renderNativeMaxhinal(); nativeMaxhinalLoad().catch(showError); } else if (view === 'dogram-impact') renderDogramImpactDesk(); else if (view === 'return') returnDeskLoad().catch(showError); else if (view === 'rocket') { state.view = 'rocket'; rocketLoad().catch(showError); } else if (view === 'mirror') renderMirror().catch(showError); else if (view === 'composition') renderCompositionInspection(); else if (view === 'living-main') renderLivingMain(); else if (view === 'groundkeeper') groundkeeperView(); else renderHumanTerminal();
+  if (view === 'house') renderHouse(); else if (view === 'launchpad') renderLaunchpad().catch(showError); else if (view === 'machine') renderMachine(); else if (view === 'repos') renderRepos(); else if (view === 'branches') { branchDeckOpen().catch(showError); } else if (view === 'objects') renderObjects(); else if (view === 'returns') renderReturnShelf(); else if (view === 'attention') { state.view = 'attention'; window.HumanValueBar.openShelf(); } else if (view === 'creator') { renderCreatorDesk(); creatorV2Load().catch(showError); } else if (view === 'maxhinal') { renderNativeMaxhinal(); nativeMaxhinalLoad().catch(showError); } else if (view === 'dogram-impact') renderDogramImpactDesk(); else if (view === 'return') returnDeskLoad().catch(showError); else if (view === 'rocket') { state.view = 'rocket'; rocketLoad().catch(showError); } else if (view === 'mirror') renderMirror().catch(showError); else if (view === 'composition') renderCompositionInspection(); else if (view === 'living-main') renderLivingMain(); else if (view === 'groundkeeper') groundkeeperView(); else renderHumanTerminal();
 }));
 $('#refresh-view').addEventListener('click', refreshCurrent);
 $('#refresh-events').addEventListener('click', () => loadEvents().catch(showError));
