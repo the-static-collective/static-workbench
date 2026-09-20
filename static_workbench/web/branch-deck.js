@@ -2,6 +2,13 @@
 // fetches remotes, checks out a branch, or assumes that a cached ref is current.
 let branchDeckSnapshot = null;
 let branchDeckRemote = null;
+let branchDeckRadar = null;
+
+async function loadBranchRadar() {
+  branchDeckRadar = await api('/api/branches/radar');
+  if (state.view === 'branches') renderBranchDeck();
+  else if (state.view === 'house') renderHouse();
+}
 
 async function loadBranchDeck() {
   const snapshot = await api('/api/branches');
@@ -24,6 +31,7 @@ function branchDeckTeaser() {
   open.type = 'button';
   open.addEventListener('click', () => branchDeckOpen().catch(showError));
   card.append(title, note, open);
+  if (branchDeckRadar?.enabled) card.appendChild(el('div', 'muted tiny', `Collective radar: ${branchDeckRadar.branches.length} retained branch observations · ${branchDeckRadar.repos_observed || 0} repositories scanned · ${branchDeckRadar.last_error || 'no recorded error'}`));
   return card;
 }
 
@@ -31,6 +39,7 @@ async function branchDeckOpen() {
   state.view = 'branches';
   syncNav('branches');
   if (!branchDeckSnapshot) await loadBranchDeck();
+  if (!branchDeckRadar) await loadBranchRadar();
   renderBranchDeck();
 }
 
@@ -41,7 +50,12 @@ function branchDeckPlan(card, host) {
     el('div', 'repo-meta', `Exact observed commit: ${card.commit}`),
     el('p', 'muted', 'Manual isolated test route: confirm the exact ref and commit, create a separate Git worktree with Git, inspect the branch-owned setup instructions, then choose and run the project’s approved tests yourself. Keep the original checkout and main untouched. Record the test command, environment, result, and exact commit before integration.')
   );
-  if (card.kind === 'github_remote') {
+  if (card.radar === true) {
+    host.appendChild(el('p', 'notice', `Public Collective radar observation at ${card.repo_scanned_at}. ${card.scan_complete ? 'First 100 branch-page complete.' : 'Branch-page cap reached: more branches may exist.'} No local checkout or test execution is implied.`));
+    const a = el('a', 'quiet-button', 'Open exact commit on GitHub');
+    a.href = card.url; a.target = '_blank'; a.rel = 'noopener noreferrer'; host.appendChild(a);
+  }
+  if (card.kind === 'github_remote' && !card.radar) {
     host.appendChild(el('p', 'notice', `Observed on public GitHub at ${branchDeckRemote?.observed_at || 'unknown time'}; relation to local checkout: ${card.relation.replaceAll('_', ' ')}. Remote-only branches cannot be run locally until explicitly fetched and verified.`));
     if (card.open_prs?.length) {
       for (const pr of card.open_prs) {
@@ -130,6 +144,16 @@ function renderBranchDeck() {
     header.appendChild(gaps);
   }
   workspaceBody.appendChild(header);
+  const radar = el('section', 'card');
+  radar.appendChild(el('div', 'repo-name', 'Collective radar / rolling public inventory'));
+  if (branchDeckRadar?.enabled) {
+    const observations = branchDeckRadar.branches || [];
+    const recent = observations.filter(item => !item.baseline && Date.now() - Date.parse(item.first_seen) < 86400000);
+    radar.appendChild(el('p', 'muted', `${observations.length} retained branch observations · ${recent.length} first noticed in the last 24h · ${branchDeckRadar.repos_observed} repositories scanned of ${branchDeckRadar.repo_count_last_listing} in the observed listing.`));
+    radar.appendChild(el('div', 'muted tiny', `Last successful cycle: ${branchDeckRadar.last_success_at || 'not yet'} · Last error: ${branchDeckRadar.last_error || 'none recorded'} · ${branchDeckRadar.all_repositories_observed ? 'Each listed repository has been visited at least once; records may still be stale.' : 'Rolling coverage incomplete: unvisited repos and API limits remain.'}`));
+    radar.appendChild(el('p', 'muted tiny', 'The supervisor samples at most five public repositories every 30 minutes when enabled. This dashboard reads its durable local snapshots; it does not start network scans or execute code.'));
+  } else radar.appendChild(el('p', 'muted tiny', 'Disabled by default. Enable branch_radar_enabled in Workbench configuration to begin bounded public Collective scanning.'));
+  workspaceBody.appendChild(radar);
 
   const remoteTools = el('section', 'card branch-deck-remote');
   remoteTools.appendChild(el('div', 'repo-name', 'Find branches that exist only on GitHub'));
@@ -173,6 +197,7 @@ function renderBranchDeck() {
     ['feature', 'Feature-like refs'], ['all', 'All refs'],
     ['local', 'Local branches'], ['cached_remote', 'Cached remote refs'],
     ['github_remote', 'Public GitHub branches'], ['remote_only', 'Not found locally'],
+    ['radar', 'Collective radar'], ['new_radar', 'Recently discovered'], 
     ['other_worktree', 'Open in another worktree'],
   ]) {
     const option = el('option', '', label);
@@ -187,7 +212,7 @@ function renderBranchDeck() {
   const detail = el('section', 'card branch-deck-detail');
   detail.appendChild(el('div', 'muted', 'Choose a branch for its exact commit and isolated test route.'));
   workspaceBody.appendChild(detail);
-  const combined = [...snapshot.branches, ...(branchDeckRemote?.branches || [])];
+  const combined = [...snapshot.branches, ...(branchDeckRemote?.branches || []), ...(branchDeckRadar?.branches || []).map(item => ({...item, radar: true, repo_name: item.github_repo, repo_path: '', root_id: 'public-radar', checkout: 'remote_only', relation: 'remote_only', committed_at: item.repo_scanned_at, open_prs: []}))];
   const sorted = combined.sort((a, b) =>
     Number(b.feature_like) - Number(a.feature_like) ||
     a.repo_name.localeCompare(b.repo_name) || a.name.localeCompare(b.name) ||
@@ -201,11 +226,13 @@ function renderBranchDeck() {
       const scope = filter.value === 'all' ||
         (filter.value === 'feature' && card.feature_like) ||
         (filter.value === 'remote_only' && card.relation === 'remote_only') ||
+        (filter.value === 'radar' && card.radar) ||
+        (filter.value === 'new_radar' && card.radar && !card.baseline && Date.now() - Date.parse(card.first_seen) < 86400000) ||
         (filter.value === 'other_worktree' && card.checkout === 'other_worktree') ||
         card.kind === filter.value;
       return match && scope;
     });
-    count.textContent = `${visible.length} displayed / ${combined.length} observed refs`;
+    count.textContent = `${visible.length} displayed / ${combined.length} observed refs (local, selected GitHub, and rolling radar snapshots)`;
     if (!visible.length) list.appendChild(el('div', 'empty-state', 'No matching observed refs. Choose a configured repository and check GitHub to see unfetched branches.'));
     for (const card of visible) {
       const row = el('button', 'repo-row branch-deck-row');
@@ -213,7 +240,7 @@ function renderBranchDeck() {
       const left = el('div');
       left.append(el('div', 'repo-name', `${card.repo_name} / ${card.name}`),
         el('div', 'repo-meta', `${card.root_id}:${card.repo_path} · ${card.commit.slice(0, 12)} · ${card.committed_at || 'time unknown'}`),
-        el('div', 'repo-meta', `${card.kind === 'github_remote' ? 'Public GitHub · ' + card.relation.replaceAll('_', ' ') : card.kind === 'cached_remote' ? 'Cached remote ref — freshness unknown' : 'Local branch'} · ${card.checkout.replaceAll('_', ' ')} · NOT TESTED`));
+        el('div', 'repo-meta', `${card.radar ? 'Rolling radar' + (!card.baseline && Date.now() - Date.parse(card.first_seen) < 86400000 ? ' · FIRST SEEN RECENTLY' : '') : card.kind === 'github_remote' ? 'Public GitHub · ' + card.relation.replaceAll('_', ' ') : card.kind === 'cached_remote' ? 'Cached remote ref — freshness unknown' : 'Local branch'} · ${card.checkout.replaceAll('_', ' ')} · NOT TESTED`));
       const badge = el('span', 'state-pill', card.feature_like ? 'feature-like' : 'branch');
       row.append(left, badge);
       row.addEventListener('click', () => branchDeckPlan(card, detail));
