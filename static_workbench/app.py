@@ -15,6 +15,7 @@ from .aperture import analyze_aperture
 from .config import RootConfig, WorkbenchConfig, load_config
 from .dogram_impact import ImpactDeskError, preview_impact, run_impact, read_report
 from .graft_witness import GraftWitnessError, preview as preview_graft, measure as measure_graft
+from .graft_round import preview_round, save_round
 from .creator import creator_desk_status, search_sources
 from .creator_shelf import CreatorShelf, CreatorConflict, preview_pack
 from .maxhinal_dock import parse_ride
@@ -38,6 +39,8 @@ from .schemas import (
     DogramImpactRunRequest,
     GraftWitnessPreviewRequest,
     GraftWitnessRunRequest,
+    GraftRoundPreviewRequest,
+    GraftRoundSaveRequest,
     ApertureHistoryResponse,
     ApertureRecordResponse,
     BootstrapResponse,
@@ -407,6 +410,42 @@ def create_app(config: WorkbenchConfig | None = None) -> FastAPI:
         if saved is None:
             raise HTTPException(status_code=404, detail="native Maxhinal ride not found")
         return saved
+
+    @app.post("/api/house-maxhinal/graft/rounds/preview")
+    def graft_round_preview(payload: GraftRoundPreviewRequest, request: Request):
+        _creator_write_guard(request)
+        try:
+            return preview_round(creator_shelf, **payload.model_dump())
+        except (GraftWitnessError, CreatorConflict) as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+    @app.post("/api/house-maxhinal/graft/rounds")
+    def graft_round_save(payload: GraftRoundSaveRequest, request: Request):
+        _creator_write_guard(request)
+        try:
+            result = save_round(creator_shelf, **payload.model_dump())
+        except (GraftWitnessError, CreatorConflict) as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+        journal.append("house.graft.round_saved", {
+            "ride_id": payload.ride_id, "round_sha256": result["round_sha256"],
+        })
+        return result
+
+    @app.get("/api/house-maxhinal/graft/rides/{ride_id}/rounds")
+    def graft_rounds(ride_id: int):
+        if creator_shelf.get_native_ride(ride_id) is None:
+            raise HTTPException(status_code=404, detail="Maxhinal ride not found")
+        return {"rounds": creator_shelf.list_graft_rounds(ride_id)}
+
+    @app.get("/api/house-maxhinal/graft/rounds/{round_sha256}")
+    def graft_round_read(round_sha256: str):
+        try:
+            result = creator_shelf.get_graft_round(round_sha256)
+        except CreatorConflict as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+        if result is None:
+            raise HTTPException(status_code=404, detail="GRAFT round not found")
+        return result
 
     @app.post("/api/house-maxhinal/graft/preview")
     def graft_structural_preview(payload: GraftWitnessPreviewRequest, request: Request):
