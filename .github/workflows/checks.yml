@@ -54,6 +54,9 @@ jobs:
           node --check static_workbench/web/lifestream.js
           node --check static_workbench/web/app.js
           node --check static_workbench/web/creator-v02.js
+          node --check static_workbench/web/creator-context-door.js
+      - name: Creator context composition planner
+        run: node tests/creator-context-door.cjs
           node --check static_workbench/web/maxhinal-dock.js
           node --check static_workbench/web/native-maxhinal.js
           node --check static_workbench/web/dogram-impact.js
