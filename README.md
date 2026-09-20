@@ -234,6 +234,17 @@ not guarantee complete or instant public GitHub coverage, inspect private
 repos, fetch project code, execute tests or merge. See
 [Collective radar coverage and safeguards](docs/branch-deck-004.md).
 
+## Branch Deck 005 — declared project tests, never automatic
+
+After explicitly creating an exact-SHA detached local worktree, HOUSE can
+preview and run a project-specific test suite listed in the Workbench
+operator's own TOML `[[branch_test_suites]]`. Each run requires a separate
+human action, clean/exact source preflight and a new local test receipt. There
+is **no automatic execution** and **no security sandbox**: project test code
+runs with Workbench user's OS privileges and may access files or the network.
+Do not run untrusted branches this way. See
+[declared suite setup, limits and effect boundary](docs/branch-deck-005.md).
+
 ## HOUSE ↔ Static Broadcast v0.1 — an operator door, not an operator proxy
 
 To enable the **Open Static Broadcast** action in HOUSE, first install/checkout

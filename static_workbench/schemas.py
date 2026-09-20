@@ -192,3 +192,12 @@ class BranchWorktreeRequest(BaseModel):
 class BranchWorktreeCreateRequest(BranchWorktreeRequest):
     expected_preview_digest: str = Field(pattern=r"^[0-9a-f]{64}$")
     acknowledge_effect: bool
+
+
+class BranchSuitePreviewRequest(BranchWorktreeRequest):
+    suite_id: str = Field(pattern=r"^[A-Za-z][A-Za-z0-9_-]{0,47}$")
+
+
+class BranchSuiteRunRequest(BranchSuitePreviewRequest):
+    expected_preview_digest: str = Field(pattern=r"^[0-9a-f]{64}$")
+    acknowledge_code_execution: bool

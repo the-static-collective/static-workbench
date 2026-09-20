@@ -43,6 +43,75 @@ async function branchDeckOpen() {
   renderBranchDeck();
 }
 
+async function branchDeckTestDoor(card, host) {
+  const query = new URLSearchParams({root_id: card.root_id, repo_path: card.repo_path});
+  const response = await api('/api/branches/tests/suites?' + query.toString());
+  const suites = response.suites || [];
+  const section = el('section', 'card');
+  section.appendChild(el('div', 'repo-name', 'Declared project test suite'));
+  section.appendChild(el('p', 'notice', 'This runs administrator-declared project code as your Workbench OS user. A Git worktree is NOT a sandbox: the program can access user files, network services and spawn processes. Run only code you trust; execution never occurs automatically.'));
+  if (!suites.length) {
+    section.appendChild(el('p', 'muted tiny', 'No operator-declared test suite is configured for this exact repository origin. Add a branch_test_suites entry to Workbench TOML before running tests here.'));
+    host.appendChild(section); return;
+  }
+  const chooser = el('select');
+  chooser.setAttribute('aria-label', 'Approved test suite');
+  suites.forEach(item => {
+    const option = el('option', '', item.id + ' · ' + JSON.stringify(item.argv));
+    option.value = item.id;
+    chooser.appendChild(option);
+  });
+  const previewButton = el('button', 'quiet-button', 'Preview exact test execution');
+  previewButton.type = 'button';
+  const receipt = el('div', 'muted tiny');
+  previewButton.addEventListener('click', async () => {
+    previewButton.disabled = true; clear(receipt);
+    const payload = {
+      root_id: card.root_id, repo_path: card.repo_path,
+      ref: card.ref, expected_commit: card.commit, suite_id: chooser.value,
+    };
+    const headers = {'X-Workbench-Session': state.bootstrap?.session_token || ''};
+    try {
+      const plan = await api('/api/branches/tests/preview', {
+        method: 'POST', headers, body: JSON.stringify(payload),
+      });
+      receipt.append(
+        el('div', 'repo-meta', 'Exact SHA: ' + plan.commit),
+        el('div', 'repo-meta', 'Prepared worktree: ' + plan.destination),
+        el('div', 'repo-meta', 'Command argv (no shell): ' + JSON.stringify(plan.argv)),
+        el('div', 'repo-meta', 'Maximum runtime: ' + plan.timeout_seconds + ' seconds'),
+        el('p', 'notice', 'Explicit effect: execute THIS project test program with your local user permissions. This can mutate the worktree or other user-accessible resources. The original checkout is not the test working directory.')
+      );
+      const run = el('button', 'action-button', 'Run this approved test program');
+      run.type = 'button';
+      run.addEventListener('click', async () => {
+        run.disabled = true;
+        try {
+          const result = await api('/api/branches/tests/run', {
+            method: 'POST', headers,
+            body: JSON.stringify({
+              ...payload, expected_preview_digest: plan.preview_digest,
+              acknowledge_code_execution: true,
+            }),
+          });
+          receipt.appendChild(el('div', 'repo-name', 'Test result: ' + result.status +
+            ' · exit ' + result.exit_code + ' · receipt ' + result.receipt_sha256));
+          receipt.appendChild(el('pre', 'code-preview', result.output_excerpt || '(no captured output)'));
+          if (result.output_truncated) receipt.appendChild(el('p', 'muted tiny', 'Output was truncated in the display; full output digest is retained in the local receipt.'));
+        } catch (error) {
+          receipt.appendChild(el('p', 'notice error', error.message || String(error)));
+        }
+      });
+      receipt.appendChild(run);
+    } catch (error) {
+      receipt.textContent = error.message || String(error);
+      previewButton.disabled = false;
+    }
+  });
+  section.append(chooser, previewButton, receipt);
+  host.appendChild(section);
+}
+
 function branchDeckPlan(card, host) {
   clear(host);
   host.append(
@@ -101,6 +170,7 @@ function branchDeckPlan(card, host) {
               body: JSON.stringify({...payload, expected_preview_digest: plan.preview_digest, acknowledge_effect: true}),
             });
             report.appendChild(el('p', 'notice', `Created isolated worktree at ${result.destination} (HEAD ${result.actual_commit}). Project tests NOT RUN. Open it through your file manager or terminal to inspect project-owned test instructions.`));
+            branchDeckTestDoor(card, report).catch(error => report.appendChild(el('p', 'notice error', error.message || String(error))));
           } catch (error) {
             report.appendChild(el('p', 'notice error', error.message || String(error)));
           }
