@@ -579,7 +579,7 @@ async function refreshCurrent() {
     if (state.view === 'house') await Promise.all([loadHouse(), loadRepos(), loadMachine(), loadBroadcastDoor()]);
     else if (state.view === 'machine') await loadMachine();
     else if (state.view === 'repos') await loadRepos();
-    else if (state.view === 'living-main') { await loadRepos(); renderLivingMain(); }
+    else if (state.view === 'living-main') { await loadRepos(); livingMainInvalidate(); renderLivingMain(); }
     else if (state.view === 'objects') renderObjects();
     else if (state.view === 'creator') await Promise.all([loadRepos(), loadCreatorDesk()]);
     else if (state.view === 'maxhinal') await nativeMaxhinalLoad();
