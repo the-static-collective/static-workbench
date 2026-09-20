@@ -236,6 +236,7 @@ function renderNativeMaxhinal() {
     el('h2', '', 'The HOUSE Maxhinal'),
     el('p', 'muted', 'This is a separate HOUSE instrument inspired by the Daily Slice Maxhinal. Pick specific files under configured roots or saved Creator Desk source packs. It does not scan your computer, run selected code, interpret binary media, or change project files.'));
   workspaceBody.appendChild(header);
+  oldGrowthMount(workspaceBody);
   const rack = el('section', 'card native-maxhinal-rack');
   nativeMaxhinalAppendFile(rack);
   nativeMaxhinalAppendPack(rack);

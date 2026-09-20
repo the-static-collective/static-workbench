@@ -163,6 +163,10 @@ class CreatorShelf:
                 mode TEXT NOT NULL,
                 payload_json TEXT NOT NULL
             )""")
+            db.execute("""CREATE TABLE IF NOT EXISTS house_old_growth_imports(
+                packet_sha256 TEXT PRIMARY KEY,
+                ride_id INTEGER NOT NULL UNIQUE REFERENCES house_native_maxhinal_rides(id)
+            )""")
             db.execute("""CREATE TABLE IF NOT EXISTS house_graft_rounds(
                 round_sha256 TEXT PRIMARY KEY,
                 created_at TEXT NOT NULL,
@@ -275,6 +279,48 @@ class CreatorShelf:
             ).lastrowid)
         return {"id": new_id, "ride_sha256": ride_digest, "fuel_sha256": ride["fuel_sha256"],
                 "mode": ride["mode"]}
+
+    def save_old_growth_ride(self, ride: dict[str, Any], packet_sha256: str) -> dict[str, Any]:
+        """Idempotently save one human-reviewed local Git source ride.
+
+        Only Workbench-owned SQLite is changed. Repeated confirmed imports for
+        one frozen packet return the same native ride identity.
+        """
+        if (not isinstance(packet_sha256, str) or len(packet_sha256) != 64
+            or ride.get("old_growth_packet_sha256") != packet_sha256
+            or ride.get("fuel_sha256") != packet_sha256
+            or ride.get("engine") != "house.old-growth-pinned-import/v0.2"
+            or ride.get("authority") != "none" or ride.get("promotion") != "NONE"):
+            raise CreatorConflict("OLD-GROWTH source identity or authority is invalid")
+        payload = _json(ride)
+        digest = _digest(payload.encode("utf-8"))
+        if len(payload.encode("utf-8")) > 32768:
+            raise CreatorConflict("OLD-GROWTH ride exceeds bounded 32 KiB receipt")
+        with self._connect() as db:
+            db.execute("BEGIN IMMEDIATE")
+            prior = db.execute(
+                """SELECT r.id,r.ride_digest,r.payload_json FROM house_old_growth_imports AS i
+                   JOIN house_native_maxhinal_rides AS r ON r.id=i.ride_id
+                   WHERE i.packet_sha256=?""", (packet_sha256,),
+            ).fetchone()
+            if prior is not None:
+                if (prior["ride_digest"] != digest
+                    or _digest(prior["payload_json"].encode("utf-8")) != digest):
+                    raise CreatorConflict("Existing OLD-GROWTH import changed or conflicts")
+                return {"id": prior["id"], "ride_sha256": digest,
+                        "fuel_sha256": packet_sha256, "mode": "compose", "replayed": True}
+            rid = int(db.execute(
+                """INSERT INTO house_native_maxhinal_rides
+                   (created_at,fuel_digest,ride_digest,mode,payload_json)
+                   VALUES(?,?,?,?,?)""",
+                (_now(), packet_sha256, digest, "compose", payload),
+            ).lastrowid)
+            db.execute(
+                "INSERT INTO house_old_growth_imports(packet_sha256,ride_id) VALUES(?,?)",
+                (packet_sha256, rid),
+            )
+        return {"id": rid, "ride_sha256": digest, "fuel_sha256": packet_sha256,
+                "mode": "compose", "replayed": False}
 
     def list_native_rides(self) -> list[dict[str, Any]]:
         with self._connect() as db:

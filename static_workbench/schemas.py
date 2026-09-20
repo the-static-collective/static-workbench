@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 class RootInfo(BaseModel):
@@ -192,3 +192,32 @@ class LivingMomentDraftRequest(BaseModel):
     text: str = Field(min_length=1, max_length=32768)
     admitted_by: str = Field(min_length=1, max_length=120)
     reviewed: bool = False
+
+
+class OldGrowthPinnedSource(BaseModel):
+    model_config = ConfigDict(extra="forbid", strict=True)
+    root_id: str = Field(min_length=1, max_length=64)
+    repo_path: str = Field(min_length=1, max_length=256)
+    repository: str = Field(min_length=1, max_length=256)
+    commit: str = Field(pattern=r"^[0-9a-f]{40}$")
+    path: str = Field(min_length=1, max_length=256)
+    start_byte: int = Field(ge=0, le=131072)
+    end_byte: int = Field(gt=0, le=131072)
+
+
+class OldGrowthPreviewRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid", strict=True)
+    source_a: OldGrowthPinnedSource
+    source_b: OldGrowthPinnedSource
+    keep: str = Field(min_length=1, max_length=400)
+    bend: str = Field(min_length=1, max_length=400)
+    question: str = Field(min_length=1, max_length=400)
+    relation_lane: str = Field(pattern=r"^(semantic|lineage|active_tension|human_link|rejected_parallel)$")
+    move: str = Field(default="fuse", pattern=r"^(fuse|invert|continue|wildcard)$")
+
+
+class OldGrowthImportRequest(OldGrowthPreviewRequest):
+    expected_packet_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
+    reviewed_excerpt_sha256: list[str] = Field(min_length=2, max_length=2)
+    human_confirmed: bool
+

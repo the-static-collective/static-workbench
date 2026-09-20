@@ -16,6 +16,7 @@ from .config import RootConfig, WorkbenchConfig, load_config
 from .dogram_impact import ImpactDeskError, preview_impact, run_impact, read_report
 from .graft_witness import GraftWitnessError, preview as preview_graft, measure as measure_graft
 from .graft_round import preview_round, save_round
+from .old_growth_import import preview as preview_old_growth, import_reviewed as import_old_growth
 from .graft_draft import candidate_context, open_draft, save_draft
 from .creator import creator_desk_status, search_sources
 from .creator_shelf import CreatorShelf, CreatorConflict, preview_pack
@@ -44,6 +45,8 @@ from .schemas import (
     GraftWitnessRunRequest,
     GraftRoundPreviewRequest,
     GraftRoundSaveRequest,
+    OldGrowthPreviewRequest,
+    OldGrowthImportRequest,
     GraftDraftSaveRequest,
     ApertureHistoryResponse,
     ApertureRecordResponse,
@@ -422,6 +425,29 @@ def create_app(config: WorkbenchConfig | None = None) -> FastAPI:
         if saved is None:
             raise HTTPException(status_code=404, detail="native Maxhinal ride not found")
         return saved
+
+    @app.post("/api/house-maxhinal/old-growth/preview")
+    def old_growth_preview(payload: OldGrowthPreviewRequest, request: Request):
+        _creator_write_guard(request)
+        try:
+            return preview_old_growth(config, **payload.model_dump())
+        except (ValueError, FileNotFoundError, OSError, UnicodeError) as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+    @app.post("/api/house-maxhinal/old-growth/import")
+    def old_growth_import(payload: OldGrowthImportRequest, request: Request):
+        _creator_write_guard(request)
+        try:
+            result = import_old_growth(config, creator_shelf, **payload.model_dump())
+        except (ValueError, FileNotFoundError, OSError, UnicodeError) as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+        if not result["receipt"]["replayed"]:
+            journal.append("house.old_growth.local_ride_imported", {
+                "ride_id": result["receipt"]["id"],
+                "packet_sha256": payload.expected_packet_sha256,
+                "status": "local_ride_saved_not_grafted",
+            })
+        return result
 
     @app.post("/api/house-maxhinal/graft/rounds/preview")
     def graft_round_preview(payload: GraftRoundPreviewRequest, request: Request):
