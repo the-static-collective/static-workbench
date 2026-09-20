@@ -9,6 +9,9 @@ preview_bytes = 131072
 # Uses no token, only an explicitly selected public Collective origin.
 # github_remote_discovery = true
 
+# Optional effectful Git worktree preparation (requires explicit two-step browser action).
+# branch_worktrees_enabled = true
+
 # Optional: explicit port chosen when starting the project-owned Static Broadcast console.
 # Uncomment only after updating Static Live and starting its local service on this port.
 # broadcast_port = 3008
