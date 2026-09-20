@@ -155,6 +155,15 @@ class CreatorShelf:
                 pack_id INTEGER NOT NULL REFERENCES creator_packs(id),
                 created_at TEXT NOT NULL
             )""")
+            db.execute("""CREATE TABLE IF NOT EXISTS creator_maxhinal_rides(
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                pack_id INTEGER NOT NULL REFERENCES creator_packs(id),
+                created_at TEXT NOT NULL,
+                digest TEXT NOT NULL,
+                source_ride_id TEXT NOT NULL,
+                raw_json TEXT NOT NULL,
+                summary_json TEXT NOT NULL
+            )""")
             db.execute("""CREATE TABLE IF NOT EXISTS creator_revisions(
                 draft_id INTEGER NOT NULL REFERENCES creator_drafts(id),
                 revision INTEGER NOT NULL,
@@ -186,9 +195,56 @@ class CreatorShelf:
         return [{"id": row["id"], "created_at": row["created_at"], "pack_sha256": row["digest"],
                  "source_count": json.loads(row["payload_json"])["source_count"]} for row in rows]
 
+    def save_maxhinal_ride(self, pack_id: int, raw_json: str, summary: dict[str, Any]) -> dict[str, Any]:
+        with self._connect() as db:
+            if db.execute("SELECT 1 FROM creator_packs WHERE id=?", (pack_id,)).fetchone() is None:
+                raise CreatorConflict("selected source pack is missing")
+            saved = db.execute(
+                """INSERT INTO creator_maxhinal_rides
+                (pack_id,created_at,digest,source_ride_id,raw_json,summary_json)
+                VALUES(?,?,?,?,?,?)""",
+                (pack_id, _now(), summary["ride_sha256"], summary["ride_id"], raw_json, _json(summary)),
+            )
+            saved_id = int(saved.lastrowid)
+        return {"id": saved_id, "pack_id": pack_id, **summary}
+
+    def get_maxhinal_ride(self, ride_id: int, include_raw: bool = False) -> dict[str, Any] | None:
+        with self._connect() as db:
+            row = db.execute(
+                "SELECT id,pack_id,created_at,raw_json,summary_json FROM creator_maxhinal_rides WHERE id=?",
+                (ride_id,),
+            ).fetchone()
+        if row is None:
+            return None
+        result = {"id": row["id"], "pack_id": row["pack_id"], "created_at": row["created_at"],
+                  **json.loads(row["summary_json"])}
+        if include_raw:
+            result["raw_json"] = row["raw_json"]
+        return result
+
+    def list_maxhinal_rides(self) -> list[dict[str, Any]]:
+        with self._connect() as db:
+            rows = db.execute(
+                """SELECT id,pack_id,created_at,digest,source_ride_id FROM creator_maxhinal_rides
+                ORDER BY id DESC LIMIT 50"""
+            ).fetchall()
+        return [
+            {"id": row["id"], "pack_id": row["pack_id"], "created_at": row["created_at"],
+             "ride_sha256": row["digest"], "ride_id": row["source_ride_id"]}
+            for row in rows
+        ]
+
     def save_revision(self, draft_id: int | None, expected_revision: int, payload: dict[str, Any]) -> dict[str, Any]:
         if len(payload["body"].encode("utf-8")) > MAX_DRAFT_BYTES:
             raise ValueError("draft exceeds 32 KiB")
+        linked_ride_id = payload.get("maxhinal_ride_id")
+        if linked_ride_id is not None:
+            with self._connect() as db:
+                row = db.execute(
+                    "SELECT pack_id FROM creator_maxhinal_rides WHERE id=?", (linked_ride_id,)
+                ).fetchone()
+            if row is None or row["pack_id"] != payload["pack_id"]:
+                raise CreatorConflict("Maxhinal ride must be explicitly docked to this source pack")
         packed = _json(payload)
         body_digest = _digest(payload["body"].encode("utf-8"))
         now = _now()
