@@ -26,6 +26,9 @@ from .journal import Journal, SenseFieldRecord
 from .return_desk import ReturnDesk, ReturnConflict, NoteInput, SessionInput, CheckpointInput
 from .rocket import RocketDesk, RocketConflict, RocketMissionInput, RocketAdvanceInput, RocketSeparateInput
 from .house import build_house_status
+from .composition_inspection import CompositionInspectionError, inspect_composition
+from .living_main import CompositionError, preview_composition
+from .relation_chamber import RelationError, preview_relation
 from .machine import sample_machine
 from .paths import PathOutsideRoot, resolve_under_root
 from .repos import discover_repositories
@@ -45,6 +48,7 @@ from .schemas import (
     GraftRoundPreviewRequest,
     GraftRoundSaveRequest,
     GraftDraftSaveRequest,
+    CompositionInspectRequest,
     ApertureHistoryResponse,
     ApertureRecordResponse,
     BootstrapResponse,
@@ -188,6 +192,18 @@ def create_app(config: WorkbenchConfig | None = None) -> FastAPI:
         status = build_house_status(result)
         journal.append("house.scanned", status["summary"])
         return status
+
+    @app.post("/api/house/composition/inspect")
+    def house_composition_inspect(payload: CompositionInspectRequest, request: Request):
+        # Parsing untrusted pasted JSON is a read-only operation, but protect
+        # this local inspection surface with the same session and origin gate
+        # used for other browser-submitted payloads. It stores no descriptor.
+        _creator_write_guard(request)
+        try:
+            repos = discover_repositories(config.roots, config.max_repo_depth)
+            return inspect_composition(payload.raw_json, repos)
+        except CompositionInspectionError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
 
     @app.get("/api/creator/desk")
     def creator_desk():
@@ -343,6 +359,31 @@ def create_app(config: WorkbenchConfig | None = None) -> FastAPI:
             "mission_id": mission_id, "stage_sha256": result["sha256"],
         })
         return result
+
+    @app.post("/api/living-main/preview")
+    def living_main_preview(payload: dict, request: Request):
+        _creator_write_guard(request)
+        if set(payload) != {"selections"}:
+            raise HTTPException(status_code=400, detail="only selections is accepted")
+        repos = discover_repositories(config.roots, config.max_repo_depth)
+        try:
+            return preview_composition(config.roots, repos, payload["selections"])
+        except (CompositionError, OSError, ValueError) as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+    @app.post("/api/living-main/relations/preview")
+    def living_main_relation_preview(payload: dict, request: Request):
+        _creator_write_guard(request)
+        if set(payload) != {"selections", "declaration", "expected_configuration_id"}:
+            raise HTTPException(status_code=400, detail="selections, declaration and expected_configuration_id required")
+        try:
+            repos = discover_repositories(config.roots, config.max_repo_depth)
+            composition = preview_composition(config.roots, repos, payload["selections"])
+            if composition["configuration_id"] != payload["expected_configuration_id"]:
+                raise RelationError("composition changed since preview; inspect the body again")
+            return preview_relation(composition, payload["declaration"])
+        except (CompositionError, RelationError, OSError, ValueError) as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
 
     @app.post("/api/dogram/impact/preview")
     def dogram_impact_preview(payload: DogramImpactRequest, request: Request):
