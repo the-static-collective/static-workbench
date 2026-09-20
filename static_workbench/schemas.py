@@ -27,6 +27,11 @@ class ObjectResponse(BaseModel):
     entries: list[str] | None = None
 
 
+class CompositionInspectRequest(BaseModel):
+    raw_json: str = Field(min_length=1, max_length=65536)
+
+
+
 class ApertureAnalyzeRequest(BaseModel):
     raw_text: str = Field(min_length=1, max_length=20_000)
     context_text: str | None = Field(default=None, max_length=20_000)
