@@ -15,6 +15,16 @@ preview_bytes = 131072
 # Optional rolling public Collective branch scan: five repos per 30-minute cycle.
 # branch_radar_enabled = true
 
+# OPTIONAL: operator-approved test suite for an exact public Collective repo.
+# This executes project code AS YOUR WORKBENCH OS USER, not in a security sandbox.
+# It is NEVER run automatically; preview exact worktree/commit/argv and confirm
+# each execution explicitly in Branch Deck. Install dependencies separately.
+# [[branch_test_suites]]
+# repo = "the-static-collective/static-workbench"
+# id = "python-pytest"
+# argv = ["python3", "-m", "pytest", "-q"]
+# timeout_seconds = 90
+
 # Optional: explicit port chosen when starting the project-owned Static Broadcast console.
 # Uncomment only after updating Static Live and starting its local service on this port.
 # broadcast_port = 3008
