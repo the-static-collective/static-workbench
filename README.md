@@ -131,6 +131,13 @@ STATIC_WORKBENCH_CONFIG=./config.example.toml static-workbench
 
 If `~/static` does not exist yet, either create it or edit the example configuration before starting.
 
+
+## HOUSE × Founder Node — manual composition inspection v0.1
+
+**Composition inspection** in the browser navigator accepts a human-pasted, bounded Founder Node v0.1 Workbench inspection descriptor. It validates the proposal-only contract against claims of execution authority, then compares declared repository *names* against Git worktrees under the configured HOUSE roots. Each participant is reported as missing, present (one name match), or ambiguous (multiple name matches), with local branch/HEAD/dirty data for an unambiguous candidate. This is a manual, read-only lookup—not a synchronized Founder Node connector, a remote identity check, a service readiness test, or an adapter invocation.
+
+The source JSON, registry date and claimed project identity remain **unverified** even when a checkout name matches. No imported payload or resulting preview is persisted or promoted to a project-native receipt. See [the bounded inspection contract](docs/house-founder-composition-inspection-v01.md).
+
 ## Current boundaries
 
 The Workbench journal is operational bookkeeping, **not** a replacement for project-native receipts or TranchNode. HumanTerminal sense-field receipts are likewise Workbench-owned formation history, not evidence or project authority. A Workbench invocation/correlation identity never replaces source or destination identity.
