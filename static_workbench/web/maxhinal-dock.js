@@ -29,8 +29,60 @@ function maxhinalSourceDoor() {
   card.appendChild(guide);
   return card;
 }
+function maxhinalRenderSummary(packet, host) {
+  host.append(
+    el('div', 'repo-name', packet.ride_id + ' · ' + packet.ride_sha256),
+    el('div', 'muted tiny', 'Corpus (self-reported): ' + packet.corpus_digest + ' · Replay (self-reported): ' + packet.reported_replay),
+    el('div', 'muted tiny', packet.source_slice_ids.length + ' Slice gas refs · ' + packet.operations.length + ' operations · ' + packet.output_count + ' derived outputs')
+  );
+  packet.operations.forEach(op => host.appendChild(el('div', 'muted tiny',
+    op.id + ' / ' + op.mode + ' → ' + op.outputs.join(', '))));
+  const notes = [];
+  (packet.projections || []).forEach(out => {
+    const card = el('article', 'creator-preview-source');
+    card.append(el('div', 'repo-name', 'PROJECTION ' + out.id + ' · ' + out.mode),
+      el('pre', 'raw-carrier', out.excerpt),
+      el('div', 'muted tiny', 'Derived from ' + out.source_operation_id + '. This is an unverified imported machine output, not project canon.'));
+    host.appendChild(card);
+    notes.push('PROJECTION ' + out.id + ' / ' + out.mode + ' / ' + out.source_operation_id + '\n' + out.excerpt);
+  });
+  const residuals = el('div', 'gap-list');
+  packet.residuals.forEach(res => {
+    residuals.appendChild(el('div', 'gap-item', 'RESIDUAL ' + res.id + ' / ' + res.code + ': ' + res.message));
+    notes.push('RESIDUAL ' + res.id + ' / ' + res.code + ': ' + res.message);
+  });
+  packet.bad_spins.forEach(bad => {
+    residuals.appendChild(el('div', 'gap-item', 'BAD SPIN ' + bad.id + ': ' + bad.reason));
+    notes.push('BAD SPIN ' + bad.id + ': ' + bad.reason);
+  });
+  host.appendChild(residuals);
+  const copy = el('button', 'quiet-button', 'Copy reviewed ride projections + residuals');
+  copy.type = 'button';
+  const status = el('div', 'creator-feedback');
+  copy.addEventListener('click', async () => {
+    const text = [
+      'MAXHINAL / HUMAN-SELECTED IMPORTED RIDE NOTES',
+      'Source ride ' + packet.ride_id + ' · exact pasted-byte SHA-256 ' + packet.ride_sha256,
+      'Corpus self-reported: ' + packet.corpus_digest,
+      'Slice gas: ' + packet.source_slice_ids.join(', '),
+      'Source pack != Slice gas. This is unverified imported creative material, not proof or canon.',
+      ...notes,
+    ].join('\n\n');
+    clear(status);
+    try {
+      await navigator.clipboard.writeText(text);
+      creatorV2Message(status, 'Copied by explicit request; paste into a HOUSE draft as you choose.', false);
+    } catch (_) {
+      const manual = el('textarea', 'handoff-manual');
+      manual.readOnly = true; manual.value = text;
+      status.appendChild(manual);
+      manual.focus(); manual.select();
+    }
+  });
+  host.append(copy, status);
+}
+
 function maxhinalRenderDock(host, s) {
-  host.appendChild(maxhinalSourceDoor());
   if (!s.pack) return;
   const card = el('article', 'card maxhinal-ride-dock');
   card.append(el('div', 'eyebrow', 'MAXHINAL / EXPLICIT RIDE RE-ENTRY'),
@@ -47,13 +99,29 @@ function maxhinalRenderDock(host, s) {
     option.value = String(item.id);
     chooser.appendChild(option);
   }
+  const inspect = el('button', 'quiet-button', 'Inspect selected docked ride');
+  inspect.type = 'button';
+  const inspected = el('div', 'maxhinal-ride-preview');
+  inspect.addEventListener('click', async () => {
+    clear(inspected);
+    if (!chooser.value) {
+      creatorV2Message(inspected, 'Select a docked ride first.', true);
+      return;
+    }
+    try {
+      const saved = await api('/api/creator/maxhinal/rides/' + encodeURIComponent(chooser.value));
+      maxhinalRenderSummary(saved, inspected);
+    } catch (error) {
+      creatorV2Message(inspected, error.message || String(error), true);
+    }
+  });
   const linked = s.linkedRideId === undefined ? (s.draft?.maxhinal_ride_id || null) : s.linkedRideId;
   chooser.value = linked === null ? '' : String(linked);
   chooser.addEventListener('change', () => {
     s.linkedRideId = chooser.value ? Number(chooser.value) : null;
   });
   card.appendChild(el('div', 'muted tiny', 'Attach a reviewed docked ride on your NEXT explicit draft save:'));
-  card.appendChild(chooser);
+  card.append(chooser, inspect, inspected);
   const file = el('textarea', 'maxhinal-ride-json');
   file.rows = 5; file.maxLength = 131072;
   file.setAttribute('aria-label', 'Paste actual exported Maxhinal ride JSON');
@@ -70,16 +138,7 @@ function maxhinalRenderDock(host, s) {
         pack_id: s.pack.id, raw_json,
       });
       const checksum = packet.ride_sha256;
-      feedback.append(
-        el('div', 'repo-name', packet.ride_id + ' · ' + checksum),
-        el('div', 'muted tiny', 'Corpus (self-reported): ' + packet.corpus_digest + ' · Replay (self-reported): ' + packet.reported_replay),
-        el('div', 'muted tiny', packet.source_slice_ids.length + ' Slice gas refs · ' + packet.operations.length + ' operations · ' + packet.output_count + ' derived outputs')
-      );
-      packet.operations.forEach(op => feedback.appendChild(el('div', 'muted tiny', op.id + ' / ' + op.mode + ' → ' + op.outputs.join(', '))));
-      const residuals = el('div', 'gap-list');
-      packet.residuals.forEach(res => residuals.appendChild(el('div', 'gap-item', 'RESIDUAL ' + res.id + ' / ' + res.code + ': ' + res.message)));
-      packet.bad_spins.forEach(bad => residuals.appendChild(el('div', 'gap-item', 'BAD SPIN ' + bad.id + ': ' + bad.reason)));
-      feedback.appendChild(residuals);
+      maxhinalRenderSummary(packet, feedback);
       feedback.appendChild(el('p', 'muted tiny', 'Review all material in the original Maxhinal before saving. HOUSE stores the entire untrusted JSON byte-for-byte, and does not recompute its operations or claim a matching local corpus.'));
       const save = el('button', 'action-button', 'Dock this reviewed ride locally');
       save.type = 'button';
