@@ -169,7 +169,6 @@
   }
   // User-initiated passage capture within a declared Workbench context only.
   // Selecting text does not persist it or send a request.
-  const host = document.getElementById("workspace-body");
   const capture = document.createElement("button");
   capture.type = "button";
   capture.className = "attention-capture-button";
