@@ -581,7 +581,7 @@ async function refreshCurrent() {
     if (state.view === 'house') await Promise.all([loadHouse(), loadRepos(), loadMachine(), loadBroadcastDoor()]);
     else if (state.view === 'machine') await loadMachine();
     else if (state.view === 'repos') await loadRepos();
-    else if (state.view === 'branches') await loadBranchDeck();
+    else if (state.view === 'branches') await Promise.all([loadBranchDeck(), loadBranchRadar()]);
     else if (state.view === 'objects') renderObjects();
     else if (state.view === 'creator') await Promise.all([loadRepos(), loadCreatorDesk()]);
     else if (state.view === 'maxhinal') await nativeMaxhinalLoad();
@@ -599,13 +599,17 @@ async function start() {
     renderRoots();
     await Promise.all([loadMachine(), loadRepos(), loadHouse(), loadCreatorDesk(), loadApertureHistory(), loadBroadcastDoor()]);
     await loadBranchDeck().catch(() => { $('#branch-count').textContent = '!'; });
+    await loadBranchRadar().catch(() => {});
     await creatorV2Load();
     await nativeMaxhinalLoad();
     renderHouse();
     await loadEvents();
     window.setInterval(() => loadEvents().catch(() => {}), 5000);
     window.setInterval(() => {
-      if (document.visibilityState === 'visible') loadBranchDeck().catch(() => { $('#branch-count').textContent = '!'; });
+      if (document.visibilityState === 'visible') {
+        loadBranchDeck().catch(() => { $('#branch-count').textContent = '!'; });
+        loadBranchRadar().catch(() => {});
+      }
     }, 120000);
   } catch (error) {
     $('#node-label').textContent = 'supervisor unavailable';
