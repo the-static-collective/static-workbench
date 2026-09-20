@@ -130,3 +130,17 @@ class DogramImpactRunRequest(DogramImpactRequest):
     expected_input_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
     expected_candidate_commit: str = Field(pattern=r"^[0-9a-f]{40}$")
     expected_dogram_commit: str = Field(pattern=r"^[0-9a-f]{40}$")
+
+
+class GraftWitnessPreviewRequest(BaseModel):
+    ride_id: int = Field(ge=1)
+    ride_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
+    graph: dict[str, Any]
+    operator: str = Field(pattern=r"^(reach|ablate)$")
+    change: dict[str, Any]
+    queries: list[list[str]] = Field(default_factory=list, max_length=8)
+
+
+class GraftWitnessRunRequest(GraftWitnessPreviewRequest):
+    expected_specimen_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
+    expected_dogram_commit: str = Field(pattern=r"^[0-9a-f]{40}$")
