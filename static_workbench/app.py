@@ -33,6 +33,7 @@ from .branch_deck import build_branch_deck
 from .branch_remote import inspect_github_repo, RemoteDiscoveryError
 from .branch_worktree import WorktreeError, preview_worktree, create_worktree
 from .branch_radar import CollectiveRadar
+from .branch_tests import SuiteError, available_suites, preview_test, run_test
 from .schemas import (
     ApertureAnalyzeRequest,
     CreatorPackRequest,
@@ -51,6 +52,8 @@ from .schemas import (
     GraftDraftSaveRequest,
     BranchWorktreeRequest,
     BranchWorktreeCreateRequest,
+    BranchSuitePreviewRequest,
+    BranchSuiteRunRequest,
     ApertureHistoryResponse,
     ApertureRecordResponse,
     BootstrapResponse,
@@ -326,6 +329,45 @@ def create_app(config: WorkbenchConfig | None = None) -> FastAPI:
             "root_id": selected.root_id, "repo_path": selected.relative_path,
             "commit": result["actual_commit"], "destination": result["destination"],
             "preview_digest": result["preview_digest"], "tests": "not_run",
+        })
+        return result
+
+    @app.get("/api/branches/tests/suites")
+    def test_suites(root_id: str, repo_path: str):
+        repo = next((item for item in discover_repositories(config.roots, config.max_repo_depth)
+                     if item.root_id == root_id and item.relative_path == repo_path), None)
+        if repo is None:
+            raise HTTPException(status_code=404, detail="local repository unavailable")
+        return {"suites": [{"id": suite.id, "repo": suite.repo, "argv": list(suite.argv),
+                            "timeout_seconds": suite.timeout_seconds}
+                           for suite in available_suites(config, repo)],
+                "execution_isolation": "none", "automatic_execution": False}
+
+    @app.post("/api/branches/tests/preview")
+    def test_preview(payload: BranchSuitePreviewRequest, request: Request):
+        _creator_write_guard(request)
+        repo = _worktree_source(payload)
+        try:
+            return preview_test(config, repo, payload.ref, payload.expected_commit, payload.suite_id)
+        except SuiteError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+    @app.post("/api/branches/tests/run")
+    def test_run(payload: BranchSuiteRunRequest, request: Request):
+        _creator_write_guard(request)
+        if payload.acknowledge_code_execution is not True:
+            raise HTTPException(status_code=422, detail="explicit project code execution acknowledgement required")
+        repo = _worktree_source(payload)
+        try:
+            result = run_test(config, repo, payload.ref, payload.expected_commit,
+                              payload.suite_id, payload.expected_preview_digest)
+        except SuiteError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+        journal.append("branches.test_run_finished", {
+            "run_id": result["run_id"], "root_id": repo.root_id,
+            "repo_path": repo.relative_path, "commit": result["commit"],
+            "suite_id": result["suite_id"], "status": result["status"],
+            "receipt_sha256": result["receipt_sha256"],
         })
         return result
 
