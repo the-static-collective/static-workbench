@@ -14,7 +14,7 @@ import subprocess
 from pathlib import Path
 
 from .config import WorkbenchConfig
-from .repos import RepoStatus, _git
+from .repos import RepoStatus
 
 _SHA = re.compile(r"^[0-9a-f]{40}$")
 
@@ -23,12 +23,22 @@ class WorktreeError(ValueError):
     pass
 
 
+def _safe_git_env() -> dict[str, str]:
+    # Ignore ambient user/system filter drivers and process-level Git config.
+    inherited = {k: v for k, v in os.environ.items()
+                 if not k.startswith("GIT_CONFIG_") and k not in {
+                     "GIT_DIR", "GIT_WORK_TREE", "GIT_INDEX_FILE",
+                     "GIT_TEMPLATE_DIR", "GIT_EXEC_PATH", "GIT_ATTRIBUTES_FILE"}}
+    return {**inherited, "GIT_CONFIG_GLOBAL": os.devnull,
+            "GIT_CONFIG_NOSYSTEM": "1", "GIT_OPTIONAL_LOCKS": "0", "LC_ALL": "C"}
+
+
 def _git_checked(path: Path, *arguments: str, timeout: int = 6) -> str:
     try:
         result = subprocess.run(
             ["git", "-C", str(path), *arguments],
             capture_output=True, text=True, timeout=timeout, check=False,
-            env={**os.environ, "GIT_OPTIONAL_LOCKS": "0", "LC_ALL": "C"},
+            env=_safe_git_env(),
         )
     except (OSError, subprocess.TimeoutExpired) as exc:
         raise WorktreeError("git_inspection_unavailable") from exc
@@ -61,8 +71,15 @@ def preview_worktree(
         raise WorktreeError("branch_moved_review_current_commit")
     # Refuse configured external checkout filters; hooks are disabled for this
     # operation. This may refuse repos using Git LFS until separately reviewed.
-    configured = _git(Path(repo.path), "config", "--get-regexp",
-                      r"^filter\..*\.(process|smudge)$")
+    try:
+        configured = subprocess.run(
+            ["git", "-C", str(Path(repo.path)), "config", "--get-regexp",
+             r"^filter\\..*\\.(process|smudge)$"],
+            capture_output=True, text=True, timeout=6, check=False,
+            env=_safe_git_env(),
+        )
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        raise WorktreeError("cannot_verify_checkout_filters") from exc
     if configured.returncode == 0 and configured.stdout.strip():
         raise WorktreeError("checkout_filters_configured_manual_review_required")
     if configured.returncode not in (0, 1):
@@ -105,7 +122,7 @@ def create_worktree(
              "-C", str(Path(repo.path)), "worktree", "add", "--detach",
              str(destination), expected_commit],
             text=True, capture_output=True, timeout=90, check=False,
-            env={**os.environ, "GIT_OPTIONAL_LOCKS": "0", "LC_ALL": "C"},
+            env=_safe_git_env(),
         )
     except (OSError, subprocess.TimeoutExpired) as exc:
         raise WorktreeError("worktree_outcome_uncertain_inspect_destination_and_git_list") from exc
