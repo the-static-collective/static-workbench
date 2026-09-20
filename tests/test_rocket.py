@@ -8,10 +8,11 @@ import pytest
 from fastapi.testclient import TestClient
 
 from static_workbench.app import create_app
+from static_workbench.creator_shelf import CreatorShelf
 from static_workbench.config import RootConfig, WorkbenchConfig
 from static_workbench.rocket import (
     RocketAdvanceInput, RocketConflict, RocketDesk, RocketMissionInput,
-    RocketSelection, RocketSeparateInput,
+    RocketSelection, RocketSeparateInput, RocketLaunchInput,
 )
 
 
@@ -277,3 +278,126 @@ def test_rocket_api_guards_stage_sequence_restart_and_browser_door(tmp_path: Pat
         assert recovered.status_code == 200
         assert len(recovered.json()["stages"]) == 3
         assert recovered.json()["stages"][-1]["sha256"] == separated.json()["sha256"]
+
+
+def test_effectful_creator_seed_is_owner_native_exact_idempotent_and_recoverable(tmp_path):
+    config = config_for(tmp_path)
+    repo = make_repo(config.roots[0].path, "alpha")
+    original = (repo / "README.md").read_bytes()
+    creator = CreatorShelf(config.state_dir / "creator.sqlite3")
+    desk = RocketDesk(config.state_dir / "rockets.sqlite3", config, creator)
+    mission, prepared, executed, separated = make_session(desk, repo)
+    request = RocketLaunchInput(
+        expected_stage_sha256=separated["sha256"],
+        target="creator.seed/v0", authorization="save_creator_seed",
+        title="A deliberate next move", body="Propose a separate interpretation, not source",
+    )
+    first = desk.launch_creator_seed(mission["id"], request)
+    assert first["output"]["owner"] == "static-workbench/Creator Desk"
+    assert first["output"]["other_project_effects"] == "none"
+    native = creator.get_rocket_seed(first["output"]["native_seed_id"])
+    assert native["body"] == request.body
+    assert native["source"]["file_sha256"] == executed["output"]["source"]["file_sha256"]
+    assert native["source_excerpt"] == "a specific sentence\n"
+    assert len(creator.list_rocket_seeds()) == 1
+    assert (repo / "README.md").read_bytes() == original
+    assert git(repo, "status", "--porcelain") == ""
+
+    # A retry and a full supervisor restart return the same owner-native result.
+    assert desk.launch_creator_seed(mission["id"], request)["receipt_sha256"] == first["receipt_sha256"]
+    restarted = RocketDesk(config.state_dir / "rockets.sqlite3", config,
+                           CreatorShelf(config.state_dir / "creator.sqlite3"))
+    assert restarted.get(mission["id"])["effect"]["receipt_sha256"] == first["receipt_sha256"]
+    assert restarted.launch_creator_seed(mission["id"], request)["output"]["native_seed_id"] == native["id"]
+    assert len(restarted.creator_shelf.list_rocket_seeds()) == 1
+
+    with pytest.raises(RocketConflict, match="different payload"):
+        restarted.launch_creator_seed(mission["id"], request.model_copy(
+            update={"body": "silently replace original proposal"}))
+    other = make_repo(config.roots[0].path, "beta")
+    with pytest.raises(RocketConflict, match="exact receipt"):
+        restarted.create(source_input(
+            other, parent_id=mission["id"],
+            expected_parent_sha256=separated["sha256"],
+        ))
+    child = restarted.create(source_input(
+        other, parent_id=mission["id"],
+        expected_parent_sha256=first["receipt_sha256"],
+    ))
+    assert child["stages"] == [] and child["parent_sha256"] == first["receipt_sha256"]
+
+
+def test_effect_refuses_source_change_stale_authorization_and_retroactive_mutation(tmp_path):
+    config = config_for(tmp_path)
+    repo = make_repo(config.roots[0].path, "alpha")
+    creator = CreatorShelf(config.state_dir / "creator.sqlite3")
+    desk = RocketDesk(config.state_dir / "rockets.sqlite3", config, creator)
+    mission, _, _, separated = make_session(desk, repo)
+    good = RocketLaunchInput(
+        expected_stage_sha256=separated["sha256"],
+        target="creator.seed/v0", authorization="save_creator_seed",
+        title="Explicit", body="Owner-owned local output",
+    )
+    with pytest.raises(RocketConflict, match="separation receipt"):
+        desk.launch_creator_seed(mission["id"], good.model_copy(update={
+            "expected_stage_sha256": "0" * 64,
+        }))
+    (repo / "README.md").write_text("different now\n", encoding="utf-8")
+    with pytest.raises(RocketConflict, match="dirty"):
+        desk.launch_creator_seed(mission["id"], good)
+    assert creator.list_rocket_seeds() == []
+    git(repo, "checkout", "--", "README.md")
+    child_repo = make_repo(config.roots[0].path, "beta")
+    desk.create(source_input(
+        child_repo, parent_id=mission["id"],
+        expected_parent_sha256=separated["sha256"],
+    ))
+    with pytest.raises(RocketConflict, match="descendant already exists"):
+        desk.launch_creator_seed(mission["id"], good)
+    assert creator.list_rocket_seeds() == []
+
+
+def test_effect_api_enforces_explicit_native_target_and_recovers_after_restart(tmp_path):
+    config = config_for(tmp_path)
+    repo = make_repo(config.roots[0].path, "alpha")
+    with TestClient(create_app(config), base_url="http://127.0.0.1") as client:
+        token = client.get("/api/bootstrap").json()["session_token"]
+        headers = {"X-Workbench-Session": token}
+        mission = client.post("/api/rockets/missions", headers=headers,
+                              json=source_input(repo).model_dump()).json()
+        prepared = client.post(
+            f"/api/rockets/missions/{mission['id']}/prepare", headers=headers,
+        ).json()
+        executed = client.post(
+            f"/api/rockets/missions/{mission['id']}/execute", headers=headers,
+            json={"expected_stage_sha256": prepared["sha256"]},
+        ).json()
+        final = client.post(
+            f"/api/rockets/missions/{mission['id']}/separate", headers=headers,
+            json={"expected_stage_sha256": executed["sha256"],
+                  "next_action": "Human chooses to continue"},
+        ).json()
+        action_url = f"/api/rockets/missions/{mission['id']}/launch-creator-seed"
+        request = {"expected_stage_sha256": final["sha256"], "target": "creator.seed/v0",
+                   "authorization": "save_creator_seed", "title": "A launch",
+                   "body": "A new separate draft"}
+        assert client.post(action_url, json=request).status_code == 403
+        assert client.post(action_url, headers={**headers, "Origin": "http://untrusted.local"},
+                           json=request).status_code == 403
+        assert client.post(action_url, headers=headers, json={
+            **request, "target": "shell.exec/v0",
+        }).status_code == 422
+        launched = client.post(action_url, headers=headers, json=request)
+        assert launched.status_code == 200
+        effect = launched.json()
+        native_id = effect["output"]["native_seed_id"]
+        assert client.get(f"/api/creator/rocket-seeds/{native_id}").json()["body"] == request["body"]
+        assert client.post(action_url, headers=headers, json=request).json()["receipt_sha256"] == effect["receipt_sha256"]
+        assert len(client.get("/api/creator/rocket-seeds").json()["seeds"]) == 1
+        assert any(event["kind"] == "rocket.effect.creator_seed"
+                   for event in client.get("/api/events").json()["events"])
+    with TestClient(create_app(config), base_url="http://127.0.0.1") as client:
+        recovered = client.get(f"/api/rockets/missions/{mission['id']}").json()
+        assert recovered["effect"]["receipt_sha256"] == effect["receipt_sha256"]
+        assert recovered["effect"]["output"]["native_seed_id"] == native_id
+        assert len(client.get("/api/creator/rocket-seeds").json()["seeds"]) == 1
