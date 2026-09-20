@@ -180,7 +180,7 @@ def measure(config: WorkbenchConfig, shelf: CreatorShelf, ride_id: int,
         or receipt.get("status") != "OK"
         or receipt.get("operator") != operator
         or receipt.get("operator_version") != 1
-        or receipt.get("input_digest") != expected_specimen_sha256
+        or receipt.get("input_digest") != "sha256:" + expected_specimen_sha256
     ):
         raise GraftWitnessError("Dogram did not produce an OK receipt for the reviewed specimen")
     record = {
