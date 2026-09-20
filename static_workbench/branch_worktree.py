@@ -74,7 +74,7 @@ def preview_worktree(
     try:
         configured = subprocess.run(
             ["git", "-C", str(Path(repo.path)), "config", "--get-regexp",
-             r"^filter\\..*\\.(process|smudge)$"],
+             r"^filter\..*\.(process|smudge)$"],
             capture_output=True, text=True, timeout=6, check=False,
             env=_safe_git_env(),
         )
