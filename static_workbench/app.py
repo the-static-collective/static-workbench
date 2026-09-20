@@ -26,6 +26,7 @@ from .journal import Journal, SenseFieldRecord
 from .return_desk import ReturnDesk, ReturnConflict, NoteInput, SessionInput, CheckpointInput
 from .rocket import RocketDesk, RocketConflict, RocketMissionInput, RocketAdvanceInput, RocketSeparateInput, RocketLaunchInput
 from .house import build_house_status
+from .mirror import mirror_router
 from .composition_inspection import CompositionInspectionError, inspect_composition
 from .living_main import CompositionError, preview_composition
 from .relation_chamber import RelationError, preview_relation
@@ -151,6 +152,7 @@ def create_app(config: WorkbenchConfig | None = None) -> FastAPI:
     app.state.return_desk = return_desk
     app.state.rocket_desk = rocket_desk
     app.state.session_token = session_token
+    app.include_router(mirror_router(config.state_dir, session_token, journal))
 
     web_dir = Path(__file__).resolve().parent / "web"
     app.mount("/assets", StaticFiles(directory=web_dir), name="assets")
