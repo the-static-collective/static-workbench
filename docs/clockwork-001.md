@@ -1,6 +1,6 @@
 # CLOCKWORK-001 — Experimental clock-of-clocks
 
-Status: experimental, non-canonical, read-only. `static_workbench.clockwork` has no runtime or UI hook, uses only Python standard library, and makes no project-native receipts. Run `python -m static_workbench.clockwork --tick 960`; run `pytest tests/test_clockwork.py -q`.
+Status: experimental, non-canonical, read-only. `static_workbench.clockwork` has no runtime or UI hook, uses only Python standard library, and makes no project-native receipts. Run `python -m static_workbench.clockwork --tick 960 --steps 16 --interval-seconds 1` to emit one abstract state per wall-clock second; the pace is explicitly **not** the actual duration of a Chinese, Hindu, or biblical calendrical unit. Run `pytest tests/test_clockwork.py -q`.
 
 ## Boundaries
 
