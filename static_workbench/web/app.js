@@ -97,6 +97,7 @@ function renderHouse() {
   pulse.append(el('div', 'pulse-number', String(house.summary.repos)), el('div', 'muted tiny', 'repos visible'));
   hero.append(copy, pulse);
   workspaceBody.appendChild(hero);
+  workspaceBody.appendChild(branchDeckTeaser());
 
   const summary = el('div', 'metric-grid house-metrics');
   summary.append(
@@ -116,9 +117,22 @@ function renderHouse() {
   const terminal = el('button', 'action-card');
   terminal.append(el('strong', '', 'Open HumanTerminal'), el('span', 'muted', 'Preserve a raw carrier and bounded sense-field cut without promoting meaning to authority.'));
   terminal.addEventListener('click', renderHumanTerminal);
+  const returns = el('button', 'action-card');
+  returns.append(el('strong', '', 'Inspect Capability Returns'),
+    el('span', 'muted', 'Read existing local self-reported returns; their artifacts and outcomes are not independently verified.'));
+  returns.addEventListener('click', renderReturnShelf);
   const creator = el('button', 'action-card');
   creator.append(el('strong', '', 'Open Creator Desk'), el('span', 'muted', 'Search a chosen local source and carry its exact provenance into a draft or research brief.'));
   creator.addEventListener('click', renderCreatorDesk);
+  const livingMain = el('button', 'action-card');
+  livingMain.append(el('strong', '', 'Compose Living Main'), el('span', 'muted', 'Review clean exact-source bodies and explicitly declared relationships without executing them.'));
+  livingMain.addEventListener('click', renderLivingMain);
+  const mirror = el('button', 'action-card');
+  mirror.append(el('strong', '', 'Open MIRROR'), el('span', 'muted', 'Select and restyle the Workbench-owned demo, review an exact CSS patch, and apply only with approval.'));
+  mirror.addEventListener('click', () => renderMirror().catch(showError));
+  const inspectComposition = el('button', 'action-card');
+  inspectComposition.append(el('strong', '', 'Inspect composition'), el('span', 'muted', 'Review an explicit Founder Node descriptor against observed local checkouts.'));
+  inspectComposition.addEventListener('click', renderCompositionInspection);
   const nativeMaxhinal = el('button', 'action-card');
   nativeMaxhinal.append(el('strong', '', 'Open HOUSE Maxhinal'),
     el('span', 'muted', 'Spin explicitly selected local files and source packs into bounded creative projections with attributable receipts.'));
@@ -131,7 +145,7 @@ function renderHouse() {
   groundkeeper.append(el('strong', '', 'Open GROUNDKEEPER field lab'),
     el('span', 'muted', 'Run synthetic ground-to-sound-to-visual feedback experiments and compare topology changes.'));
   groundkeeper.addEventListener('click', groundkeeperView);
-  actions.append(inspect, terminal, creator, nativeMaxhinal, dogramLab, groundkeeper);
+  actions.append(inspect, livingMain, mirror, inspectComposition, terminal, returns, creator, nativeMaxhinal, dogramLab, groundkeeper);
   const staticLive = house.organs.find(organ => organ.id === 'static-live' && organ.present);
   if (staticLive) {
     const live = el('button', 'action-card');
@@ -169,6 +183,8 @@ function renderHouse() {
   const grid = el('div', 'organ-grid');
   for (const organ of house.organs) {
     const card = el('article', `organ-card ${organ.present ? 'present' : 'missing'}`);
+    card.dataset.attentionKind = 'organ';
+    card.dataset.attentionId = organ.id;
     const top = el('div', 'organ-top');
     top.append(el('strong', '', organ.label), el('span', `state-pill ${organ.present ? 'good' : ''}`, organ.present ? 'present' : 'missing'));
     card.append(top, el('div', 'muted organ-role', organ.role));
@@ -222,6 +238,8 @@ function renderCreatorHits(body, host) {
   for (const hit of body.hits) {
     const card = el('article', 'card creator-hit');
     const marker = `${hit.root_id}:${hit.repo_path}/${hit.source_path}#L${hit.line}`;
+    card.dataset.attentionKind = 'source-hit';
+    card.dataset.attentionId = marker + '@' + (hit.head || 'unborn') + (hit.dirty ? ':dirty' : '');
     card.append(el('div', 'repo-name', marker), el('pre', 'raw-carrier', hit.snippet));
     card.appendChild(el('div', 'muted tiny', `${hit.head || 'unborn HEAD'} · ${hit.dirty ? 'DIRTY WORKTREE; excerpt not commit-anchored' : 'working tree; verify against commit before citing'}`));
     const button = el('button', 'quiet-button', 'Copy source handoff');
@@ -365,6 +383,8 @@ function renderRepoDetail(repo) {
   setWorkspace('Repository', repo.name);
   clear(workspaceBody);
   const card = el('article', 'card');
+  card.dataset.attentionKind = 'repository';
+  card.dataset.attentionId = repo.root_id + ':' + repo.relative_path;
   card.appendChild(el('h2', '', repo.dirty ? 'Working tree has changes' : 'Working tree clean'));
   const dl = el('dl', 'definition-grid');
   const fields = [
@@ -402,6 +422,8 @@ async function inspectObject(rootId, path) {
     setWorkspace('Object', obj.path || rootId);
     clear(workspaceBody);
     const card = el('article', 'card');
+    card.dataset.attentionKind = 'object';
+    card.dataset.attentionId = obj.root_id + ':' + (obj.path || '.');
     const dl = el('dl', 'definition-grid');
     [['Owner root', obj.root_id], ['Kind', obj.kind], ['Relative path', obj.path || '.'], ['Size', obj.size === null ? '—' : formatBytes(obj.size)]].forEach(([k,v]) => dl.append(el('dt','',k), el('dd','',String(v))));
     card.appendChild(dl);
@@ -439,6 +461,8 @@ function renderApertureResult(record) {
   host.appendChild(summary);
 
   const receipt = el('article', 'card aperture-receipt');
+  receipt.dataset.attentionKind = 'sense-cut';
+  receipt.dataset.attentionId = String(record.id);
   receipt.appendChild(el('div', 'eyebrow', `Cut #${record.id} · ${analysis.status}`));
   receipt.appendChild(el('pre', 'raw-carrier', record.raw_text));
   receipt.appendChild(el('div', 'muted tiny', record.parent_id === null ? 'Root sense-field cut.' : `Descends from cut #${record.parent_id}. Earlier receipt remains unchanged.`));
@@ -580,10 +604,18 @@ async function refreshCurrent() {
     if (state.view === 'house') await Promise.all([loadHouse(), loadRepos(), loadMachine(), loadBroadcastDoor()]);
     else if (state.view === 'machine') await loadMachine();
     else if (state.view === 'repos') await loadRepos();
+    else if (state.view === 'branches') await Promise.all([loadBranchDeck(), loadBranchRadar()]);
     else if (state.view === 'objects') renderObjects();
+    else if (state.view === 'attention') await window.HumanValueBar.openShelf();
+    else if (state.view === 'returns') await renderReturnShelf();
     else if (state.view === 'creator') await Promise.all([loadRepos(), loadCreatorDesk()]);
     else if (state.view === 'maxhinal') await nativeMaxhinalLoad();
     else if (state.view === 'dogram-impact') { await loadRepos(); renderDogramImpactDesk(); }
+    else if (state.view === 'return') await returnDeskLoad();
+    else if (state.view === 'mirror') await renderMirror();
+    else if (state.view === 'rocket') await rocketLoad();
+    else if (state.view === 'composition') { await loadRepos(); renderCompositionInspection(); }
+    else if (state.view === 'living-main') { await loadRepos(); livingMainInvalidate(); renderLivingMain(); }
     else if (state.view === 'groundkeeper') groundkeeperView();
     else { await loadApertureHistory(); renderHumanTerminal(); }
     await loadEvents();
@@ -596,11 +628,19 @@ async function start() {
     $('#node-dot').classList.add('online'); $('#node-label').textContent = 'local supervisor online';
     renderRoots();
     await Promise.all([loadMachine(), loadRepos(), loadHouse(), loadCreatorDesk(), loadApertureHistory(), loadBroadcastDoor()]);
+    await loadBranchDeck().catch(() => { $('#branch-count').textContent = '!'; });
+    await loadBranchRadar().catch(() => {});
     await creatorV2Load();
     await nativeMaxhinalLoad();
     renderHouse();
     await loadEvents();
     window.setInterval(() => loadEvents().catch(() => {}), 5000);
+    window.setInterval(() => {
+      if (document.visibilityState === 'visible') {
+        loadBranchDeck().catch(() => { $('#branch-count').textContent = '!'; });
+        loadBranchRadar().catch(() => {});
+      }
+    }, 120000);
   } catch (error) {
     $('#node-label').textContent = 'supervisor unavailable';
     showError(error);
@@ -609,7 +649,7 @@ async function start() {
 
 document.querySelectorAll('.nav-button').forEach(button => button.addEventListener('click', () => {
   const view = button.dataset.view;
-  if (view === 'house') renderHouse(); else if (view === 'machine') renderMachine(); else if (view === 'repos') renderRepos(); else if (view === 'objects') renderObjects(); else if (view === 'creator') { renderCreatorDesk(); creatorV2Load().catch(showError); } else if (view === 'maxhinal') { renderNativeMaxhinal(); nativeMaxhinalLoad().catch(showError); } else if (view === 'dogram-impact') renderDogramImpactDesk(); else if (view === 'groundkeeper') groundkeeperView(); else renderHumanTerminal();
+  if (view === 'house') renderHouse(); else if (view === 'machine') renderMachine(); else if (view === 'repos') renderRepos(); else if (view === 'branches') { branchDeckOpen().catch(showError); } else if (view === 'objects') renderObjects(); else if (view === 'returns') renderReturnShelf(); else if (view === 'attention') { state.view = 'attention'; window.HumanValueBar.openShelf(); } else if (view === 'creator') { renderCreatorDesk(); creatorV2Load().catch(showError); } else if (view === 'maxhinal') { renderNativeMaxhinal(); nativeMaxhinalLoad().catch(showError); } else if (view === 'dogram-impact') renderDogramImpactDesk(); else if (view === 'return') returnDeskLoad().catch(showError); else if (view === 'rocket') { state.view = 'rocket'; rocketLoad().catch(showError); } else if (view === 'mirror') renderMirror().catch(showError); else if (view === 'composition') renderCompositionInspection(); else if (view === 'living-main') renderLivingMain(); else if (view === 'groundkeeper') groundkeeperView(); else renderHumanTerminal();
 }));
 $('#refresh-view').addEventListener('click', refreshCurrent);
 $('#refresh-events').addEventListener('click', () => loadEvents().catch(showError));

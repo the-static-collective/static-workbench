@@ -1,0 +1,589 @@
+"""HOUSE Staged Rocket v0.1: short-lived, allowlisted, read-only compositions.
+
+A mission has at most three immutable stage receipts: prepare, execute, separate.
+Only a person may create a descendant mission; no project executable runs here.
+"""
+from __future__ import annotations
+
+import hashlib
+import json
+import sqlite3
+from datetime import datetime, timezone
+from pathlib import Path
+from typing import Literal
+
+from pydantic import BaseModel, Field
+
+from .config import WorkbenchConfig
+from .creator_shelf import CreatorShelf, CreatorConflict
+from .paths import PathOutsideRoot, resolve_under_root
+from .repos import discover_repositories, _git
+
+
+class RocketConflict(ValueError):
+    pass
+
+
+class RocketSelection(BaseModel):
+    root_id: str = Field(min_length=1, max_length=64)
+    repo_path: str = Field(min_length=1, max_length=300)
+    expected_sha: str = Field(pattern=r"^[a-f0-9]{40}$")
+
+
+class RocketMissionInput(BaseModel):
+    title: str = Field(min_length=1, max_length=160)
+    purpose: str = Field(min_length=1, max_length=2000)
+    mode: Literal["source-preview", "body-overlap", "creator-seed-preview"]
+    selections: list[RocketSelection] = Field(default_factory=list, max_length=2)
+    source_path: str = Field(default="", max_length=300)
+    creator_seed_id: int | None = Field(default=None, ge=1)
+    expected_creator_sha256: str | None = Field(default=None, pattern=r"^[a-f0-9]{64}$")
+    parent_id: int | None = Field(default=None, ge=1)
+    expected_parent_sha256: str | None = Field(default=None, pattern=r"^[a-f0-9]{64}$")
+
+
+class RocketLaunchInput(BaseModel):
+    expected_stage_sha256: str = Field(pattern=r"^[a-f0-9]{64}$")
+    target: Literal["creator.seed/v0"]
+    authorization: Literal["save_creator_seed"]
+    title: str = Field(min_length=1, max_length=160)
+    body: str = Field(min_length=1, max_length=8000)
+
+
+class RocketAdvanceInput(BaseModel):
+    expected_stage_sha256: str = Field(pattern=r"^[a-f0-9]{64}$")
+
+
+class RocketSeparateInput(RocketAdvanceInput):
+    next_action: str = Field(min_length=1, max_length=2000)
+    residual_fog: str = Field(default="", max_length=2000)
+
+
+def _digest(value: dict) -> str:
+    raw = json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+    return hashlib.sha256(raw.encode("utf-8")).hexdigest()
+
+
+def _now() -> str:
+    return datetime.now(timezone.utc).isoformat()
+
+
+class RocketDesk:
+    def __init__(self, path: Path, config: WorkbenchConfig, creator_shelf: CreatorShelf | None = None):
+        self.creator_shelf = creator_shelf
+        self.path = Path(path)
+        self.config = config
+        self.path.parent.mkdir(parents=True, exist_ok=True)
+        with self._connect() as db:
+            db.executescript("""
+                CREATE TABLE IF NOT EXISTS rocket_missions (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    created_at TEXT NOT NULL,
+                    title TEXT NOT NULL,
+                    purpose TEXT NOT NULL,
+                    mode TEXT NOT NULL,
+                    selections_json TEXT NOT NULL,
+                    source_path TEXT NOT NULL,
+                    creator_seed_id INTEGER,
+                    expected_creator_sha256 TEXT,
+                    parent_id INTEGER REFERENCES rocket_missions(id),
+                    parent_sha256 TEXT,
+                    mission_sha256 TEXT NOT NULL
+                );
+                CREATE TABLE IF NOT EXISTS rocket_stages (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    mission_id INTEGER NOT NULL REFERENCES rocket_missions(id),
+                    ordinal INTEGER NOT NULL CHECK (ordinal BETWEEN 1 AND 3),
+                    kind TEXT NOT NULL,
+                    created_at TEXT NOT NULL,
+                    previous_sha256 TEXT,
+                    output_json TEXT NOT NULL,
+                    sha256 TEXT NOT NULL,
+                    UNIQUE(mission_id, ordinal)
+                );
+                CREATE TABLE IF NOT EXISTS rocket_effects (
+                    mission_id INTEGER PRIMARY KEY REFERENCES rocket_missions(id),
+                    created_at TEXT NOT NULL,
+                    request_sha256 TEXT NOT NULL,
+                    stage_sha256 TEXT NOT NULL,
+                    output_json TEXT NOT NULL,
+                    receipt_sha256 TEXT NOT NULL
+                );
+            """)
+            # Migrate the v0.1 local shelf without erasing earlier missions.
+            columns = {row["name"] for row in db.execute("PRAGMA table_info(rocket_missions)")}
+            if "creator_seed_id" not in columns:
+                db.execute("ALTER TABLE rocket_missions ADD COLUMN creator_seed_id INTEGER")
+            if "expected_creator_sha256" not in columns:
+                db.execute("ALTER TABLE rocket_missions ADD COLUMN expected_creator_sha256 TEXT")
+
+    def _connect(self) -> sqlite3.Connection:
+        db = sqlite3.connect(self.path, timeout=5)
+        db.row_factory = sqlite3.Row
+        db.execute("PRAGMA foreign_keys = ON")
+        return db
+
+    @staticmethod
+    def _stage_from_row(row: sqlite3.Row) -> dict:
+        value = dict(row)
+        value["output"] = json.loads(value.pop("output_json"))
+        return value
+
+    @staticmethod
+    def _effect_from_row(row: sqlite3.Row) -> dict:
+        effect = dict(row)
+        effect["output"] = json.loads(effect.pop("output_json"))
+        return effect
+
+    @staticmethod
+    def _mission_from_row(row: sqlite3.Row) -> dict:
+        value = dict(row)
+        value["selections"] = json.loads(value.pop("selections_json"))
+        return value
+
+    def _mission(self, db: sqlite3.Connection, mission_id: int) -> dict:
+        row = db.execute("SELECT * FROM rocket_missions WHERE id = ?", (mission_id,)).fetchone()
+        if row is None:
+            raise RocketConflict("mission not found")
+        return self._mission_from_row(row)
+
+    def _stages(self, db: sqlite3.Connection, mission_id: int) -> list[dict]:
+        rows = db.execute(
+            "SELECT * FROM rocket_stages WHERE mission_id = ? ORDER BY ordinal", (mission_id,)
+        ).fetchall()
+        return [self._stage_from_row(row) for row in rows]
+
+    def get(self, mission_id: int) -> dict | None:
+        with self._connect() as db:
+            row = db.execute("SELECT * FROM rocket_missions WHERE id = ?", (mission_id,)).fetchone()
+            if row is None:
+                return None
+            result = self._mission_from_row(row)
+            result["stages"] = self._stages(db, mission_id)
+            effect = db.execute("SELECT * FROM rocket_effects WHERE mission_id=?", (mission_id,)).fetchone()
+            result["effect"] = self._effect_from_row(effect) if effect else None
+            return result
+
+    def list(self) -> list[dict]:
+        with self._connect() as db:
+            rows = db.execute("""
+                SELECT m.*, COALESCE(MAX(s.ordinal), 0) AS completed_stages
+                FROM rocket_missions AS m
+                LEFT JOIN rocket_stages AS s ON s.mission_id = m.id
+                GROUP BY m.id ORDER BY m.id DESC LIMIT 100
+            """).fetchall()
+            return [self._mission_from_row(row) for row in rows]
+
+    def catalog(self) -> dict:
+        """Discovery is a visibility surface, not permission or readiness."""
+        found = discover_repositories(self.config.roots, self.config.max_repo_depth)
+        entries = []
+        for repo in found:
+            head = _git(Path(repo.path), "rev-parse", "HEAD")
+            sha = head.stdout.strip() if head.returncode == 0 else ""
+            ready = len(sha) == 40 and not repo.dirty
+            entries.append({
+                "root_id": repo.root_id, "repo_path": repo.relative_path, "name": repo.name,
+                "expected_sha": sha if ready else None,
+                "clean": not repo.dirty, "detached": repo.detached,
+                "selectable": ready, "branch": repo.branch,
+            })
+        return {
+            "tools": [
+                {"kind": "repo.snapshot/v0", "effect": "read-only", "stage": "prepare"},
+                {"kind": "source.preview/v0", "effect": "read-only", "stage": "execute"},
+                {"kind": "creator.seed.preview/v0", "effect": "read-only", "stage": "execute"},
+                {"kind": "body.overlap/v0", "effect": "read-only", "stage": "execute",
+                 "notice": "HOUSE-local exact protocol comparison; does not run Free Graph"},
+                {"kind": "mission.seed/v0", "effect": "HOUSE-local receipt only", "stage": "separate"},
+            ],
+            "repos": entries,
+        }
+
+    def _observe(self, selection: dict) -> dict:
+        found = discover_repositories(self.config.roots, self.config.max_repo_depth)
+        matches = [r for r in found if r.root_id == selection["root_id"]
+                   and r.relative_path == selection["repo_path"]]
+        if len(matches) != 1:
+            raise RocketConflict("selected repository is missing or ambiguous in configured roots")
+        repo = matches[0]
+        actual = _git(Path(repo.path), "rev-parse", "HEAD")
+        sha = actual.stdout.strip() if actual.returncode == 0 else ""
+        if len(sha) != 40 or sha != selection["expected_sha"] or repo.dirty:
+            raise RocketConflict("repository moved or became dirty; start a new exact-source mission")
+        return {"root_id": repo.root_id, "repo_path": repo.relative_path,
+                "sha": sha, "branch_hint": repo.branch,
+                "stacks": list(repo.stacks), "clean_at_observation": True}
+
+    def create(self, payload: RocketMissionInput) -> dict:
+        if not payload.title.strip() or not payload.purpose.strip():
+            raise RocketConflict("title and purpose must not be blank")
+        selections = [item.model_dump() for item in payload.selections]
+        distinct = {(v["root_id"], v["repo_path"]) for v in selections}
+        if len(distinct) != len(selections):
+            raise RocketConflict("duplicate source selections")
+        if payload.mode == "source-preview" and (len(selections) != 1 or not payload.source_path.strip()):
+            raise RocketConflict("source-preview requires one repo and an explicit file path")
+        if payload.mode == "body-overlap" and (len(selections) != 2 or payload.source_path):
+            raise RocketConflict("body-overlap requires two repos and no file path")
+        if payload.mode == "creator-seed-preview":
+            if selections or payload.source_path or payload.parent_id is None or (
+                payload.creator_seed_id is None or payload.expected_creator_sha256 is None
+            ):
+                raise RocketConflict("Creator seed preview requires exact parent, native seed ID and digest; no repo selection")
+        elif payload.creator_seed_id is not None or payload.expected_creator_sha256 is not None:
+            raise RocketConflict("native seed selection is only supported in creator-seed-preview mode")
+        if (payload.parent_id is None) != (payload.expected_parent_sha256 is None):
+            raise RocketConflict("parent id and its exact final-stage digest must be supplied together")
+        carrier = payload.model_dump()
+        # No implicit execution: creation records a declared plan only.
+        with self._connect() as db:
+            db.execute("BEGIN IMMEDIATE")
+            if payload.parent_id is not None:
+                parent = self._mission(db, payload.parent_id)
+                stages = self._stages(db, parent["id"])
+                effect = db.execute(
+                    "SELECT receipt_sha256 FROM rocket_effects WHERE mission_id=?",
+                    (parent["id"],),
+                ).fetchone()
+                parent_final = effect["receipt_sha256"] if effect else (
+                    stages[-1]["sha256"] if len(stages) == 3 else None
+                )
+                if parent_final != payload.expected_parent_sha256:
+                    raise RocketConflict("parent has not separated with the selected exact receipt")
+                if payload.mode == "creator-seed-preview":
+                    if effect is None or self.creator_shelf is None:
+                        raise RocketConflict("parent has no owner-native seed effect")
+                    output = db.execute(
+                        "SELECT output_json FROM rocket_effects WHERE mission_id=?",
+                        (parent["id"],),
+                    ).fetchone()
+                    owner_output = json.loads(output["output_json"])
+                    if (owner_output["native_seed_id"] != payload.creator_seed_id or
+                            owner_output["native_content_sha256"] != payload.expected_creator_sha256):
+                        raise RocketConflict("selected Creator seed does not match the parent effect")
+                    native = self.creator_shelf.get_rocket_seed(payload.creator_seed_id)
+                    if native is None or native["content_sha256"] != payload.expected_creator_sha256:
+                        raise RocketConflict("owner-native seed no longer matches its declared identity")
+            created = _now()
+            digest = _digest(carrier)
+            cursor = db.execute("""
+                INSERT INTO rocket_missions
+                (created_at, title, purpose, mode, selections_json, source_path,
+                 creator_seed_id, expected_creator_sha256,
+                 parent_id, parent_sha256, mission_sha256)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, (created, payload.title, payload.purpose, payload.mode,
+                  json.dumps(selections, sort_keys=True), payload.source_path,
+                  payload.creator_seed_id, payload.expected_creator_sha256,
+                  payload.parent_id, payload.expected_parent_sha256, digest))
+            mission_id = int(cursor.lastrowid)
+        return self.get(mission_id)
+
+    @staticmethod
+    def _append(db: sqlite3.Connection, mission: dict, ordinal: int, kind: str,
+                previous: str | None, output: dict) -> dict:
+        content = {"mission_sha256": mission["mission_sha256"],
+                   "mission_id": mission["id"], "ordinal": ordinal,
+                   "kind": kind, "previous_sha256": previous, "output": output}
+        digest = _digest(content)
+        created = _now()
+        cursor = db.execute("""
+            INSERT INTO rocket_stages
+            (mission_id, ordinal, kind, created_at, previous_sha256, output_json, sha256)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+        """, (mission["id"], ordinal, kind, created, previous,
+              json.dumps(output, sort_keys=True, ensure_ascii=False), digest))
+        return {"id": cursor.lastrowid, "mission_id": mission["id"],
+                "ordinal": ordinal, "kind": kind, "created_at": created,
+                "previous_sha256": previous, "output": output, "sha256": digest}
+
+    def _read_source(self, observed: dict, source_path: str, body: bool = False) -> dict:
+        root = next((item for item in self.config.roots if item.id == observed["root_id"]), None)
+        if root is None:
+            raise RocketConflict("unknown root")
+        repo = resolve_under_root(root.path, observed["repo_path"])
+        requested = Path(source_path)
+        if requested.is_absolute() or not requested.parts or any(
+            part in {".", ".."} or part.startswith(".") for part in requested.parts
+        ):
+            raise RocketConflict("source path must be a non-hidden, repository-relative file")
+        if not body and (requested.suffix.lower() not in {".md", ".txt", ".json", ".toml"} or
+                         any(word in part.lower() for part in requested.parts for word in ("secret", "token", "password", "credential", "keyfile"))):
+            raise RocketConflict("unsupported or sensitive-looking source path")
+        candidate = resolve_under_root(repo, source_path)
+        if any((repo.joinpath(*requested.parts[:i])).is_symlink() for i in range(1, len(requested.parts) + 1)):
+            raise RocketConflict("symlink-backed source is not admitted")
+        if not candidate.is_file():
+            raise RocketConflict("source file not found")
+        tracked = _git(repo, "ls-files", "--error-unmatch", "--", source_path)
+        if tracked.returncode != 0:
+            raise RocketConflict("source file is not tracked in selected Git checkout")
+        limit = 32768 if body else 65536
+        with candidate.open("rb") as stream:
+            raw = stream.read(limit + 1)
+        if len(raw) > limit or b"\x00" in raw:
+            raise RocketConflict("source is too large or not UTF-8 text")
+        try:
+            text = raw.decode("utf-8")
+        except UnicodeDecodeError as exc:
+            raise RocketConflict("source is not UTF-8 text") from exc
+        return {"root_id": observed["root_id"], "repo_path": observed["repo_path"],
+                "sha": observed["sha"], "source_path": source_path,
+                "file_sha256": hashlib.sha256(raw).hexdigest(), "bytes": len(raw), "text": text}
+
+    @staticmethod
+    def _interfaces(surface: dict) -> set[tuple[str, str, str, str]]:
+        if surface.get("schema") != "body.surface/v0" or surface.get("authority") != "none":
+            raise RocketConflict("BODY manifest has wrong schema or authority declaration")
+        declared = surface.get("interfaces")
+        if not isinstance(declared, list) or len(declared) > 100:
+            raise RocketConflict("BODY interfaces malformed or over limit")
+        result = set()
+        for item in declared:
+            if not isinstance(item, dict):
+                raise RocketConflict("BODY interface must be a declared object")
+            fields = [item.get(k) for k in ("direction", "kind", "protocol", "version")]
+            if not all(isinstance(v, str) and 0 < len(v) <= 160 for v in fields):
+                raise RocketConflict("BODY interface lacks a typed protocol/version declaration")
+            if fields[0] not in {"emit", "accept"}:
+                raise RocketConflict("unsupported BODY interface direction")
+            result.add(tuple(fields))
+        return result
+
+    def _native_source(self, mission: dict) -> dict:
+        """An exact Creator-owned record, never a repurposed repository identity."""
+        if self.creator_shelf is None or mission["mode"] != "creator-seed-preview":
+            raise RocketConflict("Creator seed adapter is not configured")
+        native = self.creator_shelf.get_rocket_seed(mission["creator_seed_id"])
+        if native is None or native["content_sha256"] != mission["expected_creator_sha256"]:
+            raise RocketConflict("Creator seed unavailable or changed; reopen its exact source")
+        return {
+            "owner": "static-workbench/Creator Desk",
+            "native_seed_id": native["id"],
+            "native_content_sha256": native["content_sha256"],
+            "parent_effect_sha256": mission["parent_sha256"],
+        }
+
+    def prepare(self, mission_id: int) -> dict:
+        with self._connect() as db:
+            db.execute("BEGIN IMMEDIATE")
+            mission = self._mission(db, mission_id)
+            if self._stages(db, mission_id):
+                raise RocketConflict("mission has already prepared; stage receipts cannot be replaced")
+            if mission["mode"] == "creator-seed-preview":
+                return self._append(db, mission, 1, "prepare", None, {
+                    "tool": "creator.seed.snapshot/v0",
+                    "source": self._native_source(mission),
+                    "effect": "read-only", "authority": "none",
+                })
+            observed = [self._observe(s) for s in mission["selections"]]
+            return self._append(db, mission, 1, "prepare", None, {
+                "tool": "repo.snapshot/v0", "sources": observed, "effect": "read-only",
+                "authority": "none",
+            })
+
+    def execute(self, mission_id: int, expected_stage_sha256: str) -> dict:
+        with self._connect() as db:
+            db.execute("BEGIN IMMEDIATE")
+            mission = self._mission(db, mission_id)
+            stages = self._stages(db, mission_id)
+            if len(stages) != 1 or stages[0]["sha256"] != expected_stage_sha256:
+                raise RocketConflict("prepare receipt is missing, stale, or already consumed")
+            if mission["mode"] == "creator-seed-preview":
+                source = self._native_source(mission)
+                if source != stages[0]["output"]["source"]:
+                    raise RocketConflict("prepared Creator seed identity changed")
+                native = self.creator_shelf.get_rocket_seed(source["native_seed_id"])
+                body = native["body"]
+                result = {
+                    "tool": "creator.seed.preview/v0",
+                    "source": source,
+                    "excerpt": body[:4000],
+                    "truncated": len(body) > 4000,
+                    "authority": "none",
+                }
+                if source != self._native_source(mission):
+                    raise RocketConflict("Creator seed identity changed during read")
+                return self._append(db, mission, 2, "execute",
+                                    stages[-1]["sha256"], result)
+            observed = [self._observe(s) for s in mission["selections"]]
+            if observed != stages[0]["output"]["sources"]:
+                raise RocketConflict("prepared source observation changed; start a fresh mission")
+            if mission["mode"] == "source-preview":
+                source = self._read_source(observed[0], mission["source_path"])
+                result = {"tool": "source.preview/v0",
+                          "source": {k: v for k, v in source.items() if k != "text"},
+                          "excerpt": source["text"][:4000],
+                          "truncated": len(source["text"]) > 4000,
+                          "authority": "none"}
+            else:
+                manifests = []
+                for entry in observed:
+                    # The .body directory is intentionally allowlisted only for this operation.
+                    root = next(x for x in self.config.roots if x.id == entry["root_id"])
+                    repo = resolve_under_root(root.path, entry["repo_path"])
+                    manifest = repo / ".body" / "surface-v0.json"
+                    if manifest.is_symlink() or manifest.parent.is_symlink():
+                        raise RocketConflict("BODY manifest must not be symlink-backed")
+                    if not manifest.is_file():
+                        raise RocketConflict("selected repo lacks .body/surface-v0.json")
+                    tracked = _git(repo, "ls-files", "--error-unmatch", "--", ".body/surface-v0.json")
+                    if tracked.returncode != 0:
+                        raise RocketConflict("BODY manifest is not tracked")
+                    with manifest.open("rb") as stream:
+                        raw = stream.read(32769)
+                    if len(raw) > 32768:
+                        raise RocketConflict("BODY manifest exceeds 32 KiB")
+                    try:
+                        value = json.loads(raw)
+                    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+                        raise RocketConflict("BODY manifest is not valid UTF-8 JSON") from exc
+                    if not isinstance(value, dict):
+                        raise RocketConflict("BODY manifest must be an object")
+                    self._interfaces(value)
+                    manifests.append({"source": {"root_id": entry["root_id"],
+                                                "repo_path": entry["repo_path"], "sha": entry["sha"],
+                                                "file_sha256": hashlib.sha256(raw).hexdigest()},
+                                      "owner_declared": value.get("owner"),
+                                      "interfaces": value["interfaces"]})
+                left = self._interfaces({"schema": "body.surface/v0", "authority": "none",
+                                          "interfaces": manifests[0]["interfaces"]})
+                right = self._interfaces({"schema": "body.surface/v0", "authority": "none",
+                                           "interfaces": manifests[1]["interfaces"]})
+                overlaps = set()
+                for a in left:
+                    for b in right:
+                        if a[0] != b[0] and a[1:] == b[1:]:
+                            overlaps.add((a[1], a[2], a[3]))
+                result = {
+                    "tool": "body.overlap/v0", "sources": manifests,
+                    "exact_interface_overlaps": [
+                        {"kind": k, "protocol": p, "version": v}
+                        for k, p, v in sorted(overlaps)
+                    ],
+                    "unresolved": ["No identical typed emit/accept interface is declared."]
+                    if not overlaps else [],
+                    "notice": "HOUSE-local read-only calculation; Free Graph and Dogram were not executed.",
+                    "authority": "none",
+                }
+            # Refuse if a checkout moved during the bounded read/calculation.
+            if [self._observe(s) for s in mission["selections"]] != observed:
+                raise RocketConflict("source changed during execution; no receipt saved")
+            return self._append(db, mission, 2, "execute", stages[-1]["sha256"], result)
+
+
+    def launch_creator_seed(self, mission_id: int, payload: RocketLaunchInput) -> dict:
+        """Authorize one idempotent owner-native Creator Desk effect.
+
+        Same authorization request returns the same exact seed on retry.
+        An effect cannot be appended once a descendant cites the old parent.
+        """
+        if self.creator_shelf is None:
+            raise RocketConflict("Creator Desk owner adapter is not configured")
+        if not payload.title.strip() or not payload.body.strip():
+            raise RocketConflict("seed title and body must not be blank")
+        with self._connect() as db:
+            db.execute("BEGIN IMMEDIATE")
+            mission = self._mission(db, mission_id)
+            stages = self._stages(db, mission_id)
+            if mission["mode"] not in {"source-preview", "creator-seed-preview"} or len(stages) != 3:
+                raise RocketConflict("only a completed source-preview or Creator seed rocket may save another seed")
+            if stages[-1]["sha256"] != payload.expected_stage_sha256:
+                raise RocketConflict("separation receipt changed; review and authorize again")
+            if db.execute("SELECT 1 FROM rocket_missions WHERE parent_id=? LIMIT 1", (mission_id,)).fetchone():
+                raise RocketConflict("a descendant already exists; parent effect cannot be appended retroactively")
+            fingerprint = _digest({
+                "mission_sha256": mission["mission_sha256"],
+                "stage_sha256": stages[-1]["sha256"],
+                "request": payload.model_dump(),
+            })
+            previous = db.execute(
+                "SELECT * FROM rocket_effects WHERE mission_id=?", (mission_id,)
+            ).fetchone()
+            if previous:
+                if previous["request_sha256"] != fingerprint:
+                    raise RocketConflict("rocket effect is already committed with a different payload")
+                return self._effect_from_row(previous)
+            source = stages[1]["output"]["source"]
+            if mission["mode"] == "creator-seed-preview":
+                if stages[1]["output"]["tool"] != "creator.seed.preview/v0":
+                    raise RocketConflict("native Creator seed preview is not available")
+                if self._native_source(mission) != source:
+                    raise RocketConflict("selected native seed identity changed after preview")
+            else:
+                if stages[1]["output"]["tool"] != "source.preview/v0":
+                    raise RocketConflict("creator seed requires exact source preview")
+                observed = self._observe(mission["selections"][0])
+                reread = self._read_source(observed, mission["source_path"])
+                if reread["file_sha256"] != source["file_sha256"]:
+                    raise RocketConflict("selected source bytes changed after preview")
+            native_payload = {
+                "schema": "creator.rocket-seed/v0",
+                "title": payload.title,
+                "body": payload.body,
+                "rocket_mission_id": mission_id,
+                "rocket_mission_sha256": mission["mission_sha256"],
+                "separation_sha256": stages[-1]["sha256"],
+                "source": source,
+                "source_excerpt": stages[1]["output"]["excerpt"],
+                "claimed_effect": "saved_workbench_local_creator_seed",
+                "nonclaims": [
+                    "proposed text != source text",
+                    "creator seed != project checkout write",
+                    "local save != upstream adoption or publication",
+                ],
+            }
+            idempotency_key = _digest({
+                "mission_id": mission_id,
+                "separation_sha256": stages[-1]["sha256"],
+            })
+            try:
+                native = self.creator_shelf.save_rocket_seed(idempotency_key, native_payload)
+            except CreatorConflict as exc:
+                raise RocketConflict(str(exc)) from exc
+            output = {
+                "tool": "creator.seed/v0",
+                "owner": "static-workbench/Creator Desk",
+                "native_seed_id": native["id"],
+                "native_content_sha256": native["content_sha256"],
+                "native_status": native["status"],
+                "native_created_at": native["created_at"],
+                "effect": "owner_local_seed_created_or_idempotently_recovered",
+                "other_project_effects": "none",
+            }
+            receipt_sha256 = _digest({
+                "mission_sha256": mission["mission_sha256"],
+                "stage_sha256": stages[-1]["sha256"],
+                "request_sha256": fingerprint,
+                "output": output,
+            })
+            created = _now()
+            db.execute(
+                """INSERT INTO rocket_effects
+                (mission_id,created_at,request_sha256,stage_sha256,output_json,receipt_sha256)
+                VALUES(?,?,?,?,?,?)""",
+                (mission_id, created, fingerprint, stages[-1]["sha256"],
+                 json.dumps(output, sort_keys=True), receipt_sha256),
+            )
+            return {"mission_id": mission_id, "created_at": created,
+                    "request_sha256": fingerprint, "stage_sha256": stages[-1]["sha256"],
+                    "output": output, "receipt_sha256": receipt_sha256}
+
+    def separate(self, mission_id: int, payload: RocketSeparateInput) -> dict:
+        if not payload.next_action.strip():
+            raise RocketConflict("next action must not be blank")
+        with self._connect() as db:
+            db.execute("BEGIN IMMEDIATE")
+            mission = self._mission(db, mission_id)
+            stages = self._stages(db, mission_id)
+            if len(stages) != 2 or stages[-1]["sha256"] != payload.expected_stage_sha256:
+                raise RocketConflict("execute receipt is missing, stale, or already separated")
+            return self._append(db, mission, 3, "separate", stages[-1]["sha256"], {
+                "tool": "mission.seed/v0", "parent_execute_sha256": stages[-1]["sha256"],
+                "next_action_proposed_by_human": payload.next_action,
+                "residual_fog": payload.residual_fog,
+                "status": "proposal_only",
+                "next_mission_requires": "new explicit selection, clean pinned source, and separate stage action",
+                "authority": "none",
+            })

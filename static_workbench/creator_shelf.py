@@ -193,6 +193,13 @@ class CreatorShelf:
                 raw_json TEXT NOT NULL,
                 summary_json TEXT NOT NULL
             )""")
+            db.execute("""CREATE TABLE IF NOT EXISTS creator_rocket_seeds(
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                idempotency_key TEXT NOT NULL UNIQUE,
+                created_at TEXT NOT NULL,
+                payload_sha256 TEXT NOT NULL,
+                payload_json TEXT NOT NULL
+            )""")
             db.execute("""CREATE TABLE IF NOT EXISTS creator_revisions(
                 draft_id INTEGER NOT NULL REFERENCES creator_drafts(id),
                 revision INTEGER NOT NULL,
@@ -619,3 +626,57 @@ class CreatorShelf:
                 FROM creator_revisions WHERE draft_id=? ORDER BY revision DESC LIMIT 100""",
                 (draft_id,)).fetchall()
         return [dict(row) for row in rows]
+
+    def save_rocket_seed(self, idempotency_key: str, payload: dict[str, Any]) -> dict[str, Any]:
+        """Owner-native durable Creator Desk seed, keyed by exact rocket output.
+
+        Replaying the same authorized request returns the original; a different
+        payload at that key is a conflict and never overwrites the first result.
+        """
+        if len(idempotency_key) != 64 or any(x not in "0123456789abcdef" for x in idempotency_key):
+            raise CreatorConflict("invalid rocket-seed idempotency key")
+        if len(payload.get("body", "").encode("utf-8")) > MAX_DRAFT_BYTES:
+            raise CreatorConflict("rocket seed exceeds Creator Desk draft limit")
+        packed = _json(payload)
+        digest = _digest(packed.encode("utf-8"))
+        with self._connect() as db:
+            db.execute("BEGIN IMMEDIATE")
+            row = db.execute(
+                "SELECT id,created_at,payload_sha256 FROM creator_rocket_seeds WHERE idempotency_key=?",
+                (idempotency_key,),
+            ).fetchone()
+            if row:
+                if row["payload_sha256"] != digest:
+                    raise CreatorConflict("rocket seed already exists with different contents")
+                return {"id": row["id"], "created_at": row["created_at"],
+                        "content_sha256": digest, "status": "owner_local_seed"}
+            created = _now()
+            cursor = db.execute(
+                """INSERT INTO creator_rocket_seeds
+                (idempotency_key,created_at,payload_sha256,payload_json)
+                VALUES (?,?,?,?)""",
+                (idempotency_key, created, digest, packed),
+            )
+            return {"id": cursor.lastrowid, "created_at": created,
+                    "content_sha256": digest, "status": "owner_local_seed"}
+
+    def get_rocket_seed(self, seed_id: int) -> dict[str, Any] | None:
+        with self._connect() as db:
+            row = db.execute(
+                "SELECT * FROM creator_rocket_seeds WHERE id=?", (seed_id,)
+            ).fetchone()
+        if row is None:
+            return None
+        return {"id": row["id"], "created_at": row["created_at"],
+                "content_sha256": row["payload_sha256"],
+                "status": "owner_local_seed", **json.loads(row["payload_json"])}
+
+    def list_rocket_seeds(self) -> list[dict[str, Any]]:
+        with self._connect() as db:
+            rows = db.execute(
+                "SELECT id,created_at,payload_sha256,payload_json FROM creator_rocket_seeds ORDER BY id DESC LIMIT 100"
+            ).fetchall()
+        return [{"id": row["id"], "created_at": row["created_at"],
+                 "content_sha256": row["payload_sha256"],
+                 "status": "owner_local_seed",
+                 **json.loads(row["payload_json"])} for row in rows]

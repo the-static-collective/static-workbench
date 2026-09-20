@@ -189,6 +189,62 @@ The workflow registry borrows routing patterns, **not the Creator Workspace plug
 
 A source handoff is an invitation to inspect, **not** an authoritative interpretation of the source.
 
+## Branch Deck 001 — discover the branches hiding behind a checkout
+
+The `Branch Deck` navigator entry and HOUSE landing card now expose every locally
+known branch in configured-root checkouts, rather than only the branch currently
+checked out. Search by repository, branch or exact commit; distinguish locally
+checked-out branches, branches in other worktrees, and **cached (potentially
+stale)** remote-tracking refs. The deck includes a manual isolated-test route
+for each observed ref. It does **not** fetch new GitHub branches, switch
+checkouts, run tests, assert readiness or merge code. See
+[Branch Deck scope and next crossing](docs/branch-deck-001.md).
+
+## Branch Deck 002 — inspect unfetched GitHub feature branches
+
+After enabling `github_remote_discovery = true` in Workbench's top-level TOML
+configuration, the **Check public GitHub branches** button inside Branch Deck
+can inspect one selected, configured-root checkout's public Static Collective
+GitHub origin. It distinguishes branches not found in the local ref inventory,
+adds exact-commit navigation and open same-repository PR links, and reports
+bounded pagination/rate-limit gaps. Public observations are manual dated
+snapshots; **no `git fetch`, test run, worktree creation, project write, token
+exchange or merge is performed**. See
+[Branch Deck 002 setup and authority boundary](docs/branch-deck-002.md).
+
+## Branch Deck 003 — two-step isolated local worktree preparation
+
+Set `branch_worktrees_enabled = true` in the top-level Workbench TOML to
+enable a separate **Preview isolated checkout → Create this isolated checkout**
+workflow on an exact-SHA *local* branch card. This creates a detached Git
+worktree under Workbench state with a local receipt and leaves the original
+checkout's current branch untouched. It changes Git administrative worktree
+metadata; Git hooks are disabled and checkout filters are refused. It does
+not fetch remote-only code, install packages or run tests. See
+[Branch Deck 003 setup, effects and recovery](docs/branch-deck-003.md).
+
+## Branch Deck 004 — rolling public Collective radar
+
+Enable `branch_radar_enabled = true` to start a local-supervisor
+rolling public GitHub observation. It checks up to five repositories every
+30 minutes, preserving per-branch first-seen and last-observed timestamps
+in Workbench-owned SQLite. Its HOUSE/Branch Deck indicators distinguish
+initial baselines from newly observed branches and show scan gaps. It does
+not guarantee complete or instant public GitHub coverage, inspect private
+repos, fetch project code, execute tests or merge. See
+[Collective radar coverage and safeguards](docs/branch-deck-004.md).
+
+## Branch Deck 005 — declared project tests, never automatic
+
+After explicitly creating an exact-SHA detached local worktree, HOUSE can
+preview and run a project-specific test suite listed in the Workbench
+operator's own TOML `[[branch_test_suites]]`. Each run requires a separate
+human action, clean/exact source preflight and a new local test receipt. There
+is **no automatic execution** and **no security sandbox**: project test code
+runs with Workbench user's OS privileges and may access files or the network.
+Do not run untrusted branches this way. See
+[declared suite setup, limits and effect boundary](docs/branch-deck-005.md).
+
 ## HOUSE ↔ Static Broadcast v0.1 — an operator door, not an operator proxy
 
 To enable the **Open Static Broadcast** action in HOUSE, first install/checkout

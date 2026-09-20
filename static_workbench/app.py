@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import secrets
+import asyncio
 from contextlib import asynccontextmanager
 from dataclasses import asdict
 from pathlib import Path
@@ -12,6 +13,8 @@ from fastapi.staticfiles import StaticFiles
 
 from . import __version__
 from .aperture import analyze_aperture
+from .attention import attention_router
+from .attention_handoff import handoff_router
 from .config import RootConfig, WorkbenchConfig, load_config
 from .dogram_impact import ImpactDeskError, preview_impact, run_impact, read_report
 from .graft_witness import GraftWitnessError, preview as preview_graft, measure as measure_graft
@@ -24,11 +27,24 @@ from .native_maxhinal import preview_fuels, spin, FuelConflict
 from .broadcast import broadcast_door
 from .lifestream_inbox import MomentInbox
 from .journal import Journal, SenseFieldRecord
+from .capability_returns import CapabilityReturnLedger
+from .capability_loom import preview_composition as preview_loom
+from .return_desk import ReturnDesk, ReturnConflict, NoteInput, SessionInput, CheckpointInput
+from .rocket import RocketDesk, RocketConflict, RocketMissionInput, RocketAdvanceInput, RocketSeparateInput, RocketLaunchInput
+from .composition_inspection import CompositionInspectionError, inspect_composition
+from .living_main import CompositionError, preview_composition
+from .relation_chamber import RelationError, preview_relation
 from .house import build_house_status
+from .mirror import mirror_router
 from .groundkeeper import make_receipt as groundkeeper_first_ignition
 from .machine import sample_machine
 from .paths import PathOutsideRoot, resolve_under_root
 from .repos import discover_repositories
+from .branch_deck import build_branch_deck
+from .branch_remote import inspect_github_repo, RemoteDiscoveryError
+from .branch_worktree import WorktreeError, preview_worktree, create_worktree
+from .branch_radar import CollectiveRadar
+from .branch_tests import SuiteError, available_suites, preview_test, run_test
 from .schemas import (
     ApertureAnalyzeRequest,
     CreatorPackRequest,
@@ -45,6 +61,11 @@ from .schemas import (
     GraftRoundPreviewRequest,
     GraftRoundSaveRequest,
     GraftDraftSaveRequest,
+    BranchWorktreeRequest,
+    BranchWorktreeCreateRequest,
+    BranchSuitePreviewRequest,
+    BranchSuiteRunRequest,
+    CompositionInspectRequest,
     ApertureHistoryResponse,
     ApertureRecordResponse,
     BootstrapResponse,
@@ -132,21 +153,50 @@ def _sense_field_response(record: SenseFieldRecord) -> ApertureRecordResponse:
 def create_app(config: WorkbenchConfig | None = None) -> FastAPI:
     config = config or load_config()
     journal = Journal(config.state_dir / "workbench.sqlite3")
+    return_ledger = CapabilityReturnLedger(config.state_dir / "capability_returns.sqlite3")
     creator_shelf = CreatorShelf(config.state_dir / "creator.sqlite3")
+    return_desk = ReturnDesk(config.state_dir / "return.sqlite3")
+    rocket_desk = RocketDesk(config.state_dir / "rockets.sqlite3", config, creator_shelf)
     moment_inbox = MomentInbox(config.state_dir / "lifestream.sqlite3", config)
     session_token = secrets.token_urlsafe(32)
+    branch_radar = CollectiveRadar(config.state_dir) if config.branch_radar_enabled else None
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):
         journal.append("workbench.started", {"version": __version__})
-        yield
+        async def rolling_radar():
+            while True:
+                # The work happens off the event loop; no branch or project
+                # execution is initiated by this observational cycle.
+                result = await asyncio.to_thread(branch_radar.scan_once)
+                journal.append("branches.radar_cycle", {
+                    "repos_scanned": len(result["repos_scanned"]),
+                    "errors": result["errors"][:5],
+                })
+                await asyncio.sleep(1800)
+        task = asyncio.create_task(rolling_radar()) if branch_radar is not None else None
+        try:
+            yield
+        finally:
+            if task is not None:
+                task.cancel()
+                try:
+                    await task
+                except asyncio.CancelledError:
+                    pass
 
     app = FastAPI(title="Static Workbench", version=__version__, lifespan=lifespan)
     app.state.config = config
     app.state.journal = journal
+    app.state.return_ledger = return_ledger
     app.state.creator_shelf = creator_shelf
+    app.state.return_desk = return_desk
+    app.state.rocket_desk = rocket_desk
     app.state.moment_inbox = moment_inbox
     app.state.session_token = session_token
+    app.include_router(mirror_router(config.state_dir, session_token, journal))
+    app.include_router(attention_router(config.state_dir, session_token))
+    app.include_router(handoff_router(config.state_dir, session_token))
 
     web_dir = Path(__file__).resolve().parent / "web"
     app.mount("/assets", StaticFiles(directory=web_dir), name="assets")
@@ -180,11 +230,86 @@ def create_app(config: WorkbenchConfig | None = None) -> FastAPI:
     def events(limit: int = Query(default=100, ge=1, le=1000)):
         return {"events": [asdict(event) for event in journal.latest(limit)]}
 
+    @app.get("/api/house/returns")
+    def house_returns(limit: int = Query(default=50, ge=1, le=100)):
+        return {
+            "format": "house.capability-return-shelf/v0",
+            "verification": "not_evaluated",
+            "records": [asdict(record) for record in return_ledger.latest(limit)],
+            "nonclaims": [
+                "Imported effects and capabilities are self-reported, not independently verified.",
+                "Local SHA-256 is not source authenticity, project-native receipt, or authorization.",
+            ],
+        }
+
+    @app.get("/api/house/returns/{return_id}")
+    def house_return_detail(return_id: str):
+        if not 1 <= len(return_id) <= 512:
+            raise HTTPException(status_code=404, detail="return not found")
+        record = return_ledger.get(return_id)
+        if record is None:
+            raise HTTPException(status_code=404, detail="return not found")
+        return {"format": "house.capability-return/v0", "verification": "not_evaluated", "record": asdict(record)}
+
+    @app.post("/api/house/loom/preview")
+    def house_loom_preview(payload: dict, request: Request):
+        # Preview requires an explicit local session, even though it produces no effect.
+        _creator_write_guard(request)
+        try:
+            return preview_loom(return_ledger, payload)
+        except ValueError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+
     @app.get("/api/repos")
     def repos():
         result = discover_repositories(config.roots, config.max_repo_depth)
         journal.append("repos.scanned", {"count": len(result)})
         return {"repos": [asdict(item) for item in result]}
+
+    @app.get("/api/branches")
+    def branch_deck():
+        # No user-controlled paths, Git arguments, network fetch or checkout.
+        result = build_branch_deck(discover_repositories(config.roots, config.max_repo_depth))
+        journal.append("branches.scanned", {
+            "repos": result["repos_scanned"],
+            "refs": len(result["branches"]),
+            "gaps": len(result["gaps"]),
+        })
+        return result
+
+    @app.get("/api/branches/radar")
+    def branch_deck_radar():
+        if branch_radar is None:
+            return {"enabled": False, "branches": [], "last_error": None,
+                    "scope": "radar_opt_in_disabled"}
+        return {"enabled": True, **branch_radar.snapshot()}
+
+    @app.get("/api/branches/remote")
+    def branch_deck_remote(root_id: str, repo_path: str):
+        # Explicit browser action only; configured-root checkout and approved
+        # Collective GitHub origin are resolved server-side. No user URL accepted.
+        if not config.github_remote_discovery:
+            raise HTTPException(status_code=403, detail="public GitHub discovery disabled; enable github_remote_discovery in Workbench config")
+        repos = discover_repositories(config.roots, config.max_repo_depth)
+        selected = next(
+            (repo for repo in repos if repo.root_id == root_id and repo.relative_path == repo_path),
+            None,
+        )
+        if selected is None:
+            raise HTTPException(status_code=404, detail="repository not discovered under configured roots")
+        local_deck = build_branch_deck([selected])
+        if local_deck["gaps"]:
+            raise HTTPException(status_code=409, detail="local reference scan incomplete; inspect scan gaps before relating to remote")
+        try:
+            observed = inspect_github_repo(selected, local_deck["branches"])
+        except RemoteDiscoveryError as exc:
+            raise HTTPException(status_code=502, detail=str(exc)) from exc
+        journal.append("branches.github_observed", {
+            "root_id": selected.root_id, "repo_path": selected.relative_path,
+            "github_repo": observed["github_repo"], "refs": len(observed["branches"]),
+            "gaps": observed["gaps"],
+        })
+        return observed
 
     @app.get("/api/house")
     def house():
@@ -192,6 +317,18 @@ def create_app(config: WorkbenchConfig | None = None) -> FastAPI:
         status = build_house_status(result)
         journal.append("house.scanned", status["summary"])
         return status
+
+    @app.post("/api/house/composition/inspect")
+    def house_composition_inspect(payload: CompositionInspectRequest, request: Request):
+        # Parsing untrusted pasted JSON is a read-only operation, but protect
+        # this local inspection surface with the same session and origin gate
+        # used for other browser-submitted payloads. It stores no descriptor.
+        _creator_write_guard(request)
+        try:
+            repos = discover_repositories(config.roots, config.max_repo_depth)
+            return inspect_composition(payload.raw_json, repos)
+        except CompositionInspectionError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
 
     @app.get("/api/creator/desk")
     def creator_desk():
@@ -218,6 +355,270 @@ def create_app(config: WorkbenchConfig | None = None) -> FastAPI:
         token = request.headers.get("x-workbench-session", "")
         if not secrets.compare_digest(token, session_token):
             raise HTTPException(status_code=403, detail="creator write requires a local session token")
+
+
+    # Return Desk is Workbench-owned local writing, not a GOATnote protocol
+    # or a claim that a project checkout has been modified.
+    @app.get("/api/return/notes")
+    def return_notes():
+        return {"notes": return_desk.list_notes()}
+
+    @app.get("/api/return/notes/{note_id}")
+    def return_note(note_id: int):
+        note = return_desk.get_note(note_id)
+        if note is None:
+            raise HTTPException(status_code=404, detail="note not found")
+        return note
+
+    @app.post("/api/return/notes")
+    def return_note_save(payload: NoteInput, request: Request):
+        _creator_write_guard(request)
+        try:
+            result = return_desk.save_note(payload)
+        except ReturnConflict as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        journal.append("return.note.saved", {"note_id": result["id"], "sha256": result["sha256"]})
+        return result
+
+    @app.get("/api/return/sessions")
+    def return_sessions():
+        return {"sessions": return_desk.list_sessions()}
+
+    @app.get("/api/return/sessions/{session_id}")
+    def return_session(session_id: int):
+        result = return_desk.get_session(session_id)
+        if result is None:
+            raise HTTPException(status_code=404, detail="session not found")
+        return result
+
+    @app.post("/api/return/sessions")
+    def return_session_save(payload: SessionInput, request: Request):
+        _creator_write_guard(request)
+        try:
+            result = return_desk.create_session(payload)
+        except ReturnConflict as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+        journal.append("return.session.opened", {
+            "session_id": result["id"], "note_id": result["note_id"],
+            "checkpoint_sha256": result["checkpoint"]["sha256"],
+        })
+        return result
+
+    @app.post("/api/return/sessions/{session_id}/checkpoints")
+    def return_checkpoint_save(session_id: int, payload: CheckpointInput, request: Request):
+        _creator_write_guard(request)
+        try:
+            result = return_desk.save_checkpoint(session_id, payload)
+        except ReturnConflict as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+        journal.append("return.session.checkpointed", {
+            "session_id": session_id, "revision": result["revision"],
+            "checkpoint_sha256": result["sha256"],
+        })
+        return result
+
+
+    # Staged Rocket is an explicit, local, read-only composition. Inert
+    # descendants require a fresh human request, never automatic dispatch.
+    @app.get("/api/rockets/catalog")
+    def rocket_catalog():
+        return rocket_desk.catalog()
+
+    @app.get("/api/rockets/missions")
+    def rocket_missions():
+        return {"missions": rocket_desk.list()}
+
+    @app.get("/api/rockets/missions/{mission_id}")
+    def rocket_mission(mission_id: int):
+        result = rocket_desk.get(mission_id)
+        if result is None:
+            raise HTTPException(status_code=404, detail="mission not found")
+        return result
+
+    @app.post("/api/rockets/missions")
+    def rocket_create(payload: RocketMissionInput, request: Request):
+        _creator_write_guard(request)
+        try:
+            result = rocket_desk.create(payload)
+        except RocketConflict as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+        journal.append("rocket.mission.declared", {
+            "mission_id": result["id"], "mission_sha256": result["mission_sha256"],
+            "parent_id": result["parent_id"], "mode": result["mode"],
+        })
+        return result
+
+    @app.get("/api/creator/rocket-seeds")
+    def creator_rocket_seeds():
+        return {"seeds": creator_shelf.list_rocket_seeds()}
+
+    @app.get("/api/creator/rocket-seeds/{seed_id}")
+    def creator_rocket_seed(seed_id: int):
+        result = creator_shelf.get_rocket_seed(seed_id)
+        if result is None:
+            raise HTTPException(status_code=404, detail="Creator seed not found")
+        return result
+
+    @app.post("/api/rockets/missions/{mission_id}/launch-creator-seed")
+    def rocket_launch_creator_seed(mission_id: int, payload: RocketLaunchInput, request: Request):
+        _creator_write_guard(request)
+        try:
+            result = rocket_desk.launch_creator_seed(mission_id, payload)
+        except (RocketConflict, OSError) as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+        journal.append("rocket.effect.creator_seed", {
+            "mission_id": mission_id, "effect_sha256": result["receipt_sha256"],
+            "native_seed_id": result["output"]["native_seed_id"],
+        })
+        return result
+
+    @app.post("/api/rockets/missions/{mission_id}/prepare")
+    def rocket_prepare(mission_id: int, request: Request):
+        _creator_write_guard(request)
+        try:
+            result = rocket_desk.prepare(mission_id)
+        except (RocketConflict, OSError) as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+        journal.append("rocket.stage.prepared", {
+            "mission_id": mission_id, "stage_sha256": result["sha256"],
+        })
+        return result
+
+    @app.post("/api/rockets/missions/{mission_id}/execute")
+    def rocket_execute(mission_id: int, payload: RocketAdvanceInput, request: Request):
+        _creator_write_guard(request)
+        try:
+            result = rocket_desk.execute(mission_id, payload.expected_stage_sha256)
+        except (RocketConflict, OSError) as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+        journal.append("rocket.stage.executed", {
+            "mission_id": mission_id, "stage_sha256": result["sha256"],
+            "tool": result["output"]["tool"],
+        })
+        return result
+
+    @app.post("/api/rockets/missions/{mission_id}/separate")
+    def rocket_separate(mission_id: int, payload: RocketSeparateInput, request: Request):
+        _creator_write_guard(request)
+        try:
+            result = rocket_desk.separate(mission_id, payload)
+        except RocketConflict as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+        journal.append("rocket.stage.separated", {
+            "mission_id": mission_id, "stage_sha256": result["sha256"],
+        })
+        return result
+
+    @app.post("/api/living-main/preview")
+    def living_main_preview(payload: dict, request: Request):
+        _creator_write_guard(request)
+        if set(payload) != {"selections"}:
+            raise HTTPException(status_code=400, detail="only selections is accepted")
+        repos = discover_repositories(config.roots, config.max_repo_depth)
+        try:
+            return preview_composition(config.roots, repos, payload["selections"])
+        except (CompositionError, OSError, ValueError) as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+    @app.post("/api/living-main/relations/preview")
+    def living_main_relation_preview(payload: dict, request: Request):
+        _creator_write_guard(request)
+        if set(payload) != {"selections", "declaration", "expected_configuration_id"}:
+            raise HTTPException(status_code=400, detail="selections, declaration and expected_configuration_id required")
+        try:
+            repos = discover_repositories(config.roots, config.max_repo_depth)
+            composition = preview_composition(config.roots, repos, payload["selections"])
+            if composition["configuration_id"] != payload["expected_configuration_id"]:
+                raise RelationError("composition changed since preview; inspect the body again")
+            return preview_relation(composition, payload["declaration"])
+        except (CompositionError, RelationError, OSError, ValueError) as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+    def _worktree_source(payload: BranchWorktreeRequest):
+        repos = discover_repositories(config.roots, config.max_repo_depth)
+        selected = next(
+            (repo for repo in repos if repo.root_id == payload.root_id and repo.relative_path == payload.repo_path),
+            None,
+        )
+        if selected is None:
+            raise HTTPException(status_code=404, detail="local checkout is not under a configured root")
+        deck = build_branch_deck([selected])
+        if deck["gaps"]:
+            raise HTTPException(status_code=409, detail="local branch scan incomplete; inspect before worktree preparation")
+        matching = next((
+            card for card in deck["branches"]
+            if card["kind"] == "local" and card["ref"] == payload.ref
+            and card["commit"] == payload.expected_commit
+        ), None)
+        if matching is None:
+            raise HTTPException(status_code=409, detail="local branch/commit not observed or moved; refresh Branch Deck")
+        return selected
+
+    @app.post("/api/branches/worktrees/preview")
+    def worktree_preview(payload: BranchWorktreeRequest, request: Request):
+        _creator_write_guard(request)
+        selected = _worktree_source(payload)
+        try:
+            return preview_worktree(config, selected, payload.ref, payload.expected_commit)
+        except WorktreeError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+    @app.post("/api/branches/worktrees/create")
+    def worktree_create(payload: BranchWorktreeCreateRequest, request: Request):
+        _creator_write_guard(request)
+        if payload.acknowledge_effect is not True:
+            raise HTTPException(status_code=422, detail="explicit worktree effect acknowledgement required")
+        selected = _worktree_source(payload)
+        try:
+            result = create_worktree(config, selected, payload.ref, payload.expected_commit,
+                                     payload.expected_preview_digest)
+        except WorktreeError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+        journal.append("branches.worktree_created", {
+            "root_id": selected.root_id, "repo_path": selected.relative_path,
+            "commit": result["actual_commit"], "destination": result["destination"],
+            "preview_digest": result["preview_digest"], "tests": "not_run",
+        })
+        return result
+
+    @app.get("/api/branches/tests/suites")
+    def test_suites(root_id: str, repo_path: str):
+        repo = next((item for item in discover_repositories(config.roots, config.max_repo_depth)
+                     if item.root_id == root_id and item.relative_path == repo_path), None)
+        if repo is None:
+            raise HTTPException(status_code=404, detail="local repository unavailable")
+        return {"suites": [{"id": suite.id, "repo": suite.repo, "argv": list(suite.argv),
+                            "timeout_seconds": suite.timeout_seconds}
+                           for suite in available_suites(config, repo)],
+                "execution_isolation": "none", "automatic_execution": False}
+
+    @app.post("/api/branches/tests/preview")
+    def test_preview(payload: BranchSuitePreviewRequest, request: Request):
+        _creator_write_guard(request)
+        repo = _worktree_source(payload)
+        try:
+            return preview_test(config, repo, payload.ref, payload.expected_commit, payload.suite_id)
+        except SuiteError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+    @app.post("/api/branches/tests/run")
+    def test_run(payload: BranchSuiteRunRequest, request: Request):
+        _creator_write_guard(request)
+        if payload.acknowledge_code_execution is not True:
+            raise HTTPException(status_code=422, detail="explicit project code execution acknowledgement required")
+        repo = _worktree_source(payload)
+        try:
+            result = run_test(config, repo, payload.ref, payload.expected_commit,
+                              payload.suite_id, payload.expected_preview_digest)
+        except SuiteError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+        journal.append("branches.test_run_finished", {
+            "run_id": result["run_id"], "root_id": repo.root_id,
+            "repo_path": repo.relative_path, "commit": result["commit"],
+            "suite_id": result["suite_id"], "status": result["status"],
+            "receipt_sha256": result["receipt_sha256"],
+        })
+        return result
 
     @app.post("/api/dogram/impact/preview")
     def dogram_impact_preview(payload: DogramImpactRequest, request: Request):

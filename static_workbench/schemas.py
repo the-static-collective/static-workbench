@@ -27,6 +27,11 @@ class ObjectResponse(BaseModel):
     entries: list[str] | None = None
 
 
+class CompositionInspectRequest(BaseModel):
+    raw_json: str = Field(min_length=1, max_length=65536)
+
+
+
 class ApertureAnalyzeRequest(BaseModel):
     raw_text: str = Field(min_length=1, max_length=20_000)
     context_text: str | None = Field(default=None, max_length=20_000)
@@ -192,3 +197,24 @@ class LivingMomentDraftRequest(BaseModel):
     text: str = Field(min_length=1, max_length=32768)
     admitted_by: str = Field(min_length=1, max_length=120)
     reviewed: bool = False
+
+
+class BranchWorktreeRequest(BaseModel):
+    root_id: str = Field(min_length=1, max_length=64)
+    repo_path: str = Field(min_length=1, max_length=256)
+    ref: str = Field(min_length=12, max_length=256)
+    expected_commit: str = Field(pattern=r"^[0-9a-f]{40}$")
+
+
+class BranchWorktreeCreateRequest(BranchWorktreeRequest):
+    expected_preview_digest: str = Field(pattern=r"^[0-9a-f]{64}$")
+    acknowledge_effect: bool
+
+
+class BranchSuitePreviewRequest(BranchWorktreeRequest):
+    suite_id: str = Field(pattern=r"^[A-Za-z][A-Za-z0-9_-]{0,47}$")
+
+
+class BranchSuiteRunRequest(BranchSuitePreviewRequest):
+    expected_preview_digest: str = Field(pattern=r"^[0-9a-f]{64}$")
+    acknowledge_code_execution: bool
