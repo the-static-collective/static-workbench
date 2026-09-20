@@ -401,6 +401,98 @@ class RocketDesk:
                 raise RocketConflict("source changed during execution; no receipt saved")
             return self._append(db, mission, 2, "execute", stages[-1]["sha256"], result)
 
+
+    def launch_creator_seed(self, mission_id: int, payload: RocketLaunchInput) -> dict:
+        """Authorize one idempotent owner-native Creator Desk effect.
+
+        Same authorization request returns the same exact seed on retry.
+        An effect cannot be appended once a descendant cites the old parent.
+        """
+        if self.creator_shelf is None:
+            raise RocketConflict("Creator Desk owner adapter is not configured")
+        if not payload.title.strip() or not payload.body.strip():
+            raise RocketConflict("seed title and body must not be blank")
+        with self._connect() as db:
+            db.execute("BEGIN IMMEDIATE")
+            mission = self._mission(db, mission_id)
+            stages = self._stages(db, mission_id)
+            if mission["mode"] != "source-preview" or len(stages) != 3:
+                raise RocketConflict("only a completed source-preview rocket can save a Creator seed")
+            if stages[-1]["sha256"] != payload.expected_stage_sha256:
+                raise RocketConflict("separation receipt changed; review and authorize again")
+            if db.execute("SELECT 1 FROM rocket_missions WHERE parent_id=? LIMIT 1", (mission_id,)).fetchone():
+                raise RocketConflict("a descendant already exists; parent effect cannot be appended retroactively")
+            fingerprint = _digest({
+                "mission_sha256": mission["mission_sha256"],
+                "stage_sha256": stages[-1]["sha256"],
+                "request": payload.model_dump(),
+            })
+            previous = db.execute(
+                "SELECT * FROM rocket_effects WHERE mission_id=?", (mission_id,)
+            ).fetchone()
+            if previous:
+                if previous["request_sha256"] != fingerprint:
+                    raise RocketConflict("rocket effect is already committed with a different payload")
+                return self._effect_from_row(previous)
+            source = stages[1]["output"]["source"]
+            if stages[1]["output"]["tool"] != "source.preview/v0":
+                raise RocketConflict("creator seed requires exact source preview")
+            observed = self._observe(mission["selections"][0])
+            reread = self._read_source(observed, mission["source_path"])
+            if reread["file_sha256"] != source["file_sha256"]:
+                raise RocketConflict("selected source bytes changed after preview")
+            native_payload = {
+                "schema": "creator.rocket-seed/v0",
+                "title": payload.title,
+                "body": payload.body,
+                "rocket_mission_id": mission_id,
+                "rocket_mission_sha256": mission["mission_sha256"],
+                "separation_sha256": stages[-1]["sha256"],
+                "source": source,
+                "source_excerpt": stages[1]["output"]["excerpt"],
+                "claimed_effect": "saved_workbench_local_creator_seed",
+                "nonclaims": [
+                    "proposed text != source text",
+                    "creator seed != project checkout write",
+                    "local save != upstream adoption or publication",
+                ],
+            }
+            idempotency_key = _digest({
+                "mission_id": mission_id,
+                "separation_sha256": stages[-1]["sha256"],
+            })
+            try:
+                native = self.creator_shelf.save_rocket_seed(idempotency_key, native_payload)
+            except CreatorConflict as exc:
+                raise RocketConflict(str(exc)) from exc
+            output = {
+                "tool": "creator.seed/v0",
+                "owner": "static-workbench/Creator Desk",
+                "native_seed_id": native["id"],
+                "native_content_sha256": native["content_sha256"],
+                "native_status": native["status"],
+                "native_created_at": native["created_at"],
+                "effect": "owner_local_seed_created_or_idempotently_recovered",
+                "other_project_effects": "none",
+            }
+            receipt_sha256 = _digest({
+                "mission_sha256": mission["mission_sha256"],
+                "stage_sha256": stages[-1]["sha256"],
+                "request_sha256": fingerprint,
+                "output": output,
+            })
+            created = _now()
+            db.execute(
+                """INSERT INTO rocket_effects
+                (mission_id,created_at,request_sha256,stage_sha256,output_json,receipt_sha256)
+                VALUES(?,?,?,?,?,?)""",
+                (mission_id, created, fingerprint, stages[-1]["sha256"],
+                 json.dumps(output, sort_keys=True), receipt_sha256),
+            )
+            return {"mission_id": mission_id, "created_at": created,
+                    "request_sha256": fingerprint, "stage_sha256": stages[-1]["sha256"],
+                    "output": output, "receipt_sha256": receipt_sha256}
+
     def separate(self, mission_id: int, payload: RocketSeparateInput) -> dict:
         if not payload.next_action.strip():
             raise RocketConflict("next action must not be blank")
