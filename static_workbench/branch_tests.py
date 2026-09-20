@@ -143,17 +143,28 @@ def run_test(config: WorkbenchConfig, repo: RepoStatus, ref: str,
                         stdout=log, stderr=subprocess.STDOUT, env=environment,
                         start_new_session=True, close_fds=True,
                     )
-                    try:
-                        returncode = process.wait(timeout=preview["timeout_seconds"])
-                        timed_out = False
-                    except subprocess.TimeoutExpired:
-                        timed_out = True
+                    import time
+                    deadline = time.monotonic() + preview["timeout_seconds"]
+                    timed_out = False
+                    output_limit_exceeded = False
+                    while process.poll() is None:
+                        if os.fstat(log.fileno()).st_size > 262144:
+                            output_limit_exceeded = True
+                            break
+                        if time.monotonic() >= deadline:
+                            timed_out = True
+                            break
+                        try:
+                            process.wait(timeout=0.2)
+                        except subprocess.TimeoutExpired:
+                            pass
+                    if timed_out or output_limit_exceeded:
                         try:
                             os.killpg(process.pid, signal.SIGKILL)
                         except ProcessLookupError:
                             pass
-                        process.wait()
-                        returncode = process.returncode
+                    process.wait()
+                    returncode = process.returncode
                 except OSError as exc:
                     raise SuiteError("test_program_could_not_start") from exc
                 finally:
@@ -183,8 +194,9 @@ def run_test(config: WorkbenchConfig, repo: RepoStatus, ref: str,
             "ref": ref, "commit": expected_commit, "suite_id": suite_id,
             "preview_digest": expected_preview_digest,
             "destination": str(destination), "exit_code": returncode,
-            "timed_out": timed_out, "status": "timed_out" if timed_out else
-                      ("passed" if returncode == 0 else "failed"),
+            "timed_out": timed_out, "output_limit_exceeded": output_limit_exceeded,
+            "status": "timed_out" if timed_out else ("output_limit_exceeded" if output_limit_exceeded else
+                      ("passed" if returncode == 0 else "failed")),
             "output_sha256": digest.hexdigest(), "output_bytes": output_bytes,
             "output_excerpt": snippet.decode("utf-8", errors="replace"),
             "output_truncated": output_bytes > len(snippet),
