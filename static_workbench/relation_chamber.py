@@ -6,9 +6,10 @@ quotient proof, an execution instruction, or an admission decision.
 from __future__ import annotations
 
 import hashlib
+import re
 from typing import Any
 
-from .living_main import _canonical, _SHA
+from .living_main import _canonical
 
 KINDS = ("equivalent_for_this_experiment", "substitutable_for_this_step", "contrast_pair")
 _SCHEMA = "static-workbench.declared-composition-relation/v0"
@@ -32,7 +33,7 @@ def preview_relation(composition: object, declaration: object) -> dict[str, Any]
         raise RelationError("composition preview required")
     configuration_id = composition.get("configuration_id")
     members = composition.get("members")
-    if not isinstance(configuration_id, str) or not configuration_id.startswith("living-main@sha256:") or not _SHA.fullmatch(configuration_id.removeprefix("living-main@sha256:")):
+    if not isinstance(configuration_id, str) or not configuration_id.startswith("living-main@sha256:") or not re.fullmatch(r"[0-9a-f]{64}", configuration_id.removeprefix("living-main@sha256:")):
         raise RelationError("invalid configuration identity")
     if not isinstance(members, list) or len(members) < 2:
         raise RelationError("select at least two distinct checkouts before declaring a relation")
