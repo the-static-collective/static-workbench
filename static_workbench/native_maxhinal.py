@@ -8,6 +8,7 @@ from __future__ import annotations
 import hashlib
 import json
 import mimetypes
+import os
 import random
 import re
 import stat
@@ -67,7 +68,7 @@ def _checked_file(roots: tuple[RootConfig, ...], item: dict[str, Any]) -> dict[s
     # Exclude named pipes, devices and symlink swaps; bounded reads of ordinary files only.
     with target.open("rb") as handle:
         raw = handle.read(MAX_FILE_BYTES + 1)
-        opened = handle.stat()
+        opened = os.fstat(handle.fileno())
     if (len(raw) != info.st_size or len(raw) > MAX_FILE_BYTES or opened.st_ino != info.st_ino
         or opened.st_dev != info.st_dev or opened.st_mtime_ns != info.st_mtime_ns):
         raise FuelConflict("file changed during fuel inspection; select again")
