@@ -90,6 +90,11 @@ function graftRoundRenderForRide(ride, host) {
           'Candidate selected for subsequent graph preview. The graph itself must still be declared and reviewed separately.'));
       });
       card.appendChild(choose);
+      const openDraft = el('button', 'quiet-button', 'Open working draft + bounded experiment');
+      openDraft.type = 'button';
+      const draftHost = el('div', 'native-fuel-preview');
+      openDraft.addEventListener('click', () => graftDraftOpen(candidate.candidate_sha256, draftHost));
+      card.append(openDraft, draftHost);
       target.appendChild(card);
     }
     refreshSelection();

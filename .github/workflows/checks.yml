@@ -40,3 +40,4 @@ jobs:
           node --check static_workbench/web/dogram-impact.js
           node --check static_workbench/web/graft-witness.js
           node --check static_workbench/web/graft-round.js
+          node --check static_workbench/web/graft-draft.js

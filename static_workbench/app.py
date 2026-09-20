@@ -16,6 +16,7 @@ from .config import RootConfig, WorkbenchConfig, load_config
 from .dogram_impact import ImpactDeskError, preview_impact, run_impact, read_report
 from .graft_witness import GraftWitnessError, preview as preview_graft, measure as measure_graft
 from .graft_round import preview_round, save_round
+from .graft_draft import candidate_context, open_draft, save_draft
 from .creator import creator_desk_status, search_sources
 from .creator_shelf import CreatorShelf, CreatorConflict, preview_pack
 from .maxhinal_dock import parse_ride
@@ -41,6 +42,7 @@ from .schemas import (
     GraftWitnessRunRequest,
     GraftRoundPreviewRequest,
     GraftRoundSaveRequest,
+    GraftDraftSaveRequest,
     ApertureHistoryResponse,
     ApertureRecordResponse,
     BootstrapResponse,
@@ -445,6 +447,45 @@ def create_app(config: WorkbenchConfig | None = None) -> FastAPI:
             raise HTTPException(status_code=409, detail=str(exc)) from exc
         if result is None:
             raise HTTPException(status_code=404, detail="GRAFT round not found")
+        return result
+
+    @app.get("/api/house-maxhinal/graft/candidates/{candidate_sha256}/draft")
+    def graft_draft_open(candidate_sha256: str):
+        try:
+            return open_draft(creator_shelf, candidate_sha256)
+        except (GraftWitnessError, CreatorConflict) as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+    @app.post("/api/house-maxhinal/graft/drafts")
+    def graft_draft_save(payload: GraftDraftSaveRequest, request: Request):
+        _creator_write_guard(request)
+        try:
+            result = save_draft(creator_shelf, **payload.model_dump())
+        except (GraftWitnessError, CreatorConflict) as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+        journal.append("house.graft.draft_revision_saved", {
+            "candidate_sha256": payload.candidate_sha256, "revision": result["revision"],
+            "draft_sha256": result["draft_sha256"],
+        })
+        return result
+
+    @app.get("/api/house-maxhinal/graft/candidates/{candidate_sha256}/draft/revisions")
+    def graft_draft_revisions(candidate_sha256: str):
+        try:
+            candidate_context(creator_shelf, candidate_sha256)
+            return {"revisions": creator_shelf.list_graft_draft_revisions(candidate_sha256)}
+        except (GraftWitnessError, CreatorConflict) as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+    @app.get("/api/house-maxhinal/graft/candidates/{candidate_sha256}/draft/revisions/{revision}")
+    def graft_draft_revision(candidate_sha256: str, revision: int):
+        try:
+            candidate_context(creator_shelf, candidate_sha256)
+            result = creator_shelf.get_graft_draft_revision(candidate_sha256, revision)
+        except (GraftWitnessError, CreatorConflict) as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+        if result is None:
+            raise HTTPException(status_code=404, detail="GRAFT draft revision not found")
         return result
 
     @app.post("/api/house-maxhinal/graft/preview")
