@@ -24,6 +24,7 @@ from .native_maxhinal import preview_fuels, spin, FuelConflict
 from .broadcast import broadcast_door
 from .lifestream_inbox import MomentInbox
 from .journal import Journal, SenseFieldRecord
+from .capability_returns import CapabilityReturnLedger
 from .house import build_house_status
 from .groundkeeper import make_receipt as groundkeeper_first_ignition
 from .machine import sample_machine
@@ -132,6 +133,7 @@ def _sense_field_response(record: SenseFieldRecord) -> ApertureRecordResponse:
 def create_app(config: WorkbenchConfig | None = None) -> FastAPI:
     config = config or load_config()
     journal = Journal(config.state_dir / "workbench.sqlite3")
+    return_ledger = CapabilityReturnLedger(config.state_dir / "capability_returns.sqlite3")
     creator_shelf = CreatorShelf(config.state_dir / "creator.sqlite3")
     moment_inbox = MomentInbox(config.state_dir / "lifestream.sqlite3", config)
     session_token = secrets.token_urlsafe(32)
@@ -144,6 +146,7 @@ def create_app(config: WorkbenchConfig | None = None) -> FastAPI:
     app = FastAPI(title="Static Workbench", version=__version__, lifespan=lifespan)
     app.state.config = config
     app.state.journal = journal
+    app.state.return_ledger = return_ledger
     app.state.creator_shelf = creator_shelf
     app.state.moment_inbox = moment_inbox
     app.state.session_token = session_token
@@ -179,6 +182,29 @@ def create_app(config: WorkbenchConfig | None = None) -> FastAPI:
     @app.get("/api/events")
     def events(limit: int = Query(default=100, ge=1, le=1000)):
         return {"events": [asdict(event) for event in journal.latest(limit)]}
+
+    # HOUSE-FLYWHEEL-002: only existing, explicitly reported local returns.
+    # No project read, import/write endpoint, automatic discovery, or effectful action.
+    @app.get("/api/house/returns")
+    def house_returns(limit: int = Query(default=50, ge=1, le=100)):
+        return {
+            "format": "house.capability-return-shelf/v0",
+            "verification": "not_evaluated",
+            "records": [asdict(record) for record in return_ledger.latest(limit)],
+            "nonclaims": [
+                "Imported effects and capabilities are self-reported, not independently verified.",
+                "Local SHA-256 is not source authenticity, project-native receipt, or authorization.",
+            ],
+        }
+
+    @app.get("/api/house/returns/{return_id}")
+    def house_return_detail(return_id: str):
+        if not 1 <= len(return_id) <= 512:
+            raise HTTPException(status_code=404, detail="return not found")
+        record = return_ledger.get(return_id)
+        if record is None:
+            raise HTTPException(status_code=404, detail="return not found")
+        return {"format": "house.capability-return/v0", "verification": "not_evaluated", "record": asdict(record)}
 
     @app.get("/api/repos")
     def repos():
