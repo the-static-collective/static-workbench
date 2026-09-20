@@ -14,6 +14,7 @@ from . import __version__
 from .aperture import analyze_aperture
 from .config import RootConfig, WorkbenchConfig, load_config
 from .dogram_impact import ImpactDeskError, preview_impact, run_impact, read_report
+from .graft_witness import GraftWitnessError, preview as preview_graft, measure as measure_graft
 from .creator import creator_desk_status, search_sources
 from .creator_shelf import CreatorShelf, CreatorConflict, preview_pack
 from .maxhinal_dock import parse_ride
@@ -35,6 +36,8 @@ from .schemas import (
     NativeSpinRequest,
     DogramImpactRequest,
     DogramImpactRunRequest,
+    GraftWitnessPreviewRequest,
+    GraftWitnessRunRequest,
     ApertureHistoryResponse,
     ApertureRecordResponse,
     BootstrapResponse,
@@ -404,6 +407,43 @@ def create_app(config: WorkbenchConfig | None = None) -> FastAPI:
         if saved is None:
             raise HTTPException(status_code=404, detail="native Maxhinal ride not found")
         return saved
+
+    @app.post("/api/house-maxhinal/graft/preview")
+    def graft_structural_preview(payload: GraftWitnessPreviewRequest, request: Request):
+        _creator_write_guard(request)
+        try:
+            return preview_graft(config, creator_shelf, **payload.model_dump())
+        except (GraftWitnessError, CreatorConflict) as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+    @app.post("/api/house-maxhinal/graft/measure")
+    def graft_structural_measure(payload: GraftWitnessRunRequest, request: Request):
+        _creator_write_guard(request)
+        try:
+            result = measure_graft(config, creator_shelf, **payload.model_dump())
+        except (GraftWitnessError, CreatorConflict) as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+        journal.append("house.graft.dogram_witness_saved", {
+            "ride_id": payload.ride_id, "witness_sha256": result["witness_sha256"],
+            "specimen_sha256": payload.expected_specimen_sha256,
+        })
+        return result
+
+    @app.get("/api/house-maxhinal/graft/rides/{ride_id}/witnesses")
+    def graft_structural_witnesses(ride_id: int):
+        if creator_shelf.get_native_ride(ride_id) is None:
+            raise HTTPException(status_code=404, detail="Maxhinal ride not found")
+        return {"witnesses": creator_shelf.list_graft_witnesses(ride_id)}
+
+    @app.get("/api/house-maxhinal/graft/witnesses/{witness_sha256}")
+    def graft_structural_witness(witness_sha256: str):
+        try:
+            result = creator_shelf.get_graft_witness(witness_sha256)
+        except CreatorConflict as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+        if result is None:
+            raise HTTPException(status_code=404, detail="GRAFT witness not found")
+        return result
 
     @app.get("/api/broadcast/door")
     def local_broadcast_door():

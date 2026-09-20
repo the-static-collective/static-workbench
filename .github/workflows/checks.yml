@@ -29,6 +29,8 @@ jobs:
           persist-credentials: false
       - name: Actual Dogram integration smoke
         run: python scripts/smoke_dogram_impact.py
+      - name: Actual public Dogram GRAFT witness smoke
+        run: python scripts/smoke_graft_witness.py
       - name: Browser JavaScript syntax
         run: |
           node --check static_workbench/web/app.js
@@ -36,3 +38,4 @@ jobs:
           node --check static_workbench/web/maxhinal-dock.js
           node --check static_workbench/web/native-maxhinal.js
           node --check static_workbench/web/dogram-impact.js
+          node --check static_workbench/web/graft-witness.js
