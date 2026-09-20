@@ -91,6 +91,14 @@ def parse_ride(raw: str) -> tuple[dict[str, Any], dict[str, Any]]:
         "operations": [{"id": op["operation_id"], "mode": op["mode"], "outputs": op.get("output_refs", [])}
                        for op in ride["operations"]],
         "output_count": len(ride["outputs"]),
+        "projections": [
+            {"id": item["output_id"], "mode": str(item.get("mode", ""))[:80],
+             "status": str(item.get("status", ""))[:80],
+             "source_operation_id": item["source_operation_id"],
+             "source_refs": item.get("source_refs", [])[:16] if isinstance(item.get("source_refs"), list) else [],
+             "excerpt": json.dumps(item.get("value"), ensure_ascii=False, sort_keys=True)[:1200]}
+            for item in ride["outputs"]
+        ],
         "residuals": [{"id": x["residual_id"], "code": str(x.get("code", ""))[:100],
                        "message": str(x.get("message", ""))[:400]} for x in ride["residuals"]],
         "bad_spins": [{"id": x["bad_id"], "kind": str(x.get("kind", ""))[:100],
