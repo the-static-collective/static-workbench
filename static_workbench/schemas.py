@@ -119,3 +119,14 @@ class NativeSpinRequest(NativeFuelRequest):
     mode: str = Field(pattern=r"^(discontinuity|braid|compose|pressure|shuffle)$")
     seed: str = Field(default="0", max_length=100)
     question: str = Field(default="", max_length=400)
+
+
+class DogramImpactRequest(BaseModel):
+    root_id: str = Field(min_length=1, max_length=64)
+    repo_path: str = Field(min_length=1, max_length=256)
+
+
+class DogramImpactRunRequest(DogramImpactRequest):
+    expected_input_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
+    expected_candidate_commit: str = Field(pattern=r"^[0-9a-f]{40}$")
+    expected_dogram_commit: str = Field(pattern=r"^[0-9a-f]{40}$")
