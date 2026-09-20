@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import secrets
+import asyncio
 from contextlib import asynccontextmanager
 from dataclasses import asdict
 from pathlib import Path
@@ -34,6 +35,11 @@ from .groundkeeper import make_receipt as groundkeeper_first_ignition
 from .machine import sample_machine
 from .paths import PathOutsideRoot, resolve_under_root
 from .repos import discover_repositories
+from .branch_deck import build_branch_deck
+from .branch_remote import inspect_github_repo, RemoteDiscoveryError
+from .branch_worktree import WorktreeError, preview_worktree, create_worktree
+from .branch_radar import CollectiveRadar
+from .branch_tests import SuiteError, available_suites, preview_test, run_test
 from .schemas import (
     ApertureAnalyzeRequest,
     CreatorPackRequest,
@@ -50,6 +56,10 @@ from .schemas import (
     GraftRoundPreviewRequest,
     GraftRoundSaveRequest,
     GraftDraftSaveRequest,
+    BranchWorktreeRequest,
+    BranchWorktreeCreateRequest,
+    BranchSuitePreviewRequest,
+    BranchSuiteRunRequest,
     CompositionInspectRequest,
     ApertureHistoryResponse,
     ApertureRecordResponse,
@@ -143,11 +153,31 @@ def create_app(config: WorkbenchConfig | None = None) -> FastAPI:
     rocket_desk = RocketDesk(config.state_dir / "rockets.sqlite3", config, creator_shelf)
     moment_inbox = MomentInbox(config.state_dir / "lifestream.sqlite3", config)
     session_token = secrets.token_urlsafe(32)
+    branch_radar = CollectiveRadar(config.state_dir) if config.branch_radar_enabled else None
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):
         journal.append("workbench.started", {"version": __version__})
-        yield
+        async def rolling_radar():
+            while True:
+                # The work happens off the event loop; no branch or project
+                # execution is initiated by this observational cycle.
+                result = await asyncio.to_thread(branch_radar.scan_once)
+                journal.append("branches.radar_cycle", {
+                    "repos_scanned": len(result["repos_scanned"]),
+                    "errors": result["errors"][:5],
+                })
+                await asyncio.sleep(1800)
+        task = asyncio.create_task(rolling_radar()) if branch_radar is not None else None
+        try:
+            yield
+        finally:
+            if task is not None:
+                task.cancel()
+                try:
+                    await task
+                except asyncio.CancelledError:
+                    pass
 
     app = FastAPI(title="Static Workbench", version=__version__, lifespan=lifespan)
     app.state.config = config
@@ -195,6 +225,51 @@ def create_app(config: WorkbenchConfig | None = None) -> FastAPI:
         result = discover_repositories(config.roots, config.max_repo_depth)
         journal.append("repos.scanned", {"count": len(result)})
         return {"repos": [asdict(item) for item in result]}
+
+    @app.get("/api/branches")
+    def branch_deck():
+        # No user-controlled paths, Git arguments, network fetch or checkout.
+        result = build_branch_deck(discover_repositories(config.roots, config.max_repo_depth))
+        journal.append("branches.scanned", {
+            "repos": result["repos_scanned"],
+            "refs": len(result["branches"]),
+            "gaps": len(result["gaps"]),
+        })
+        return result
+
+    @app.get("/api/branches/radar")
+    def branch_deck_radar():
+        if branch_radar is None:
+            return {"enabled": False, "branches": [], "last_error": None,
+                    "scope": "radar_opt_in_disabled"}
+        return {"enabled": True, **branch_radar.snapshot()}
+
+    @app.get("/api/branches/remote")
+    def branch_deck_remote(root_id: str, repo_path: str):
+        # Explicit browser action only; configured-root checkout and approved
+        # Collective GitHub origin are resolved server-side. No user URL accepted.
+        if not config.github_remote_discovery:
+            raise HTTPException(status_code=403, detail="public GitHub discovery disabled; enable github_remote_discovery in Workbench config")
+        repos = discover_repositories(config.roots, config.max_repo_depth)
+        selected = next(
+            (repo for repo in repos if repo.root_id == root_id and repo.relative_path == repo_path),
+            None,
+        )
+        if selected is None:
+            raise HTTPException(status_code=404, detail="repository not discovered under configured roots")
+        local_deck = build_branch_deck([selected])
+        if local_deck["gaps"]:
+            raise HTTPException(status_code=409, detail="local reference scan incomplete; inspect scan gaps before relating to remote")
+        try:
+            observed = inspect_github_repo(selected, local_deck["branches"])
+        except RemoteDiscoveryError as exc:
+            raise HTTPException(status_code=502, detail=str(exc)) from exc
+        journal.append("branches.github_observed", {
+            "root_id": selected.root_id, "repo_path": selected.relative_path,
+            "github_repo": observed["github_repo"], "refs": len(observed["branches"]),
+            "gaps": observed["gaps"],
+        })
+        return observed
 
     @app.get("/api/house")
     def house():
@@ -418,6 +493,92 @@ def create_app(config: WorkbenchConfig | None = None) -> FastAPI:
             return preview_relation(composition, payload["declaration"])
         except (CompositionError, RelationError, OSError, ValueError) as exc:
             raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+    def _worktree_source(payload: BranchWorktreeRequest):
+        repos = discover_repositories(config.roots, config.max_repo_depth)
+        selected = next(
+            (repo for repo in repos if repo.root_id == payload.root_id and repo.relative_path == payload.repo_path),
+            None,
+        )
+        if selected is None:
+            raise HTTPException(status_code=404, detail="local checkout is not under a configured root")
+        deck = build_branch_deck([selected])
+        if deck["gaps"]:
+            raise HTTPException(status_code=409, detail="local branch scan incomplete; inspect before worktree preparation")
+        matching = next((
+            card for card in deck["branches"]
+            if card["kind"] == "local" and card["ref"] == payload.ref
+            and card["commit"] == payload.expected_commit
+        ), None)
+        if matching is None:
+            raise HTTPException(status_code=409, detail="local branch/commit not observed or moved; refresh Branch Deck")
+        return selected
+
+    @app.post("/api/branches/worktrees/preview")
+    def worktree_preview(payload: BranchWorktreeRequest, request: Request):
+        _creator_write_guard(request)
+        selected = _worktree_source(payload)
+        try:
+            return preview_worktree(config, selected, payload.ref, payload.expected_commit)
+        except WorktreeError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+    @app.post("/api/branches/worktrees/create")
+    def worktree_create(payload: BranchWorktreeCreateRequest, request: Request):
+        _creator_write_guard(request)
+        if payload.acknowledge_effect is not True:
+            raise HTTPException(status_code=422, detail="explicit worktree effect acknowledgement required")
+        selected = _worktree_source(payload)
+        try:
+            result = create_worktree(config, selected, payload.ref, payload.expected_commit,
+                                     payload.expected_preview_digest)
+        except WorktreeError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+        journal.append("branches.worktree_created", {
+            "root_id": selected.root_id, "repo_path": selected.relative_path,
+            "commit": result["actual_commit"], "destination": result["destination"],
+            "preview_digest": result["preview_digest"], "tests": "not_run",
+        })
+        return result
+
+    @app.get("/api/branches/tests/suites")
+    def test_suites(root_id: str, repo_path: str):
+        repo = next((item for item in discover_repositories(config.roots, config.max_repo_depth)
+                     if item.root_id == root_id and item.relative_path == repo_path), None)
+        if repo is None:
+            raise HTTPException(status_code=404, detail="local repository unavailable")
+        return {"suites": [{"id": suite.id, "repo": suite.repo, "argv": list(suite.argv),
+                            "timeout_seconds": suite.timeout_seconds}
+                           for suite in available_suites(config, repo)],
+                "execution_isolation": "none", "automatic_execution": False}
+
+    @app.post("/api/branches/tests/preview")
+    def test_preview(payload: BranchSuitePreviewRequest, request: Request):
+        _creator_write_guard(request)
+        repo = _worktree_source(payload)
+        try:
+            return preview_test(config, repo, payload.ref, payload.expected_commit, payload.suite_id)
+        except SuiteError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+    @app.post("/api/branches/tests/run")
+    def test_run(payload: BranchSuiteRunRequest, request: Request):
+        _creator_write_guard(request)
+        if payload.acknowledge_code_execution is not True:
+            raise HTTPException(status_code=422, detail="explicit project code execution acknowledgement required")
+        repo = _worktree_source(payload)
+        try:
+            result = run_test(config, repo, payload.ref, payload.expected_commit,
+                              payload.suite_id, payload.expected_preview_digest)
+        except SuiteError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+        journal.append("branches.test_run_finished", {
+            "run_id": result["run_id"], "root_id": repo.root_id,
+            "repo_path": repo.relative_path, "commit": result["commit"],
+            "suite_id": result["suite_id"], "status": result["status"],
+            "receipt_sha256": result["receipt_sha256"],
+        })
+        return result
 
     @app.post("/api/dogram/impact/preview")
     def dogram_impact_preview(payload: DogramImpactRequest, request: Request):

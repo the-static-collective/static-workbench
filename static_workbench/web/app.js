@@ -97,6 +97,7 @@ function renderHouse() {
   pulse.append(el('div', 'pulse-number', String(house.summary.repos)), el('div', 'muted tiny', 'repos visible'));
   hero.append(copy, pulse);
   workspaceBody.appendChild(hero);
+  workspaceBody.appendChild(branchDeckTeaser());
 
   const summary = el('div', 'metric-grid house-metrics');
   summary.append(
@@ -586,6 +587,7 @@ async function refreshCurrent() {
     if (state.view === 'house') await Promise.all([loadHouse(), loadRepos(), loadMachine(), loadBroadcastDoor()]);
     else if (state.view === 'machine') await loadMachine();
     else if (state.view === 'repos') await loadRepos();
+    else if (state.view === 'branches') await Promise.all([loadBranchDeck(), loadBranchRadar()]);
     else if (state.view === 'objects') renderObjects();
     else if (state.view === 'creator') await Promise.all([loadRepos(), loadCreatorDesk()]);
     else if (state.view === 'maxhinal') await nativeMaxhinalLoad();
@@ -606,11 +608,19 @@ async function start() {
     $('#node-dot').classList.add('online'); $('#node-label').textContent = 'local supervisor online';
     renderRoots();
     await Promise.all([loadMachine(), loadRepos(), loadHouse(), loadCreatorDesk(), loadApertureHistory(), loadBroadcastDoor()]);
+    await loadBranchDeck().catch(() => { $('#branch-count').textContent = '!'; });
+    await loadBranchRadar().catch(() => {});
     await creatorV2Load();
     await nativeMaxhinalLoad();
     renderHouse();
     await loadEvents();
     window.setInterval(() => loadEvents().catch(() => {}), 5000);
+    window.setInterval(() => {
+      if (document.visibilityState === 'visible') {
+        loadBranchDeck().catch(() => { $('#branch-count').textContent = '!'; });
+        loadBranchRadar().catch(() => {});
+      }
+    }, 120000);
   } catch (error) {
     $('#node-label').textContent = 'supervisor unavailable';
     showError(error);
@@ -619,7 +629,7 @@ async function start() {
 
 document.querySelectorAll('.nav-button').forEach(button => button.addEventListener('click', () => {
   const view = button.dataset.view;
-  if (view === 'house') renderHouse(); else if (view === 'machine') renderMachine(); else if (view === 'repos') renderRepos(); else if (view === 'objects') renderObjects(); else if (view === 'creator') { renderCreatorDesk(); creatorV2Load().catch(showError); } else if (view === 'maxhinal') { renderNativeMaxhinal(); nativeMaxhinalLoad().catch(showError); } else if (view === 'dogram-impact') renderDogramImpactDesk(); else if (view === 'return') returnDeskLoad().catch(showError); else if (view === 'rocket') { state.view = 'rocket'; rocketLoad().catch(showError); } else if (view === 'composition') renderCompositionInspection(); else if (view === 'living-main') renderLivingMain(); else if (view === 'groundkeeper') groundkeeperView(); else renderHumanTerminal();
+  if (view === 'house') renderHouse(); else if (view === 'machine') renderMachine(); else if (view === 'repos') renderRepos(); else if (view === 'branches') { branchDeckOpen().catch(showError); } else if (view === 'objects') renderObjects(); else if (view === 'creator') { renderCreatorDesk(); creatorV2Load().catch(showError); } else if (view === 'maxhinal') { renderNativeMaxhinal(); nativeMaxhinalLoad().catch(showError); } else if (view === 'dogram-impact') renderDogramImpactDesk(); else if (view === 'return') returnDeskLoad().catch(showError); else if (view === 'rocket') { state.view = 'rocket'; rocketLoad().catch(showError); } else if (view === 'composition') renderCompositionInspection(); else if (view === 'living-main') renderLivingMain(); else if (view === 'groundkeeper') groundkeeperView(); else renderHumanTerminal();
 }));
 $('#refresh-view').addEventListener('click', refreshCurrent);
 $('#refresh-events').addEventListener('click', () => loadEvents().catch(showError));
