@@ -139,7 +139,8 @@ def test_ride_preview_save_and_explicit_draft_link_survive_restart(tmp_path):
         assert restored["maxhinal_ride_id"] == ride_id and restored["body"] == "A second take"
         assert client.get("/api/creator/maxhinal/rides/" + str(ride_id)).json()["ride_id"] == "ride-test"
         assert client.get("/api/creator/drafts/" + str(draft_id) + "/revisions").json()["revisions"][0]["revision"] == 2
-        assert client.get("/api/events").json()["events"][0]["kind"] == "workbench.started" or True
+        events = client.get("/api/events").json()["events"]
+        assert any(event["kind"] == "creator.maxhinal.ride_docked" for event in events)
     assert source.read_bytes() == source_before
 
 
@@ -150,7 +151,7 @@ def test_ride_shelf_rejects_cross_pack_association_without_harming_previous_revi
     _ride, summary = parse_ride(raw)
     linked = shelf.save_maxhinal_ride(pack_a, raw, summary)
     assert shelf.get_maxhinal_ride(linked["id"], include_raw=True)["raw_json"] == raw
-    assert shelf.get_maxhinal_ride(linked["id"])["raw_json"] if False else True
+    assert "raw_json" not in shelf.get_maxhinal_ride(linked["id"])
     payload = {"pack_id": pack_a, "title": "One", "kind": "brief", "body": "Original",
                "assumptions": "", "gaps": "", "maxhinal_ride_id": linked["id"]}
     first = shelf.save_revision(None, 0, payload)
