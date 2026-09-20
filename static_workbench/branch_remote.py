@@ -102,7 +102,7 @@ def _pr_index(slug: str) -> tuple[dict[str, list[dict]], bool]:
         if not isinstance(head, dict) or type(number) is not int or number < 1:
             continue
         head_repo = head.get("repo")
-        if not isinstance(head_repo, dict) or head_repo.get("full_name", "").lower() != slug.lower():
+        if not isinstance(head_repo, dict) or not isinstance(head_repo.get("full_name"), str) or head_repo["full_name"].lower() != slug.lower():
             continue  # Fork PRs are not origin-branch identity.
         name = head.get("ref")
         sha = head.get("sha")
