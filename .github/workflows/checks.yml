@@ -20,6 +20,15 @@ jobs:
         run: python -m pip install -e '.[dev]'
       - name: Python tests
         run: python -m pytest -q
+      - name: Checkout pinned upstream Dogram for integration smoke
+        uses: actions/checkout@v4
+        with:
+          repository: the-static-collective/Dogram
+          ref: 0d2d848ef9a3c5243492bd28fa5c9a71423b2508
+          path: .compat/Dogram
+          persist-credentials: false
+      - name: Actual Dogram integration smoke
+        run: python scripts/smoke_dogram_impact.py
       - name: Browser JavaScript syntax
         run: |
           node --check static_workbench/web/app.js
