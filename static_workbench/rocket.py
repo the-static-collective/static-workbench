@@ -33,9 +33,11 @@ class RocketSelection(BaseModel):
 class RocketMissionInput(BaseModel):
     title: str = Field(min_length=1, max_length=160)
     purpose: str = Field(min_length=1, max_length=2000)
-    mode: Literal["source-preview", "body-overlap"]
-    selections: list[RocketSelection] = Field(min_length=1, max_length=2)
+    mode: Literal["source-preview", "body-overlap", "creator-seed-preview"]
+    selections: list[RocketSelection] = Field(default_factory=list, max_length=2)
     source_path: str = Field(default="", max_length=300)
+    creator_seed_id: int | None = Field(default=None, ge=1)
+    expected_creator_sha256: str | None = Field(default=None, pattern=r"^[a-f0-9]{64}$")
     parent_id: int | None = Field(default=None, ge=1)
     expected_parent_sha256: str | None = Field(default=None, pattern=r"^[a-f0-9]{64}$")
 
@@ -182,6 +184,7 @@ class RocketDesk:
             "tools": [
                 {"kind": "repo.snapshot/v0", "effect": "read-only", "stage": "prepare"},
                 {"kind": "source.preview/v0", "effect": "read-only", "stage": "execute"},
+                {"kind": "creator.seed.preview/v0", "effect": "read-only", "stage": "execute"},
                 {"kind": "body.overlap/v0", "effect": "read-only", "stage": "execute",
                  "notice": "HOUSE-local exact protocol comparison; does not run Free Graph"},
                 {"kind": "mission.seed/v0", "effect": "HOUSE-local receipt only", "stage": "separate"},
@@ -215,6 +218,13 @@ class RocketDesk:
             raise RocketConflict("source-preview requires one repo and an explicit file path")
         if payload.mode == "body-overlap" and (len(selections) != 2 or payload.source_path):
             raise RocketConflict("body-overlap requires two repos and no file path")
+        if payload.mode == "creator-seed-preview":
+            if selections or payload.source_path or payload.parent_id is None or (
+                payload.creator_seed_id is None or payload.expected_creator_sha256 is None
+            ):
+                raise RocketConflict("Creator seed preview requires exact parent, native seed ID and digest; no repo selection")
+        elif payload.creator_seed_id is not None or payload.expected_creator_sha256 is not None:
+            raise RocketConflict("native seed selection is only supported in creator-seed-preview mode")
         if (payload.parent_id is None) != (payload.expected_parent_sha256 is None):
             raise RocketConflict("parent id and its exact final-stage digest must be supplied together")
         carrier = payload.model_dump()
@@ -233,6 +243,20 @@ class RocketDesk:
                 )
                 if parent_final != payload.expected_parent_sha256:
                     raise RocketConflict("parent has not separated with the selected exact receipt")
+                if payload.mode == "creator-seed-preview":
+                    if effect is None or self.creator_shelf is None:
+                        raise RocketConflict("parent has no owner-native seed effect")
+                    output = db.execute(
+                        "SELECT output_json FROM rocket_effects WHERE mission_id=?",
+                        (parent["id"],),
+                    ).fetchone()
+                    owner_output = json.loads(output["output_json"])
+                    if (owner_output["native_seed_id"] != payload.creator_seed_id or
+                            owner_output["native_content_sha256"] != payload.expected_creator_sha256):
+                        raise RocketConflict("selected Creator seed does not match the parent effect")
+                    native = self.creator_shelf.get_rocket_seed(payload.creator_seed_id)
+                    if native is None or native["content_sha256"] != payload.expected_creator_sha256:
+                        raise RocketConflict("owner-native seed no longer matches its declared identity")
             created = _now()
             digest = _digest(carrier)
             cursor = db.execute("""
