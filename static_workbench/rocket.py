@@ -242,7 +242,7 @@ class RocketDesk:
         ):
             raise RocketConflict("source path must be a non-hidden, repository-relative file")
         if not body and (requested.suffix.lower() not in {".md", ".txt", ".json", ".toml"} or
-                         any(word in requested.name.lower() for word in ("secret", "token", "password", "credential", "keyfile"))):
+                         any(word in part.lower() for part in requested.parts for word in ("secret", "token", "password", "credential", "keyfile"))):
             raise RocketConflict("unsupported or sensitive-looking source path")
         candidate = resolve_under_root(repo, source_path)
         if any((repo.joinpath(*requested.parts[:i])).is_symlink() for i in range(1, len(requested.parts) + 1)):
@@ -327,7 +327,8 @@ class RocketDesk:
                     tracked = _git(repo, "ls-files", "--error-unmatch", "--", ".body/surface-v0.json")
                     if tracked.returncode != 0:
                         raise RocketConflict("BODY manifest is not tracked")
-                    raw = manifest.read_bytes()
+                    with manifest.open("rb") as stream:
+                        raw = stream.read(32769)
                     if len(raw) > 32768:
                         raise RocketConflict("BODY manifest exceeds 32 KiB")
                     try:
