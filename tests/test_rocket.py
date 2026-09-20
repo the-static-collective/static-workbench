@@ -465,3 +465,31 @@ def test_one_native_seed_becomes_explicit_next_rocket_input_and_next_effect(tmp_
                            CreatorShelf(config.state_dir / "creator.sqlite3"))
     assert restarted.get(child["id"])["effect"]["receipt_sha256"] == second_effect["receipt_sha256"]
     assert restarted.get(child["id"])["stages"][1]["output"]["source"]["native_seed_id"] == native_id
+
+
+def test_rocket_local_shelf_migrates_pre_native_v01_without_erasing_history(tmp_path):
+    import sqlite3
+    config = config_for(tmp_path)
+    repo = make_repo(config.roots[0].path, "old")
+    db_path = config.state_dir / "rockets.sqlite3"
+    desk = RocketDesk(db_path, config)
+    previous = desk.create(source_input(repo))
+    with sqlite3.connect(db_path) as db:
+        db.execute("CREATE TABLE rocket_missions_old AS SELECT * FROM rocket_missions")
+        db.execute("DROP TABLE rocket_missions")
+        db.execute("""CREATE TABLE rocket_missions (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            created_at TEXT NOT NULL, title TEXT NOT NULL, purpose TEXT NOT NULL,
+            mode TEXT NOT NULL, selections_json TEXT NOT NULL, source_path TEXT NOT NULL,
+            parent_id INTEGER, parent_sha256 TEXT, mission_sha256 TEXT NOT NULL
+        )""")
+        db.execute("""INSERT INTO rocket_missions
+            (id,created_at,title,purpose,mode,selections_json,source_path,parent_id,parent_sha256,mission_sha256)
+            SELECT id,created_at,title,purpose,mode,selections_json,source_path,
+                   parent_id,parent_sha256,mission_sha256 FROM rocket_missions_old""")
+        db.execute("DROP TABLE rocket_missions_old")
+    reopened = RocketDesk(db_path, config)
+    assert reopened.get(previous["id"])["mission_sha256"] == previous["mission_sha256"]
+    assert reopened.get(previous["id"])["creator_seed_id"] is None
+    prepared = reopened.prepare(previous["id"])
+    assert prepared["output"]["tool"] == "repo.snapshot/v0"
