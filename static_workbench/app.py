@@ -24,6 +24,7 @@ from .native_maxhinal import preview_fuels, spin, FuelConflict
 from .broadcast import broadcast_door
 from .journal import Journal, SenseFieldRecord
 from .house import build_house_status
+from .living_main import CompositionError, preview_composition
 from .machine import sample_machine
 from .paths import PathOutsideRoot, resolve_under_root
 from .repos import discover_repositories
@@ -208,6 +209,17 @@ def create_app(config: WorkbenchConfig | None = None) -> FastAPI:
         token = request.headers.get("x-workbench-session", "")
         if not secrets.compare_digest(token, session_token):
             raise HTTPException(status_code=403, detail="creator write requires a local session token")
+
+    @app.post("/api/living-main/preview")
+    def living_main_preview(payload: dict, request: Request):
+        _creator_write_guard(request)
+        if set(payload) != {"selections"}:
+            raise HTTPException(status_code=400, detail="only selections is accepted")
+        repos = discover_repositories(config.roots, config.max_repo_depth)
+        try:
+            return preview_composition(config.roots, repos, payload["selections"])
+        except (CompositionError, OSError, ValueError) as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
 
     @app.post("/api/dogram/impact/preview")
     def dogram_impact_preview(payload: DogramImpactRequest, request: Request):

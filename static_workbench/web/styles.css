@@ -249,3 +249,46 @@ input:focus, select:focus { border-color: var(--green-dim); outline: 2px solid r
 .native-fuel-preview .raw-carrier { white-space: pre-wrap; overflow-wrap: anywhere; max-height: 240px; overflow: auto; }
 #native-maxhinal-ride { display: grid; gap: 10px; overflow-wrap: anywhere; }
 #native-maxhinal-history { display: grid; justify-items: start; gap: 9px; }
+
+
+/* Living Main: strange at the threshold, explicit at every control. */
+.lm-hero { position: relative; isolation: isolate; overflow: hidden; padding: 28px; border-color: #4d665a; background: radial-gradient(circle at 86% 8%, #253c34 0, transparent 43%), linear-gradient(125deg, #17231e, #101815); }
+.lm-hero > :not(.lm-constellation) { position: relative; z-index: 1; }
+.lm-hero h2 { font-size: clamp(24px, 3vw, 36px); margin: 10px 0; letter-spacing: -.035em; }
+.lm-hero .muted { max-width: 62ch; line-height: 1.65; }
+.lm-mantra { margin-top: 20px; font: 11px/1.6 ui-monospace, monospace; color: #a5d1ba; letter-spacing: .08em; }
+.lm-constellation { position: absolute; inset: 0; overflow: hidden; pointer-events: none; opacity: .6; }
+.lm-star { position: absolute; width: 7px; height: 7px; border: 1px solid #9cc4b0; border-radius: 50%; box-shadow: 0 0 20px #70a88e66; }
+.lm-star-0 { top: 12%; left: 72%; } .lm-star-1 { top: 52%; left: 82%; }
+.lm-star-2 { top: 29%; left: 91%; } .lm-star-3 { top: 76%; left: 71%; }
+.lm-star-4 { top: 64%; left: 94%; } .lm-star-5 { top: 16%; left: 98%; }
+.lm-star-6 { top: 89%; left: 86%; }
+.lm-layout { display: grid; grid-template-columns: minmax(250px, 1fr) minmax(300px, 1.15fr); align-items: start; gap: 16px; margin-top: 18px; }
+.lm-shelf, .lm-bench { display: grid; gap: 12px; min-width: 0; }
+.lm-shelf h2, .lm-bench h2 { margin: 0; }
+.lm-shelf input[type="search"] { width: 100%; border: 1px solid var(--line); border-radius: 8px; background: #0c1612; color: var(--ink); padding: 11px; font: inherit; }
+.lm-choices { display: grid; gap: 7px; max-height: 480px; overflow: auto; }
+.lm-choice { display: flex; gap: 10px; align-items: center; border: 1px solid var(--line-soft); border-radius: 9px; padding: 10px; cursor: pointer; background: #111b16; }
+.lm-choice:has(input:focus-visible) { outline: 2px solid #a5d1ba; outline-offset: 2px; }
+.lm-choice:has(input:disabled) { opacity: .65; cursor: not-allowed; }
+.lm-choice input { accent-color: #91c6a6; flex: 0 0 auto; }
+.lm-choice-details { display: grid; gap: 3px; min-width: 0; flex: 1; overflow-wrap: anywhere; }
+.lm-mark { display: inline-block; border: 1px solid #596658; border-radius: 99px; padding: 3px 8px; color: #bec8bc; font: 10px/1.35 ui-monospace, monospace; white-space: nowrap; }
+.lm-mark.available { color: #b5d8bf; border-color: #4c795b; }
+.lm-mark.held { color: #d8c69e; border-color: #786747; }
+.lm-chosen { display: grid; gap: 9px; }
+.lm-chosen-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--line-soft); }
+.lm-chosen-row > div { display: grid; gap: 5px; min-width: 0; overflow-wrap: anywhere; }
+.lm-chosen-row code { font: 11px/1.4 ui-monospace, monospace; color: #b5d8bf; overflow-wrap: anywhere; }
+.lm-chosen-row button { flex: 0 0 auto; }
+.lm-feedback { font-size: 12px; line-height: 1.5; color: #dccaa2; overflow-wrap: anywhere; }
+.lm-result { display: grid; gap: 12px; }
+.lm-receipt { display: grid; gap: 12px; border-color: #4c795b; }
+.lm-receipt h2 { margin: 0; }
+.lm-id { display: block; padding: 12px; border-radius: 7px; background: #0b1711; overflow-wrap: anywhere; font: 11px/1.5 ui-monospace, monospace; }
+.lm-marks { display: flex; flex-wrap: wrap; gap: 6px; }
+.lm-receipt-members { display: grid; gap: 12px; padding-left: 20px; }
+.lm-receipt-members li { display: grid; gap: 4px; overflow-wrap: anywhere; }
+.lm-receipt-members code { font: 11px/1.5 ui-monospace, monospace; overflow-wrap: anywhere; }
+@media (max-width: 980px) { .lm-layout { grid-template-columns: 1fr; } }
+@media (max-width: 600px) { .lm-choice { flex-wrap: wrap; } .lm-chosen-row { align-items: start; flex-wrap: wrap; } .lm-hero { padding: 18px; } }

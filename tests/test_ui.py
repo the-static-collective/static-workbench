@@ -64,3 +64,20 @@ def test_house_is_default_habitat_surface(tmp_path: Path):
     assert "/api/house" in js
     assert "house.laws" in js
     assert "The house is awake." in js
+
+
+def test_living_main_is_navigable_and_serves_its_inspection_ui(tmp_path: Path):
+    with TestClient(create_app(make_config(tmp_path)), base_url="http://127.0.0.1") as client:
+        html = client.get("/").text
+        ui = client.get("/assets/living-main.js")
+        styles = client.get("/assets/styles.css").text
+
+    assert 'data-view="living-main"' in html
+    assert 'src="/assets/living-main.js"' in html
+    assert ui.status_code == 200
+    assert "/api/living-main/preview" in ui.text
+    assert "expected_sha: repo.full_head" in ui.text
+    assert "NOT EXECUTED" in ui.text
+    assert "INTEGRATION NOT TESTED" in ui.text
+    assert "livingMainDesk.selected" in ui.text
+    assert ".lm-layout" in styles
