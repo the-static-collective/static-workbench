@@ -66,7 +66,7 @@ def test_explicit_preview_and_create_preserve_main_and_do_not_run_hook(tmp_path:
         assert outcome["actual_commit"] == sha
         assert outcome["tests"] == "not_run"
         assert git(Path(outcome["destination"]), "rev-parse", "HEAD") == sha
-        assert git(Path(outcome["destination"]), "symbolic-ref", "-q", "HEAD") == ""
+        assert git(Path(outcome["destination"]), "rev-parse", "--abbrev-ref", "HEAD") == "HEAD"
         assert not hook_marker.exists()
         again = client.post("/api/branches/worktrees/create", json={
             **payload(sha), "expected_preview_digest": plan["preview_digest"],
