@@ -52,7 +52,11 @@ def parse_ride(raw: str) -> tuple[dict[str, Any], dict[str, Any]]:
             raise ValueError(f"ride {field} must be a bounded list")
     ids: set[str] = set()
     for op in ride["operations"]:
-        if not isinstance(op, dict) or op.get("mode") not in MODES or not isinstance(op.get("operation_id"), str):
+        if (not isinstance(op, dict) or not isinstance(op.get("mode"), str)
+            or op["mode"] not in MODES or not isinstance(op.get("operation_id"), str)
+            or not isinstance(op.get("output_refs"), list)
+            or len(op["output_refs"]) > MAX_OUTPUTS
+            or any(not isinstance(ref, str) or len(ref) > 128 for ref in op["output_refs"])):
             raise ValueError("ride contains an invalid operation")
         if op["operation_id"] in ids:
             raise ValueError("ride operation identity was reused")
@@ -73,7 +77,9 @@ def parse_ride(raw: str) -> tuple[dict[str, Any], dict[str, Any]]:
     for entry in ride["gas"]:
         if not isinstance(entry, dict) or entry.get("kind") != "slice" or not isinstance(entry.get("slice_id"), str) or not entry["slice_id"]:
             raise ValueError("ride has unsupported gas reference")
-    if not isinstance(ride.get("replay"), dict):
+    if (not isinstance(ride.get("replay"), dict)
+        or not isinstance(ride["replay"].get("status"), str)
+        or len(ride["replay"]["status"]) > 64):
         raise ValueError("ride replay status is missing")
 
     summary = {
