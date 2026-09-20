@@ -401,3 +401,67 @@ def test_effect_api_enforces_explicit_native_target_and_recovers_after_restart(t
         assert recovered["effect"]["receipt_sha256"] == effect["receipt_sha256"]
         assert recovered["effect"]["output"]["native_seed_id"] == native_id
         assert len(client.get("/api/creator/rocket-seeds").json()["seeds"]) == 1
+
+
+def test_one_native_seed_becomes_explicit_next_rocket_input_and_next_effect(tmp_path):
+    config = config_for(tmp_path)
+    repo = make_repo(config.roots[0].path, "original")
+    creator = CreatorShelf(config.state_dir / "creator.sqlite3")
+    desk = RocketDesk(config.state_dir / "rockets.sqlite3", config, creator)
+    first, _, _, separate = make_session(desk, repo)
+    native_effect = desk.launch_creator_seed(first["id"], RocketLaunchInput(
+        expected_stage_sha256=separate["sha256"], target="creator.seed/v0",
+        authorization="save_creator_seed", title="First seed",
+        body="A new owner-local idea, distinct from the original source.",
+    ))
+    native_id = native_effect["output"]["native_seed_id"]
+    native_sha = native_effect["output"]["native_content_sha256"]
+
+    with pytest.raises(RocketConflict, match="exact parent"):
+        desk.create(RocketMissionInput(
+            title="Unparented", purpose="No unauthorized source reuse",
+            mode="creator-seed-preview", creator_seed_id=native_id,
+            expected_creator_sha256=native_sha,
+        ))
+    with pytest.raises(RocketConflict, match="does not match"):
+        desk.create(RocketMissionInput(
+            title="Substitute", purpose="Refuse a replaced native identity",
+            mode="creator-seed-preview", creator_seed_id=native_id,
+            expected_creator_sha256="0" * 64, parent_id=first["id"],
+            expected_parent_sha256=native_effect["receipt_sha256"],
+        ))
+
+    child = desk.create(RocketMissionInput(
+        title="Continue from exact seed", purpose="Explicitly inspect new native material",
+        mode="creator-seed-preview", creator_seed_id=native_id,
+        expected_creator_sha256=native_sha, parent_id=first["id"],
+        expected_parent_sha256=native_effect["receipt_sha256"],
+    ))
+    assert child["stages"] == [] and child["selections"] == []
+    prepared = desk.prepare(child["id"])
+    assert prepared["output"]["tool"] == "creator.seed.snapshot/v0"
+    assert prepared["output"]["source"]["native_seed_id"] == native_id
+    executed = desk.execute(child["id"], prepared["sha256"])
+    assert executed["output"]["tool"] == "creator.seed.preview/v0"
+    assert executed["output"]["excerpt"] == "A new owner-local idea, distinct from the original source."
+    assert executed["output"]["source"]["native_content_sha256"] == native_sha
+    separated = desk.separate(child["id"], RocketSeparateInput(
+        expected_stage_sha256=executed["sha256"],
+        next_action="Inspect an additional question raised by this seed",
+    ))
+    second_effect = desk.launch_creator_seed(child["id"], RocketLaunchInput(
+        expected_stage_sha256=separated["sha256"], target="creator.seed/v0",
+        authorization="save_creator_seed", title="Second generation",
+        body="A further human-reviewed proposal from the first saved seed.",
+    ))
+    second = creator.get_rocket_seed(second_effect["output"]["native_seed_id"])
+    assert second["source"]["native_seed_id"] == native_id
+    assert second["source"]["native_content_sha256"] == native_sha
+    assert second["rocket_mission_id"] == child["id"]
+    assert len(creator.list_rocket_seeds()) == 2
+    assert git(repo, "status", "--porcelain") == ""
+
+    restarted = RocketDesk(config.state_dir / "rockets.sqlite3", config,
+                           CreatorShelf(config.state_dir / "creator.sqlite3"))
+    assert restarted.get(child["id"])["effect"]["receipt_sha256"] == second_effect["receipt_sha256"]
+    assert restarted.execute if callable(restarted.execute) else False
