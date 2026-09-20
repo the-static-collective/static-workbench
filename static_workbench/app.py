@@ -25,6 +25,7 @@ from .broadcast import broadcast_door
 from .journal import Journal, SenseFieldRecord
 from .house import build_house_status
 from .living_main import CompositionError, preview_composition
+from .relation_chamber import RelationError, preview_relation
 from .machine import sample_machine
 from .paths import PathOutsideRoot, resolve_under_root
 from .repos import discover_repositories
@@ -219,6 +220,20 @@ def create_app(config: WorkbenchConfig | None = None) -> FastAPI:
         try:
             return preview_composition(config.roots, repos, payload["selections"])
         except (CompositionError, OSError, ValueError) as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+    @app.post("/api/living-main/relations/preview")
+    def living_main_relation_preview(payload: dict, request: Request):
+        _creator_write_guard(request)
+        if set(payload) != {"selections", "declaration", "expected_configuration_id"}:
+            raise HTTPException(status_code=400, detail="selections, declaration and expected_configuration_id required")
+        try:
+            repos = discover_repositories(config.roots, config.max_repo_depth)
+            composition = preview_composition(config.roots, repos, payload["selections"])
+            if composition["configuration_id"] != payload["expected_configuration_id"]:
+                raise RelationError("composition changed since preview; inspect the body again")
+            return preview_relation(composition, payload["declaration"])
+        except (CompositionError, RelationError, OSError, ValueError) as exc:
             raise HTTPException(status_code=409, detail=str(exc)) from exc
 
     @app.post("/api/dogram/impact/preview")

@@ -292,3 +292,16 @@ input:focus, select:focus { border-color: var(--green-dim); outline: 2px solid r
 .lm-receipt-members code { font: 11px/1.5 ui-monospace, monospace; overflow-wrap: anywhere; }
 @media (max-width: 980px) { .lm-layout { grid-template-columns: 1fr; } }
 @media (max-width: 600px) { .lm-choice { flex-wrap: wrap; } .lm-chosen-row { align-items: start; flex-wrap: wrap; } .lm-hero { padding: 18px; } }
+
+
+/* Relation Chamber: whimsical framing, legible and keyboard-operable controls. */
+.lm-chamber { display:grid; gap:12px; margin-top:8px; border-color:#6b6446; background:radial-gradient(circle at top right,#302a1e,transparent 56%),#151b16; }
+.lm-chamber h2 { margin:0; font-size:clamp(20px,2vw,27px); }
+.lm-relation-form { display:grid; gap:12px; }
+.lm-relation-label { display:grid; gap:6px; font-size:13px; font-weight:600; }
+.lm-relation-label select,.lm-relation-label textarea,.lm-relation-label input { max-width:100%; min-width:0; width:100%; padding:11px; border:1px solid var(--line); border-radius:8px; background:#101712; color:var(--ink); font-size:13px; line-height:1.5; font-family:inherit; }
+.lm-relation-label textarea { resize:vertical; }
+.lm-relation-label :is(select,textarea,input):focus-visible { outline:2px solid #c7a867; outline-offset:2px; }
+.lm-relation-result { display:grid; gap:9px; }
+.lm-relation-witness { display:grid; gap:9px; padding:16px; border:1px solid #89734d; border-radius:11px; overflow-wrap:anywhere; }
+.lm-relation-witness p { margin:0; }

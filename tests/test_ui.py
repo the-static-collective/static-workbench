@@ -81,3 +81,19 @@ def test_living_main_is_navigable_and_serves_its_inspection_ui(tmp_path: Path):
     assert "INTEGRATION NOT TESTED" in ui.text
     assert "livingMainDesk.selected" in ui.text
     assert ".lm-layout" in styles
+
+
+def test_living_main_relation_chamber_is_explicit_and_unrun(tmp_path: Path):
+    with TestClient(create_app(make_config(tmp_path)), base_url="http://127.0.0.1") as client:
+        html = client.get("/").text
+        js = client.get("/assets/living-main.js")
+        css = client.get("/assets/styles.css").text
+
+    assert js.status_code == 200
+    assert 'src="/assets/living-main.js"' in html
+    assert "livingMainRenderChamber(host, preview)" in js.text
+    assert "/api/living-main/relations/preview" in js.text
+    assert "Choose two distinct bodies" in js.text
+    assert "Remove relation preview" in js.text
+    assert "no mathematical equivalence proved" in js.text
+    assert ".lm-relation-form" in css

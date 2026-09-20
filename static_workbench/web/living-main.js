@@ -53,6 +53,7 @@ function livingMainRenderReceipt(host) {
   card.append(copy, feedback, el('p', 'muted tiny',
     'The manifest identifies selected checkouts at observed commits. It does not lock dependencies, prove remote origin, test interoperability, or certify runtime readiness.'));
   host.appendChild(card);
+  if (preview.members.length >= 2) livingMainRenderChamber(host, preview);
 }
 function renderLivingMain() {
   state.view = 'living-main'; syncNav('living-main');
@@ -162,4 +163,115 @@ function renderLivingMain() {
     }
   });
   renderChosen(); renderChoices(); livingMainRenderReceipt(result);
+}
+
+function livingMainRenderChamber(host, preview) {
+  const chamber = el('section', 'card lm-chamber');
+  chamber.append(
+    el('div', 'eyebrow', '03 / DECLARED RELATION · UNRUN'),
+    el('h2', '', 'Pretend, precisely.'),
+    el('p', 'muted', 'Choose two distinct bodies. Describe a bounded relationship you want to explore. This does not claim they are identical, compatible, or mathematically equivalent.')
+  );
+  const form = el('form', 'lm-relation-form');
+  const choices = preview.members;
+  function memberSelect(labelText, firstIndex) {
+    const wrap = el('label', 'lm-relation-label');
+    wrap.appendChild(el('span', '', labelText));
+    const select = el('select');
+    select.required = true;
+    for (const member of choices) {
+      const option = el('option', '', member.root_id + ' / ' + member.relative_path + ' @' + member.source_sha.slice(0, 12));
+      option.value = member.body_time_id;
+      select.appendChild(option);
+    }
+    select.selectedIndex = firstIndex;
+    wrap.appendChild(select);
+    return [wrap, select];
+  }
+  const [leftLabel, left] = memberSelect('First body', 0);
+  const [rightLabel, right] = memberSelect('Second body', 1);
+  const kindLabel = el('label', 'lm-relation-label');
+  kindLabel.appendChild(el('span', '', 'Declared relation'));
+  const kind = el('select');
+  [
+    ['equivalent_for_this_experiment', 'Treat as equivalent for this experiment'],
+    ['substitutable_for_this_step', 'Substitute for this step'],
+    ['contrast_pair', 'Compare as distinct alternatives'],
+  ].forEach(([value, label]) => {
+    const option = el('option', '', label); option.value = value; kind.appendChild(option);
+  });
+  kindLabel.appendChild(kind);
+  const statementLabel = el('label', 'lm-relation-label');
+  statementLabel.appendChild(el('span', '', 'What relationship are you proposing?'));
+  const statement = el('textarea');
+  statement.required = true; statement.maxLength = 800; statement.rows = 3;
+  statement.placeholder = 'For this experiment, treat the rhythm of A as the interface of B…';
+  statementLabel.appendChild(statement);
+  const scopeLabel = el('label', 'lm-relation-label');
+  scopeLabel.appendChild(el('span', '', 'Where does this pretense apply?'));
+  const scope = el('input');
+  scope.required = true; scope.maxLength = 400;
+  scope.placeholder = 'One synthetic GRAFT candidate comparison; no production execution';
+  scopeLabel.appendChild(scope);
+  const submit = el('button', 'action-button', 'Preview declared relation');
+  submit.type = 'submit';
+  const remove = el('button', 'quiet-button', 'Remove relation preview');
+  remove.type = 'button'; remove.disabled = true;
+  const feedback = el('div', 'lm-feedback');
+  const receipt = el('div', 'lm-relation-result');
+  form.append(leftLabel, rightLabel, kindLabel, statementLabel, scopeLabel, submit, remove, feedback, receipt);
+  chamber.appendChild(form); host.appendChild(chamber);
+  function clearRelation() {
+    clear(receipt); remove.disabled = true;
+  }
+  for (const field of [left, right, kind, statement, scope]) {
+    field.addEventListener('input', () => { clearRelation(); feedback.textContent = 'Declaration changed. Preview again to establish its identity.'; });
+    field.addEventListener('change', () => { clearRelation(); feedback.textContent = 'Declaration changed. Preview again to establish its identity.'; });
+  }
+  remove.addEventListener('click', () => {
+    clearRelation(); feedback.textContent = 'Relation preview removed. The source composition and original sources remain unchanged.';
+  });
+  form.addEventListener('submit', async event => {
+    event.preventDefault();
+    clearRelation(); feedback.textContent = '';
+    if (left.value === right.value) {
+      feedback.textContent = 'Select two distinct bodies; the relation must not identify a body with itself.';
+      return;
+    }
+    const live = livingMainDesk.preview;
+    if (!live || live.configuration_id !== preview.configuration_id) {
+      feedback.textContent = 'Composition changed. Preview the body again before declaring a relation.';
+      return;
+    }
+    submit.disabled = true;
+    try {
+      const selections = Array.from(livingMainDesk.selected.values()).map(repo => ({
+        root_id: repo.root_id, relative_path: repo.relative_path, expected_sha: repo.full_head,
+      }));
+      const packet = await api('/api/living-main/relations/preview', {
+        method: 'POST',
+        headers: { 'X-Workbench-Session': state.bootstrap.session_token },
+        body: JSON.stringify({
+          selections, expected_configuration_id: preview.configuration_id,
+          declaration: {
+            left: left.value, right: right.value, kind: kind.value,
+            statement: statement.value, scope: scope.value,
+          },
+        }),
+      });
+      const card = el('article', 'lm-relation-witness');
+      card.append(
+        el('div', 'eyebrow', 'DECLARED / PROPOSED / UNRUN'),
+        el('strong', '', 'The relation has its own identity'),
+        el('code', 'lm-id', packet.relation_id),
+        el('p', '', packet.statement),
+        el('p', 'muted tiny', 'Scope: ' + packet.scope),
+        el('p', 'muted tiny', 'Two source identities preserved · no mathematical equivalence proved · no test run · authority: none')
+      );
+      receipt.appendChild(card); remove.disabled = false;
+      feedback.textContent = 'Relation preview created locally. Copying or freezing it is a separate future operation.';
+    } catch (error) {
+      feedback.textContent = 'Relation preview refused: ' + (error.message || String(error));
+    } finally { submit.disabled = false; }
+  });
 }
