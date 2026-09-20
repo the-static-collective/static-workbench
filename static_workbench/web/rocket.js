@@ -86,6 +86,7 @@ function rocketRender() {
   const mode = el('select');
   rocketOption(mode, 'source-preview', 'Source preview · one repository');
   rocketOption(mode, 'body-overlap', 'BODY interface comparison · two repositories');
+  if (rocketState.parent?.nativeSeedId) rocketOption(mode, 'creator-seed-preview', 'Consume exact parent Creator seed · no repository');
   modeWrap.appendChild(mode); form.appendChild(modeWrap);
   const available = catalog.repos.filter(r => r.selectable);
   const repoA = el('select'), repoB = el('select');
@@ -99,28 +100,30 @@ function rocketRender() {
     wrap.appendChild(field); form.appendChild(wrap);
     return wrap;
   };
-  makeRepoField('First source', repoA);
+  const first = makeRepoField('First source', repoA);
   const second = makeRepoField('Second source', repoB);
   const path = rocketField(form, 'Repository-relative source file (.md / .txt / .json / .toml)', false, 300);
   const updateMode = () => {
+    first.hidden = mode.value === 'creator-seed-preview';
     second.hidden = mode.value !== 'body-overlap';
     path.parentNode.hidden = mode.value !== 'source-preview';
     path.required = mode.value === 'source-preview';
   };
+  if (rocketState.parent?.nativeSeedId) mode.value = 'creator-seed-preview';
   mode.addEventListener('change', updateMode); updateMode();
   const submit = el('button', 'action-button', 'Save inert mission plan');
   submit.type = 'submit';
-  submit.disabled = !available.length;
+  submit.disabled = !available.length && !rocketState.parent?.nativeSeedId;
   const feedback = el('div');
   form.append(submit, feedback);
   form.addEventListener('submit', async event => {
     event.preventDefault();
     submit.disabled = true;
     try {
-      if (repoA.value === '' || (mode.value === 'body-overlap' && repoB.value === '')) {
+      if (mode.value !== 'creator-seed-preview' && (repoA.value === '' || (mode.value === 'body-overlap' && repoB.value === ''))) {
         throw new Error('Explicitly select the source checkout(s).');
       }
-      const inputs = [available[Number(repoA.value)]];
+      const inputs = mode.value === 'creator-seed-preview' ? [] : [available[Number(repoA.value)]];
       if (mode.value === 'body-overlap') inputs.push(available[Number(repoB.value)]);
       const selections = inputs.map(r => ({
         root_id: r.root_id, repo_path: r.repo_path, expected_sha: r.expected_sha,
@@ -128,6 +131,10 @@ function rocketRender() {
       const payload = {
         title: title.value, purpose: purpose.value, mode: mode.value,
         selections, source_path: mode.value === 'source-preview' ? path.value : '',
+        ...(mode.value === 'creator-seed-preview' ? {
+          creator_seed_id: rocketState.parent.nativeSeedId,
+          expected_creator_sha256: rocketState.parent.nativeSeedSha256,
+        } : {}),
         ...(rocketState.parent ? {
           parent_id: rocketState.parent.id,
           expected_parent_sha256: rocketState.parent.sha256,
@@ -222,7 +229,7 @@ function rocketRender() {
       });
       result.appendChild(inspect);
       active.appendChild(result);
-    } else if (mission.mode === 'source-preview') {
+    } else if (mission.mode === 'source-preview' || mission.mode === 'creator-seed-preview') {
       const owner = el('section', 'rocket-stage');
       owner.appendChild(el('h3', '', 'Flight Two · Save one real Creator Desk seed'));
       owner.appendChild(el('p', 'muted',
@@ -260,7 +267,12 @@ function rocketRender() {
     child.type = 'button';
     child.addEventListener('click', () => {
       rocketState.parent = { id: mission.id, sha256: mission.effect
-        ? mission.effect.receipt_sha256 : stages[2].sha256 };
+        ? mission.effect.receipt_sha256 : stages[2].sha256,
+        ...(mission.effect ? {
+          nativeSeedId: mission.effect.output.native_seed_id,
+          nativeSeedSha256: mission.effect.output.native_content_sha256,
+        } : {}),
+      };
       rocketState.current = null;
       rocketRender();
     });
