@@ -13,3 +13,5 @@
 .attention-selection-panel{position:fixed;right:18px;bottom:66px;z-index:1001;background:#16231c;color:#f0f6f0;border:1px solid #6f9880;border-radius:14px;padding:15px;width:min(420px,calc(100vw - 36px));max-height:65vh;overflow:auto;box-shadow:0 12px 40px #000a}
 .attention-selection-panel blockquote{margin:10px 0;padding:8px;border-left:2px solid #a4d4b3;max-height:120px;overflow:auto;white-space:pre-wrap}
 .attention-selection-panel[hidden],.attention-capture-button[hidden]{display:none}
+
+.attention-transfer{display:grid;gap:9px;margin:14px 0}.attention-transfer textarea{width:100%;min-height:100px;background:#111b14;color:var(--ink,#eef2ec);border:1px solid var(--line,#596459);border-radius:8px;padding:10px;font:12px/1.5 ui-monospace,monospace}.attention-transfer button{justify-self:start}
