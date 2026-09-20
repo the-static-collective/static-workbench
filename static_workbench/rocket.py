@@ -84,6 +84,8 @@ class RocketDesk:
                     mode TEXT NOT NULL,
                     selections_json TEXT NOT NULL,
                     source_path TEXT NOT NULL,
+                    creator_seed_id INTEGER,
+                    expected_creator_sha256 TEXT,
                     parent_id INTEGER REFERENCES rocket_missions(id),
                     parent_sha256 TEXT,
                     mission_sha256 TEXT NOT NULL
@@ -108,6 +110,12 @@ class RocketDesk:
                     receipt_sha256 TEXT NOT NULL
                 );
             """)
+            # Migrate the v0.1 local shelf without erasing earlier missions.
+            columns = {row["name"] for row in db.execute("PRAGMA table_info(rocket_missions)")}
+            if "creator_seed_id" not in columns:
+                db.execute("ALTER TABLE rocket_missions ADD COLUMN creator_seed_id INTEGER")
+            if "expected_creator_sha256" not in columns:
+                db.execute("ALTER TABLE rocket_missions ADD COLUMN expected_creator_sha256 TEXT")
 
     def _connect(self) -> sqlite3.Connection:
         db = sqlite3.connect(self.path, timeout=5)
@@ -262,10 +270,12 @@ class RocketDesk:
             cursor = db.execute("""
                 INSERT INTO rocket_missions
                 (created_at, title, purpose, mode, selections_json, source_path,
+                 creator_seed_id, expected_creator_sha256,
                  parent_id, parent_sha256, mission_sha256)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, (created, payload.title, payload.purpose, payload.mode,
                   json.dumps(selections, sort_keys=True), payload.source_path,
+                  payload.creator_seed_id, payload.expected_creator_sha256,
                   payload.parent_id, payload.expected_parent_sha256, digest))
             mission_id = int(cursor.lastrowid)
         return self.get(mission_id)
