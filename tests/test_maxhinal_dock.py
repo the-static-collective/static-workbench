@@ -63,6 +63,8 @@ def test_untrusted_ride_preview_preserves_gas_bad_spins_and_no_promotion():
     assert summary["residuals"][0]["code"] == "UNRESOLVED"
     assert summary["bad_spins"][0]["reason"] == "Counterfeit similarity."
     assert summary["operations"][0]["mode"] == "discontinuity"
+    assert summary["projections"][0]["id"] == "out-0001"
+    assert '"test": "projection"' in summary["projections"][0]["excerpt"]
     assert summary["reported_replay"] == "EXACT"
     assert summary["import_posture"] == "untrusted_local_copy_not_reexecuted"
     assert summary["authority"] == "none" and summary["promotion"] == "NONE"
@@ -176,3 +178,5 @@ def test_dock_ui_references_native_machine_not_a_fake_reimplementation(tmp_path)
     assert "Dock this reviewed ride locally" in js.text
     assert "maxhinal_ride_id" in creator
     assert "maxhinalRenderDock" in creator
+    assert "Copy reviewed ride projections + residuals" in js.text
+    assert "maxhinalSourceDoor" in creator
