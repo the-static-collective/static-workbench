@@ -26,8 +26,10 @@ remote-only branches, a separately authorized download and SHA verification
 is needed first.
 
 The worktree creation executes only a fixed Git argv (no shell), disables
-checkout hooks and fsmonitor, and refuses configured process/smudge filters
-(including Git LFS, pending explicit review) before checkout. It does not
+checkout hooks and fsmonitor, ignores ambient user/system Git configuration
+(including global Git LFS drivers), and refuses configured local process/smudge
+filters before checkout. Repositories needing locally configured filter drivers
+require separate manual review. It does not
 install dependencies or run project-owned scripts/tests. A checkout is not
 a full security sandbox: inspect files, symlinks and project instructions
 before running code. A real test runner requires a separate owner-approved
