@@ -132,5 +132,7 @@ def test_refuses_unbounded_sources_excerpts_and_invalid_unicode():
         run(source("x" * 131073))
     with pytest.raises(OldGrowthError, match="bounded byte span"):
         run(source("x" * 4097))
+    invalid = source("valid bytes")
+    invalid["content"] = "\ud800"
     with pytest.raises(OldGrowthError, match="UTF-8"):
-        run(source("\ud800"))
+        run(invalid)
