@@ -29,6 +29,7 @@ from .machine import sample_machine
 from .paths import PathOutsideRoot, resolve_under_root
 from .repos import discover_repositories
 from .branch_deck import build_branch_deck
+from .branch_remote import inspect_github_repo, RemoteDiscoveryError
 from .schemas import (
     ApertureAnalyzeRequest,
     CreatorPackRequest,
@@ -188,6 +189,33 @@ def create_app(config: WorkbenchConfig | None = None) -> FastAPI:
             "gaps": len(result["gaps"]),
         })
         return result
+
+    @app.get("/api/branches/remote")
+    def branch_deck_remote(root_id: str, repo_path: str):
+        # Explicit browser action only; configured-root checkout and approved
+        # Collective GitHub origin are resolved server-side. No user URL accepted.
+        if not config.github_remote_discovery:
+            raise HTTPException(status_code=403, detail="public GitHub discovery disabled; enable github_remote_discovery in Workbench config")
+        repos = discover_repositories(config.roots, config.max_repo_depth)
+        selected = next(
+            (repo for repo in repos if repo.root_id == root_id and repo.relative_path == repo_path),
+            None,
+        )
+        if selected is None:
+            raise HTTPException(status_code=404, detail="repository not discovered under configured roots")
+        local_deck = build_branch_deck([selected])
+        if local_deck["gaps"]:
+            raise HTTPException(status_code=409, detail="local reference scan incomplete; inspect scan gaps before relating to remote")
+        try:
+            observed = inspect_github_repo(selected, local_deck["branches"])
+        except RemoteDiscoveryError as exc:
+            raise HTTPException(status_code=502, detail=str(exc)) from exc
+        journal.append("branches.github_observed", {
+            "root_id": selected.root_id, "repo_path": selected.relative_path,
+            "github_repo": observed["github_repo"], "refs": len(observed["branches"]),
+            "gaps": observed["gaps"],
+        })
+        return observed
 
     @app.get("/api/house")
     def house():
