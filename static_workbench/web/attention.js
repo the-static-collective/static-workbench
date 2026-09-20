@@ -197,8 +197,25 @@
         if (!feed.entries.length) {
           const empty = document.createElement("p");
           empty.className = "muted";
-          empty.textContent = "No current declarations in this filter.";
+          empty.textContent = "No Workbench-originated declarations in this filter.";
           list.appendChild(empty);
+        }
+        const localHeading=document.createElement("h2");
+        localHeading.textContent="Workbench-originated crossings";
+        list.appendChild(localHeading);
+        for (const record of feed.entries) {
+          const card = document.createElement("article");
+          card.className = "card attention-shelf-card";
+          const heading = document.createElement("strong");
+          heading.textContent = record.context?.excerpt || record.kind + " · " + record.target_id;
+          const detail = document.createElement("p");
+          detail.className = "muted tiny";
+          detail.textContent = new Date(record.created_at).toLocaleString() +
+            " · " + (record.explicit_none ? "Explicitly none" :
+            record.dimensions.length ? record.dimensions.join(" / ") : "Unmarked revision");
+          card.append(heading, detail);
+          list.appendChild(card);
+          mount(card, {kind:record.kind, id:record.target_id, context:record.context});
         }
         const imported = await api("/api/attention/imports?" +
           new URLSearchParams({dimension:filter.value,limit:"100"}));
@@ -225,20 +242,6 @@
           boundary.textContent="Self-reported export · Workbench import #"+entry.import_id+
             " · NOT a Workbench-originated declaration or verified source observation.";
           card.append(heading,detail,mark,boundary);list.appendChild(card);
-        }
-        for (const record of feed.entries) {
-          const card = document.createElement("article");
-          card.className = "card attention-shelf-card";
-          const heading = document.createElement("strong");
-          heading.textContent = record.context?.excerpt || record.kind + " · " + record.target_id;
-          const detail = document.createElement("p");
-          detail.className = "muted tiny";
-          detail.textContent = new Date(record.created_at).toLocaleString() +
-            " · " + (record.explicit_none ? "Explicitly none" :
-            record.dimensions.length ? record.dimensions.join(" / ") : "Unmarked revision");
-          card.append(heading, detail);
-          list.appendChild(card);
-          mount(card, {kind:record.kind, id:record.target_id, context:record.context});
         }
       } catch (error) { list.textContent = error.message; }
     }
