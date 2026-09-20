@@ -15,6 +15,21 @@ class ComposableOccurrenceTests(unittest.TestCase):
         self.assertEqual(len(result["projections"]),2)
         self.assertNotEqual(result["projections"][0]["source_ref"],result["projections"][1]["source_ref"])
         self.assertTrue(result["digest"].startswith("sha256:"))
+    def test_six_independent_owner_projections_at_one_event(self):
+        owners = ("GOATnote", "HauntedToaster", "tranchNOSE", "NourishGarden", "ALEXDogram", "FullMeasure")
+        projections = [
+            {"projection_id": f"fixture:projection:{i}", "owner_ref": owner,
+             "method_ref": f"fixture:{owner}:method", "source_ref": f"fixture:{owner}:source",
+             "kind": "experimental", "value": {"local_index": i}}
+            for i, owner in enumerate(owners)
+        ]
+        composed = self.sample(projections)
+        self.assertEqual(composed["occurrence"]["occurrence_id"], "fixture:encounter")
+        self.assertEqual({p["owner_ref"] for p in composed["projections"]}, set(owners))
+        self.assertEqual(len({p["source_ref"] for p in composed["projections"]}), 6)
+        self.assertEqual(len({p["projection_id"] for p in composed["projections"]}), 6)
+        self.assertNotIn("authority", composed)
+
     def test_no_implicit_equivalence(self):
         p={"projection_id":"x","owner_ref":"Dogram","method_ref":"fixture",
            "source_ref":"fixture:src","kind":"phase","value":1}
