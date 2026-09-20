@@ -35,6 +35,7 @@ from .composition_inspection import CompositionInspectionError, inspect_composit
 from .living_main import CompositionError, preview_composition
 from .relation_chamber import RelationError, preview_relation
 from .house import build_house_status
+from .mirror import mirror_router
 from .groundkeeper import make_receipt as groundkeeper_first_ignition
 from .machine import sample_machine
 from .paths import PathOutsideRoot, resolve_under_root
@@ -193,6 +194,7 @@ def create_app(config: WorkbenchConfig | None = None) -> FastAPI:
     app.state.rocket_desk = rocket_desk
     app.state.moment_inbox = moment_inbox
     app.state.session_token = session_token
+    app.include_router(mirror_router(config.state_dir, session_token, journal))
     app.include_router(attention_router(config.state_dir, session_token))
     app.include_router(handoff_router(config.state_dir, session_token))
 

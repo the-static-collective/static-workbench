@@ -127,6 +127,9 @@ function renderHouse() {
   const livingMain = el('button', 'action-card');
   livingMain.append(el('strong', '', 'Compose Living Main'), el('span', 'muted', 'Review clean exact-source bodies and explicitly declared relationships without executing them.'));
   livingMain.addEventListener('click', renderLivingMain);
+  const mirror = el('button', 'action-card');
+  mirror.append(el('strong', '', 'Open MIRROR'), el('span', 'muted', 'Select and restyle the Workbench-owned demo, review an exact CSS patch, and apply only with approval.'));
+  mirror.addEventListener('click', () => renderMirror().catch(showError));
   const inspectComposition = el('button', 'action-card');
   inspectComposition.append(el('strong', '', 'Inspect composition'), el('span', 'muted', 'Review an explicit Founder Node descriptor against observed local checkouts.'));
   inspectComposition.addEventListener('click', renderCompositionInspection);
@@ -142,7 +145,7 @@ function renderHouse() {
   groundkeeper.append(el('strong', '', 'Open GROUNDKEEPER field lab'),
     el('span', 'muted', 'Run synthetic ground-to-sound-to-visual feedback experiments and compare topology changes.'));
   groundkeeper.addEventListener('click', groundkeeperView);
-  actions.append(inspect, livingMain, inspectComposition, terminal, returns, creator, nativeMaxhinal, dogramLab, groundkeeper);
+  actions.append(inspect, livingMain, mirror, inspectComposition, terminal, returns, creator, nativeMaxhinal, dogramLab, groundkeeper);
   const staticLive = house.organs.find(organ => organ.id === 'static-live' && organ.present);
   if (staticLive) {
     const live = el('button', 'action-card');
@@ -609,6 +612,7 @@ async function refreshCurrent() {
     else if (state.view === 'maxhinal') await nativeMaxhinalLoad();
     else if (state.view === 'dogram-impact') { await loadRepos(); renderDogramImpactDesk(); }
     else if (state.view === 'return') await returnDeskLoad();
+    else if (state.view === 'mirror') await renderMirror();
     else if (state.view === 'rocket') await rocketLoad();
     else if (state.view === 'composition') { await loadRepos(); renderCompositionInspection(); }
     else if (state.view === 'living-main') { await loadRepos(); livingMainInvalidate(); renderLivingMain(); }
@@ -645,7 +649,7 @@ async function start() {
 
 document.querySelectorAll('.nav-button').forEach(button => button.addEventListener('click', () => {
   const view = button.dataset.view;
-  if (view === 'house') renderHouse(); else if (view === 'machine') renderMachine(); else if (view === 'repos') renderRepos(); else if (view === 'branches') { branchDeckOpen().catch(showError); } else if (view === 'objects') renderObjects(); else if (view === 'returns') renderReturnShelf(); else if (view === 'attention') { state.view = 'attention'; window.HumanValueBar.openShelf(); } else if (view === 'creator') { renderCreatorDesk(); creatorV2Load().catch(showError); } else if (view === 'maxhinal') { renderNativeMaxhinal(); nativeMaxhinalLoad().catch(showError); } else if (view === 'dogram-impact') renderDogramImpactDesk(); else if (view === 'return') returnDeskLoad().catch(showError); else if (view === 'rocket') { state.view = 'rocket'; rocketLoad().catch(showError); } else if (view === 'composition') renderCompositionInspection(); else if (view === 'living-main') renderLivingMain(); else if (view === 'groundkeeper') groundkeeperView(); else renderHumanTerminal();
+  if (view === 'house') renderHouse(); else if (view === 'machine') renderMachine(); else if (view === 'repos') renderRepos(); else if (view === 'branches') { branchDeckOpen().catch(showError); } else if (view === 'objects') renderObjects(); else if (view === 'returns') renderReturnShelf(); else if (view === 'attention') { state.view = 'attention'; window.HumanValueBar.openShelf(); } else if (view === 'creator') { renderCreatorDesk(); creatorV2Load().catch(showError); } else if (view === 'maxhinal') { renderNativeMaxhinal(); nativeMaxhinalLoad().catch(showError); } else if (view === 'dogram-impact') renderDogramImpactDesk(); else if (view === 'return') returnDeskLoad().catch(showError); else if (view === 'rocket') { state.view = 'rocket'; rocketLoad().catch(showError); } else if (view === 'mirror') renderMirror().catch(showError); else if (view === 'composition') renderCompositionInspection(); else if (view === 'living-main') renderLivingMain(); else if (view === 'groundkeeper') groundkeeperView(); else renderHumanTerminal();
 }));
 $('#refresh-view').addEventListener('click', refreshCurrent);
 $('#refresh-events').addEventListener('click', () => loadEvents().catch(showError));
