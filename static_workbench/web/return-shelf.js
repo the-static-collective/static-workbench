@@ -45,10 +45,14 @@ async function renderReturnShelf() {
   const previewButton = el('button', 'action-button', 'Preview selected composition');
   previewButton.type = 'button';
   previewButton.disabled = true;
+  const ecologyButton = el('button', 'quiet-button', 'Preview three composition candidates');
+  ecologyButton.type = 'button';
+  ecologyButton.disabled = true;
   const previewResult = el('div', 'return-loom-result');
   function syncSelection() {
     count.textContent = selected.size + ' / 2 exact artifacts selected';
     previewButton.disabled = selected.size !== 2 || !question.value.trim();
+    ecologyButton.disabled = selected.size !== 2 || !question.value.trim();
     clear(previewResult);
     previewRevision += 1;
   }
@@ -58,6 +62,7 @@ async function renderReturnShelf() {
     const revision = ++previewRevision;
     const payload = { selections: [...selected.values()], question: question.value };
     previewButton.disabled = true;
+    ecologyButton.disabled = true;
     clear(previewResult);
     previewResult.appendChild(el('div', 'muted', 'Preparing inert preview…'));
     try {
@@ -81,6 +86,56 @@ async function renderReturnShelf() {
     } finally {
       if (state.view === 'returns' && revision === previewRevision) {
         previewButton.disabled = selected.size !== 2 || !question.value.trim();
+        ecologyButton.disabled = selected.size !== 2 || !question.value.trim();
+      }
+    }
+  });
+  ecologyButton.addEventListener('click', async () => {
+    if (selected.size !== 2 || !question.value.trim()) return;
+    const revision = ++previewRevision;
+    const payload = { selections: [...selected.values()], question: question.value };
+    previewButton.disabled = true;
+    ecologyButton.disabled = true;
+    clear(previewResult);
+    previewResult.appendChild(el('div', 'muted', 'Preparing three inert candidates…'));
+    try {
+      const ecology = await api('/api/house/ecology/preview', {
+        method: 'POST',
+        headers: { 'X-Workbench-Session': state.bootstrap.session_token },
+        body: JSON.stringify(payload),
+      });
+      if (state.view !== 'returns' || revision !== previewRevision) return;
+      clear(previewResult);
+      previewResult.append(
+        el('div', 'eyebrow', 'INERT / UNRUN / NOT AUTHORIZED'),
+        el('div', 'repo-meta', 'Ecology digest (local fingerprint): ' + ecology.ecology_digest),
+        el('p', 'muted', 'Three distinct proposal operators; no compatibility, execution, or permission established.')
+      );
+      for (const candidate of ecology.candidates) {
+        const card = el('article', 'card');
+        card.append(
+          el('h3', '', candidate.operator),
+          el('p', '', candidate.hypothesis),
+          el('div', 'muted tiny', 'Role of second input: ' + candidate.parent_roles[1]),
+          el('div', 'muted tiny', 'Candidate fingerprint: ' + candidate.candidate_digest),
+          el('div', 'muted tiny', 'Status: ' + candidate.state + ' · ' + candidate.execution)
+        );
+        const details = el('details');
+        details.append(
+          el('summary', '', 'Inspect exact source refs, phases and nonclaims'),
+          el('pre', 'code-preview', JSON.stringify(candidate, null, 2))
+        );
+        card.appendChild(details);
+        previewResult.appendChild(card);
+      }
+    } catch (error) {
+      if (state.view !== 'returns' || revision !== previewRevision) return;
+      clear(previewResult);
+      previewResult.appendChild(el('div', 'notice error', error.message || String(error)));
+    } finally {
+      if (state.view === 'returns' && revision === previewRevision) {
+        previewButton.disabled = selected.size !== 2 || !question.value.trim();
+        ecologyButton.disabled = selected.size !== 2 || !question.value.trim();
       }
     }
   });
@@ -88,7 +143,7 @@ async function renderReturnShelf() {
     el('div', 'eyebrow', 'CAPABILITY LOOM / EXPERIMENTAL / NO EFFECTS'),
     el('h2', '', 'Select two artifacts to explore'),
     el('p', 'muted', 'Expand return cards and select exactly two exact references. The preview preserves each original identity and reports compatibility, verification, and authorization as unevaluated. It cannot run a flight.'),
-    count, question, previewButton, previewResult
+    count, question, previewButton, ecologyButton, previewResult
   );
   workspaceBody.appendChild(loom);
 
