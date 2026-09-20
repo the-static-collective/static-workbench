@@ -180,3 +180,15 @@ class GraftDraftSaveRequest(BaseModel):
     experiment: GraftExperimentPlan
     assumptions: str = Field(min_length=1, max_length=2000)
     unresolved: str = Field(min_length=1, max_length=2000)
+
+
+class BranchWorktreeRequest(BaseModel):
+    root_id: str = Field(min_length=1, max_length=64)
+    repo_path: str = Field(min_length=1, max_length=256)
+    ref: str = Field(min_length=12, max_length=256)
+    expected_commit: str = Field(pattern=r"^[0-9a-f]{40}$")
+
+
+class BranchWorktreeCreateRequest(BranchWorktreeRequest):
+    expected_preview_digest: str = Field(pattern=r"^[0-9a-f]{64}$")
+    acknowledge_effect: bool
