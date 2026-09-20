@@ -87,3 +87,32 @@ def test_attention_ui_wired(tmp_path):
     assert script.status_code == styles.status_code == 200
     assert "HumanValueBar" in script.text
     assert "dataset.attentionId" in app and "dataset.attentionKind" in app
+
+
+def test_attention_shelf_latest_and_dimension_filter(tmp_path):
+    config = make_config(tmp_path)
+    with TestClient(create_app(config), base_url="http://127.0.0.1") as client:
+        headers = {"x-workbench-session":client.get("/api/bootstrap").json()["session_token"]}
+        def mark(target, dimensions, previous=None):
+            return client.post("/api/attention", headers=headers, json={
+                "kind":"artifact","target_id":target, "dimensions":dimensions,
+                "expected_previous_id":previous})
+        first = mark("song",["joyful"]).json()["current"]
+        mark("song",["useful"],first["id"])
+        mark("note",["curiouser"])
+        feed = client.get("/api/attention/feed").json()
+        assert [v["target_id"] for v in feed["entries"]] == ["note","song"]
+        assert feed["order"] == "latest-declaration-first/not-a-ranking"
+        assert [v["target_id"] for v in client.get(
+            "/api/attention/feed?dimension=useful").json()["entries"]] == ["song"]
+        assert client.get("/api/attention/feed?dimension=joyful").json()["entries"] == []
+        assert client.get("/api/attention/feed?dimension=bogus").status_code == 422
+        assert client.get("/api/attention/feed?limit=0").status_code == 422
+        assert client.get("/api/attention/feed?limit=1").json()["entries"][0]["target_id"] == "note"
+
+
+def test_attention_shelf_ui_wired(tmp_path):
+    with TestClient(create_app(make_config(tmp_path)), base_url="http://127.0.0.1") as client:
+        assert 'data-view="attention"' in client.get("/").text
+        assert "/api/attention/feed" in client.get("/assets/attention.js").text
+        assert "window.HumanValueBar.openShelf()" in client.get("/assets/app.js").text

@@ -67,6 +67,22 @@ class AttentionStore:
                     current=history[0] if history else None, history=history,
                     semantics="declaration-not-ranking; no execution authority")
 
+    def feed(self, dimension: str = "all", limit: int = 80):
+        """Human declarations, latest per target in time order, never ranked."""
+        if dimension not in (*DIMENSIONS, "all"):
+            raise HTTPException(422, "unknown attention dimension")
+        with self.connect() as db:
+            rows = db.execute(
+                "SELECT a.* FROM attention a JOIN "
+                "(SELECT kind,target_id,MAX(id) AS newest FROM attention GROUP BY kind,target_id) b "
+                "ON a.id=b.newest ORDER BY a.id DESC"
+            ).fetchall()
+        entries = [self.as_record(row) for row in rows]
+        if dimension != "all":
+            entries = [item for item in entries if dimension in item["dimensions"]]
+        return {"entries": entries[:limit], "dimension": dimension,
+                "order": "latest-declaration-first/not-a-ranking", "scope": "private/local"}
+
     def declare(self, request: AttentionDeclaration):
         check_target(request.kind, request.target_id)
         if len(set(request.dimensions)) != len(request.dimensions):
@@ -102,6 +118,13 @@ def attention_router(state_dir: Path, session_token: str) -> APIRouter:
              target_id: str = Query(min_length=1, max_length=256),
              limit: int = Query(default=20, ge=1, le=100)):
         return store.read(kind, target_id, limit)
+
+    @router.get("/api/attention/feed")
+    def attention_feed(
+        dimension: Literal["all", "joyful", "useful", "curiouser"] = "all",
+        limit: int = Query(default=80, ge=1, le=100),
+    ):
+        return store.feed(dimension, limit)
 
     @router.post("/api/attention")
     def write(payload: AttentionDeclaration, request: Request):

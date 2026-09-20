@@ -113,5 +113,59 @@
     new MutationObserver(changes => changes.forEach(change =>
       change.addedNodes.forEach(scan))).observe(host, {childList:true, subtree:true});
   }
-  window.HumanValueBar = Object.freeze({mount});
+  async function openShelf(dimension = "all") {
+    const host = document.getElementById("workspace-body");
+    if (!host) return;
+    document.querySelectorAll(".nav-button").forEach(node =>
+      node.classList.toggle("active", node.dataset.view === "attention"));
+    document.getElementById("workspace-eyebrow").textContent = "Attention Crossing";
+    document.getElementById("workspace-title").textContent = "What mattered to you";
+    host.replaceChildren();
+    const note = document.createElement("p");
+    note.className = "muted";
+    note.textContent = "Only your deliberate marks. Latest declaration first; no rankings.";
+    const filter = document.createElement("select");
+    filter.setAttribute("aria-label", "Filter attention by dimension");
+    for (const key of ["all", ...dimensions]) {
+      const option = document.createElement("option");
+      option.value = key;
+      option.textContent = key === "all" ? "All declarations" : names[key];
+      filter.appendChild(option);
+    }
+    filter.value = ["all",...dimensions].includes(dimension) ? dimension : "all";
+    const list = document.createElement("div");
+    list.className = "attention-shelf";
+    host.append(note, filter, list);
+    async function draw() {
+      list.textContent = "Loading local attention shelf…";
+      try {
+        const feed = await api("/api/attention/feed?" +
+          new URLSearchParams({dimension:filter.value, limit:"100"}));
+        list.replaceChildren();
+        if (!feed.entries.length) {
+          const empty = document.createElement("p");
+          empty.className = "muted";
+          empty.textContent = "No current declarations in this filter.";
+          list.appendChild(empty);
+        }
+        for (const record of feed.entries) {
+          const card = document.createElement("article");
+          card.className = "card attention-shelf-card";
+          const heading = document.createElement("strong");
+          heading.textContent = record.kind + " · " + record.target_id;
+          const detail = document.createElement("p");
+          detail.className = "muted tiny";
+          detail.textContent = new Date(record.created_at).toLocaleString() +
+            " · " + (record.explicit_none ? "Explicitly none" :
+            record.dimensions.length ? record.dimensions.join(" / ") : "Unmarked revision");
+          card.append(heading, detail);
+          list.appendChild(card);
+          mount(card, {kind:record.kind, id:record.target_id});
+        }
+      } catch (error) { list.textContent = error.message; }
+    }
+    filter.addEventListener("change", draw);
+    await draw();
+  }
+  window.HumanValueBar = Object.freeze({mount, openShelf});
 })();

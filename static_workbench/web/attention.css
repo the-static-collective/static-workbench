@@ -5,3 +5,6 @@
 .attention-button:focus-visible{outline:2px solid #b7e6be;outline-offset:2px}
 .attention-button:disabled{opacity:.5;cursor:wait}
 .attention-status{color:var(--muted,#b3c0b8);font-size:11px;overflow-wrap:anywhere}
+
+.attention-shelf{display:grid;gap:12px;margin-top:12px}
+.attention-shelf-card{overflow-wrap:anywhere}
