@@ -44,7 +44,7 @@ async function returnDeskLoad() {
   ]);
   returnDeskState.notes = notes.notes;
   returnDeskState.sessions = sessions.sessions;
-  const selected = returnDeskState.selectedSession?.id || sessions.sessions[0]?.id;
+  const selected = returnDeskState.selectedSession?.id || (!returnDeskState.selectedNote ? sessions.sessions[0]?.id : null);
   if (selected) {
     returnDeskState.selectedSession = await api('/api/return/sessions/' + selected);
     returnDeskState.selectedNote = returnDeskState.selectedSession.note;
