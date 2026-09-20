@@ -19,7 +19,7 @@
     if (!response.ok) throw Error(data.detail || "Attention request failed");
     return data;
   }
-  function mount(target, {kind, id}) {
+  function mount(target, {kind, id, context = null}) {
     if (!target || !kind || !id || target.querySelector(":scope > .attention-bar")) return;
     const bar = document.createElement("div");
     bar.className = "attention-bar";
@@ -69,7 +69,7 @@
           method:"POST",
           headers:{"Content-Type":"application/json", "x-workbench-session":token},
           body:JSON.stringify({kind, target_id:id, dimensions:selected, explicit_none:none,
-                              expected_previous_id:old.current ? old.current.id : null})
+                              expected_previous_id:old.current ? old.current.id : null, context})
         });
         current = data.current;
         status.textContent = "Your declaration · revision " + current.id;
@@ -152,7 +152,7 @@
           const card = document.createElement("article");
           card.className = "card attention-shelf-card";
           const heading = document.createElement("strong");
-          heading.textContent = record.kind + " · " + record.target_id;
+          heading.textContent = record.context?.excerpt || record.kind + " · " + record.target_id;
           const detail = document.createElement("p");
           detail.className = "muted tiny";
           detail.textContent = new Date(record.created_at).toLocaleString() +
@@ -160,12 +160,82 @@
             record.dimensions.length ? record.dimensions.join(" / ") : "Unmarked revision");
           card.append(heading, detail);
           list.appendChild(card);
-          mount(card, {kind:record.kind, id:record.target_id});
+          mount(card, {kind:record.kind, id:record.target_id, context:record.context});
         }
       } catch (error) { list.textContent = error.message; }
     }
     filter.addEventListener("change", draw);
     await draw();
   }
+  // User-initiated passage capture within a declared Workbench context only.
+  // Selecting text does not persist it or send a request.
+  const host = document.getElementById("workspace-body");
+  const capture = document.createElement("button");
+  capture.type = "button";
+  capture.className = "attention-capture-button";
+  capture.textContent = "Mark selected passage";
+  capture.hidden = true;
+  document.body.appendChild(capture);
+  const panel = document.createElement("aside");
+  panel.className = "attention-selection-panel";
+  panel.hidden = true;
+  panel.setAttribute("aria-label", "Selected passage attention crossing");
+  document.body.appendChild(panel);
+  let snapshot = null;
+  function offerSelection() {
+    capture.hidden = true;
+    snapshot = null;
+    const selection = window.getSelection();
+    if (!selection || selection.isCollapsed || selection.rangeCount !== 1) return;
+    const range = selection.getRangeAt(0);
+    const start = range.startContainer.nodeType === Node.ELEMENT_NODE ?
+      range.startContainer : range.startContainer.parentElement;
+    const end = range.endContainer.nodeType === Node.ELEMENT_NODE ?
+      range.endContainer : range.endContainer.parentElement;
+    if (!start || !end || !host.contains(start) || !host.contains(end)) return;
+    if (start.closest(".attention-bar,.attention-shelf,input,textarea,[contenteditable]")) return;
+    const source = start.closest("[data-attention-kind][data-attention-id]");
+    if (!source || source !== end.closest("[data-attention-kind][data-attention-id]")) return;
+    const quote = selection.toString().trim();
+    if (!quote || quote.length > 512 || /[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]/.test(quote)) return;
+    snapshot = {kind:source.dataset.attentionKind, id:source.dataset.attentionId, quote};
+    capture.hidden = false;
+  }
+  host?.addEventListener("mouseup", offerSelection);
+  host?.addEventListener("keyup", offerSelection);
+  capture.addEventListener("click", async () => {
+    const value = snapshot;
+    snapshot = null;
+    capture.hidden = true;
+    if (!value) return;
+    panel.replaceChildren();
+    panel.hidden = false;
+    const label = document.createElement("p");
+    label.className = "muted tiny";
+    label.textContent = "Selected by you within " + value.kind + ":" + value.id;
+    const excerpt = document.createElement("blockquote");
+    excerpt.textContent = value.quote;
+    const close = document.createElement("button");
+    close.type = "button";
+    close.className = "attention-button";
+    close.textContent = "Close";
+    close.addEventListener("click", () => { panel.hidden = true; panel.replaceChildren(); });
+    panel.append(label, excerpt, close);
+    try {
+      const digest = async text => Array.from(new Uint8Array(
+        await crypto.subtle.digest("SHA-256", new TextEncoder().encode(text))),
+        n => n.toString(16).padStart(2,"0")).join("");
+      const quoteHash = await digest(value.quote);
+      // A repeated exact quote in the same source is one target in this prototype.
+      const targetId = await digest(value.kind + ":" + value.id + ":" + quoteHash);
+      mount(panel, {kind:"selection", id:targetId, context:{
+        scope:"selected-passage", source_kind:value.kind, source_id:value.id,
+        excerpt:value.quote.slice(0,160), quote_sha256:quoteHash}});
+    } catch (error) {
+      const failure = document.createElement("p");
+      failure.textContent = error.message;
+      panel.appendChild(failure);
+    }
+  });
   window.HumanValueBar = Object.freeze({mount, openShelf});
 })();
