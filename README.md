@@ -200,6 +200,18 @@ for each observed ref. It does **not** fetch new GitHub branches, switch
 checkouts, run tests, assert readiness or merge code. See
 [Branch Deck scope and next crossing](docs/branch-deck-001.md).
 
+## Branch Deck 002 — inspect unfetched GitHub feature branches
+
+After enabling `github_remote_discovery = true` in Workbench's top-level TOML
+configuration, the **Check public GitHub branches** button inside Branch Deck
+can inspect one selected, configured-root checkout's public Static Collective
+GitHub origin. It distinguishes branches not found in the local ref inventory,
+adds exact-commit navigation and open same-repository PR links, and reports
+bounded pagination/rate-limit gaps. Public observations are manual dated
+snapshots; **no `git fetch`, test run, worktree creation, project write, token
+exchange or merge is performed**. See
+[Branch Deck 002 setup and authority boundary](docs/branch-deck-002.md).
+
 ## HOUSE ↔ Static Broadcast v0.1 — an operator door, not an operator proxy
 
 To enable the **Open Static Broadcast** action in HOUSE, first install/checkout
