@@ -464,4 +464,4 @@ def test_one_native_seed_becomes_explicit_next_rocket_input_and_next_effect(tmp_
     restarted = RocketDesk(config.state_dir / "rockets.sqlite3", config,
                            CreatorShelf(config.state_dir / "creator.sqlite3"))
     assert restarted.get(child["id"])["effect"]["receipt_sha256"] == second_effect["receipt_sha256"]
-    assert restarted.execute if callable(restarted.execute) else False
+    assert restarted.get(child["id"])["stages"][1]["output"]["source"]["native_seed_id"] == native_id
