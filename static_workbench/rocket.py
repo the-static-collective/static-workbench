@@ -15,6 +15,7 @@ from typing import Literal
 from pydantic import BaseModel, Field
 
 from .config import WorkbenchConfig
+from .creator_shelf import CreatorShelf, CreatorConflict
 from .paths import PathOutsideRoot, resolve_under_root
 from .repos import discover_repositories, _git
 
@@ -39,6 +40,14 @@ class RocketMissionInput(BaseModel):
     expected_parent_sha256: str | None = Field(default=None, pattern=r"^[a-f0-9]{64}$")
 
 
+class RocketLaunchInput(BaseModel):
+    expected_stage_sha256: str = Field(pattern=r"^[a-f0-9]{64}$")
+    target: Literal["creator.seed/v0"]
+    authorization: Literal["save_creator_seed"]
+    title: str = Field(min_length=1, max_length=160)
+    body: str = Field(min_length=1, max_length=8000)
+
+
 class RocketAdvanceInput(BaseModel):
     expected_stage_sha256: str = Field(pattern=r"^[a-f0-9]{64}$")
 
@@ -58,7 +67,8 @@ def _now() -> str:
 
 
 class RocketDesk:
-    def __init__(self, path: Path, config: WorkbenchConfig):
+    def __init__(self, path: Path, config: WorkbenchConfig, creator_shelf: CreatorShelf | None = None):
+        self.creator_shelf = creator_shelf
         self.path = Path(path)
         self.config = config
         self.path.parent.mkdir(parents=True, exist_ok=True)
@@ -87,6 +97,14 @@ class RocketDesk:
                     sha256 TEXT NOT NULL,
                     UNIQUE(mission_id, ordinal)
                 );
+                CREATE TABLE IF NOT EXISTS rocket_effects (
+                    mission_id INTEGER PRIMARY KEY REFERENCES rocket_missions(id),
+                    created_at TEXT NOT NULL,
+                    request_sha256 TEXT NOT NULL,
+                    stage_sha256 TEXT NOT NULL,
+                    output_json TEXT NOT NULL,
+                    receipt_sha256 TEXT NOT NULL
+                );
             """)
 
     def _connect(self) -> sqlite3.Connection:
@@ -100,6 +118,12 @@ class RocketDesk:
         value = dict(row)
         value["output"] = json.loads(value.pop("output_json"))
         return value
+
+    @staticmethod
+    def _effect_from_row(row: sqlite3.Row) -> dict:
+        effect = dict(row)
+        effect["output"] = json.loads(effect.pop("output_json"))
+        return effect
 
     @staticmethod
     def _mission_from_row(row: sqlite3.Row) -> dict:
@@ -126,6 +150,8 @@ class RocketDesk:
                 return None
             result = self._mission_from_row(row)
             result["stages"] = self._stages(db, mission_id)
+            effect = db.execute("SELECT * FROM rocket_effects WHERE mission_id=?", (mission_id,)).fetchone()
+            result["effect"] = self._effect_from_row(effect) if effect else None
             return result
 
     def list(self) -> list[dict]:
@@ -198,7 +224,14 @@ class RocketDesk:
             if payload.parent_id is not None:
                 parent = self._mission(db, payload.parent_id)
                 stages = self._stages(db, parent["id"])
-                if len(stages) != 3 or stages[-1]["sha256"] != payload.expected_parent_sha256:
+                effect = db.execute(
+                    "SELECT receipt_sha256 FROM rocket_effects WHERE mission_id=?",
+                    (parent["id"],),
+                ).fetchone()
+                parent_final = effect["receipt_sha256"] if effect else (
+                    stages[-1]["sha256"] if len(stages) == 3 else None
+                )
+                if parent_final != payload.expected_parent_sha256:
                     raise RocketConflict("parent has not separated with the selected exact receipt")
             created = _now()
             digest = _digest(carrier)
