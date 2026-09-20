@@ -54,6 +54,52 @@ function branchDeckPlan(card, host) {
   if (card.kind === 'cached_remote') {
     host.appendChild(el('p', 'notice', 'This is a locally cached remote-tracking ref. It may be stale; verify/fetch through a separately authorized workflow before testing.'));
   }
+  if (card.kind === 'local') {
+    const worktrees = el('div', 'branch-deck-worktree');
+    const explanatory = el('p', 'muted tiny', 'Optional local action: prepare a detached worktree for this exact locally observed SHA in Workbench-owned state. This updates Git worktree metadata but leaves the current checkout and main untouched. No test, install, hook, or merge is requested.');
+    const previewButton = el('button', 'quiet-button', 'Preview isolated checkout');
+    previewButton.type = 'button';
+    const report = el('div', 'muted tiny');
+    previewButton.addEventListener('click', async () => {
+      previewButton.disabled = true;
+      clear(report);
+      const payload = {
+        root_id: card.root_id, repo_path: card.repo_path, ref: card.ref,
+        expected_commit: card.commit,
+      };
+      const headers = {'X-Workbench-Session': state.bootstrap?.session_token || ''};
+      try {
+        const plan = await api('/api/branches/worktrees/preview', {
+          method: 'POST', headers, body: JSON.stringify(payload),
+        });
+        report.append(
+          el('div', 'repo-meta', `Commit: ${plan.commit}`),
+          el('div', 'repo-meta', `Destination: ${plan.destination}`),
+          el('p', 'muted tiny', 'Review this exact effect: create a separate detached Git worktree and Git administrative registration. No project tests will be run. Existing destination or configured checkout filters are refused.'),
+        );
+        const create = el('button', 'action-button', 'Create this isolated checkout');
+        create.type = 'button';
+        create.addEventListener('click', async () => {
+          create.disabled = true;
+          try {
+            const result = await api('/api/branches/worktrees/create', {
+              method: 'POST', headers,
+              body: JSON.stringify({...payload, expected_preview_digest: plan.preview_digest, acknowledge_effect: true}),
+            });
+            report.appendChild(el('p', 'notice', `Created isolated worktree at ${result.destination} (HEAD ${result.actual_commit}). Project tests NOT RUN. Open it through your file manager or terminal to inspect project-owned test instructions.`));
+          } catch (error) {
+            report.appendChild(el('p', 'notice error', error.message || String(error)));
+          }
+        });
+        report.appendChild(create);
+      } catch (error) {
+        report.textContent = error.message || String(error);
+        previewButton.disabled = false;
+      }
+    });
+    worktrees.append(explanatory, previewButton, report);
+    host.appendChild(worktrees);
+  }
   const matching = state.repos.find(item => item.root_id === card.root_id && item.relative_path === card.repo_path);
   if (matching) {
     const inspect = el('button', 'quiet-button', 'Inspect current repository checkout');
