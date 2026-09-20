@@ -20,7 +20,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from .branch_remote import _origin_slug, RemoteDiscoveryError
-from .branch_worktree import _destination, _git_checked, _safe_git_env, WorktreeError
+from .branch_worktree import _destination, _git_checked, WorktreeError
 from .config import BranchTestSuite, WorkbenchConfig
 from .repos import RepoStatus
 
@@ -65,10 +65,7 @@ def _prepared(config: WorkbenchConfig, repo: RepoStatus,
             raise SuiteError("branch_moved_refresh_before_testing")
         if _git_checked(destination_real, "rev-parse", "--verify", "HEAD") != expected_commit:
             raise SuiteError("worktree_head_changed")
-        if _git_checked(destination_real, "symbolic-ref", "--quiet", "HEAD"):
-            raise SuiteError("worktree_must_be_detached")
     except WorktreeError as exc:
-        # In detached state 'symbolic-ref --quiet' exits 1; handled below.
         raise SuiteError(str(exc)) from exc
     return destination_real
 
