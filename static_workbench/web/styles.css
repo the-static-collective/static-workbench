@@ -262,3 +262,12 @@ input:focus, select:focus { border-color: var(--green-dim); outline: 2px solid r
 .return-text { white-space: pre-wrap; overflow-wrap: anywhere; font: 12px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace; }
 .return-artifacts { display: grid; gap: 8px; }
 .return-artifact { background: var(--panel-2); border: 1px solid var(--line-soft); border-radius: 7px; padding: 9px; }
+
+/* HOUSE-FLYWHEEL-003: visibly inert human-chosen two-artifact loom. */
+.return-loom { display: grid; gap: 11px; margin-bottom: 18px; }
+.return-loom input[type="text"] { max-width: 100%; }
+.return-loom .action-button { justify-self: start; }
+.return-loom .action-button:disabled { cursor: not-allowed; opacity: .55; }
+.return-loom-result { display: grid; gap: 8px; min-width: 0; }
+.return-artifact-choice { display: inline-flex; gap: 8px; align-items: center; margin-top: 9px; font-size: 12px; cursor: pointer; }
+.return-artifact-choice input { width: auto; flex: none; }
