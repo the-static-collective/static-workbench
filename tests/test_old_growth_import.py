@@ -196,3 +196,21 @@ def test_symlink_source_binary_or_submodule_and_unknown_input_refuse(tmp_path):
         assert client.post("/api/house-maxhinal/old-growth/preview",
              json={**req, "stealth_authority": "execute"},
              headers=token(client)).status_code == 422
+
+
+def test_existing_native_graft_browser_includes_two_stage_old_growth_review(tmp_path):
+    config, _, _, _ = fixture(tmp_path)
+    with TestClient(create_app(config), base_url="http://127.0.0.1") as client:
+        html = client.get("/").text
+        old_ui = client.get("/assets/old-growth.js").text
+        native_ui = client.get("/assets/native-maxhinal.js").text
+        assert html.index("/assets/old-growth.js") < html.index("/assets/native-maxhinal.js")
+        assert "oldGrowthMount(workspaceBody)" in native_ui
+        assert "OLD GROWTH / PINNED HISTORICAL SOURCES" in old_ui
+        assert "/api/house-maxhinal/old-growth/preview" in old_ui
+        assert "/api/house-maxhinal/old-growth/import" in old_ui
+        assert "marks.every(mark => mark.checked) && confirm.checked" in old_ui
+        assert "nativeMaxhinalRenderRide(); nativeMaxhinalRenderHistory();" in old_ui
+        assert "human_confirmed: true" in old_ui
+        assert "el('pre', 'raw-carrier', source.excerpt)" in old_ui
+        assert "innerHTML" not in old_ui
