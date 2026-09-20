@@ -132,9 +132,27 @@ class DogramImpactRunRequest(DogramImpactRequest):
     expected_dogram_commit: str = Field(pattern=r"^[0-9a-f]{40}$")
 
 
+class GraftRoundPreviewRequest(BaseModel):
+    ride_id: int = Field(ge=1)
+    ride_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
+    keep: str = Field(min_length=1, max_length=400)
+    bend: str = Field(min_length=1, max_length=400)
+    intruder: str = Field(min_length=1, max_length=400)
+    move: str = Field(pattern=r"^(fuse|invert|continue|wildcard)$")
+    relation_lane: str = Field(
+        pattern=r"^(semantic|lineage|active_tension|human_link|rejected_parallel)$"
+    )
+    question: str = Field(default="", max_length=400)
+
+
+class GraftRoundSaveRequest(GraftRoundPreviewRequest):
+    expected_round_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
+
+
 class GraftWitnessPreviewRequest(BaseModel):
     ride_id: int = Field(ge=1)
     ride_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
+    candidate_sha256: str | None = Field(default=None, pattern=r"^[0-9a-f]{64}$")
     graph: dict[str, Any]
     operator: str = Field(pattern=r"^(reach|ablate)$")
     change: dict[str, Any]
