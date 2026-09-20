@@ -249,3 +249,17 @@ input:focus, select:focus { border-color: var(--green-dim); outline: 2px solid r
 .native-fuel-preview .raw-carrier { white-space: pre-wrap; overflow-wrap: anywhere; max-height: 240px; overflow: auto; }
 #native-maxhinal-ride { display: grid; gap: 10px; overflow-wrap: anywhere; }
 #native-maxhinal-history { display: grid; justify-items: start; gap: 9px; }
+
+/* Local Return Desk; original carrier, margin, and checkpoints have separate surfaces. */
+.return-header, .return-panel { display: grid; gap: 10px; margin-bottom: 18px; min-width: 0; }
+.return-header h2, .return-panel h2, .return-panel h3 { margin: 0; }
+.return-form { display: grid; gap: 10px; min-width: 0; }
+.return-form > button { justify-self: start; }
+.return-field { display: grid; gap: 5px; }
+.return-field input, .return-field textarea { width: 100%; resize: vertical; background: #101712; color: var(--ink); border: 1px solid var(--line); border-radius: 8px; padding: 10px; }
+.return-history-button { text-align: left; display: block; width: 100%; overflow-wrap: anywhere; margin-bottom: 5px; }
+.return-raw { white-space: pre-wrap; overflow-wrap: anywhere; max-height: 300px; overflow: auto; }
+.return-checkpoint-chain { display: grid; gap: 10px; margin-top: 12px; }
+.return-checkpoint { border: 1px solid var(--line-soft); border-radius: 8px; padding: 12px; overflow-wrap: anywhere; }
+.return-checkpoint p { margin: 5px 0; white-space: pre-wrap; }
+.return-digest { word-break: break-all; }
