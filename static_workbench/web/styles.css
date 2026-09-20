@@ -210,3 +210,24 @@ input:focus, select:focus { border-color: var(--green-dim); outline: 2px solid r
 @media (max-width: 720px) {
   .creator-form { grid-template-columns: 1fr; }
 }
+
+/* Creator Desk v0.2: selected sources and Workbench-owned local draft shelf */
+.creator-selection { margin-top: 18px; }
+.creator-selected-row { display: flex; align-items: start; gap: 14px; justify-content: space-between; border-bottom: 1px solid var(--line-soft); padding: 11px 0; overflow-wrap: anywhere; font-size: 12px; }
+.creator-selected-row > span { min-width: 0; flex: 1; }
+.creator-selected-row button { flex: 0 0 auto; }
+.creator-pack-preview { display: grid; gap: 10px; margin-top: 18px; }
+.creator-preview-source { padding: 12px 0; border-bottom: 1px solid var(--line-soft); }
+.creator-preview-source .raw-carrier { margin: 8px 0; }
+.creator-shelf-card { display: grid; justify-items: start; gap: 10px; margin-bottom: 14px; }
+.creator-shelf-card h2 { margin-bottom: 0; }
+.creator-editor { display: grid; gap: 12px; }
+.creator-edit-form { display: grid; gap: 11px; }
+.creator-edit-form textarea { width: 100%; resize: vertical; color: var(--ink); background: #0f1512; border: 1px solid var(--line); border-radius: 8px; padding: 11px 12px; font: 13px/1.5 ui-monospace, monospace; }
+.creator-edit-form .creator-draft-body { min-height: 240px; }
+.creator-edit-form button, .creator-editor > button { justify-self: start; }
+.creator-feedback { display: grid; gap: 8px; max-width: 100%; overflow-wrap: anywhere; }
+@media (max-width: 720px) {
+  .creator-selected-row { display: grid; }
+  .creator-selected-row button { justify-self: start; }
+}

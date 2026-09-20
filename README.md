@@ -220,3 +220,23 @@ cryptographic service authentication.
 Use the Static Live [STREAM-001 setup](https://github.com/the-static-collective/static-live/blob/main/examples/stream-001/README.md)
 for real OBS configuration. No real performance or stream is claimed by this
 integration's isolated service tests.
+
+## Creator Desk v0.2 — select, preserve, draft
+
+Creator Desk now supports **human-selected local source packs** and a **local draft
+shelf**. Choose up to eight matching lines from configured checkouts, preview
+the exact root/repository/path/line/excerpt and file digests, then explicitly
+save the reviewed packet. Changed source files refuse stale saves. A pack is
+an immutable selected working-tree snapshot, not a frozen Git commit, complete
+source, AI-generated interpretation, or project-native receipt.
+
+Write lyrics, podcast scripts, posts, briefs and other drafts against a saved
+pack; creative assumptions and unresolved gaps have separate fields.
+Revisions append to Workbench-owned `state_dir/creator.sqlite3`, survive
+restarts, and refuse stale-editor overwrites. **Copy draft + source references**
+is an explicit manual handoff: nothing is automatically sent to Creator
+Workspace, GitBook, Suno, Static Live, or other services, and no project source
+is changed. The local single-user browser/session boundary is not a
+multi-user authentication system.
+
+See [Creator Desk v0.2 boundaries and use](docs/creator-desk-v02.md).
