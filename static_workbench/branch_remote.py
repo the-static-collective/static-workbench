@@ -49,7 +49,7 @@ def _origin_slug(repo: RepoStatus) -> str:
 
 def _github_json(path: str) -> list:
     """Fixed api.github.com GET with no redirects or authentication."""
-    if not path.startswith(f"/repos/{ORG}/"):
+    if not (path.startswith(f"/repos/{ORG}/") or path == f"/users/{ORG}/repos?per_page=100&page=1&type=owner&sort=full_name"):
         raise RemoteDiscoveryError("invalid_github_api_path")
     connection = http.client.HTTPSConnection(
         "api.github.com", timeout=6, context=ssl.create_default_context()
