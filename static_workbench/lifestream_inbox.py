@@ -12,7 +12,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from .config import WorkbenchConfig
-from .lifestream_001 import make_return, verify_moment, refuse
+from .lifestream_001 import make_return, verify_moment, refuse, digest, hash_object
 from .paths import resolve_under_root
 
 MAX_MANIFEST = 32 * 1024
@@ -143,14 +143,13 @@ class MomentInbox:
             row = db.execute("SELECT return_json FROM returns WHERE return_id=? AND moment_id=?",
                              (return_id,moment_id)).fetchone()
         refuse(row is not None, "unknown return")
-        from .lifestream_001 import hash_object
         returned = json.loads(row[0])
         refuse(returned["momentId"] == manifest["momentId"], "mismatched return ancestry")
         refuse(returned["effects"] == {"broadcast": False, "stage": False, "publish": False},
                "effectful return refused")
         refuse(returned["returnId"] == hash_object({k:v for k,v in returned.items() if k!="returnId"}),
                "return was altered")
-        refuse(returned["artifact"]["sha256"] == __import__("hashlib").sha256(
-            returned["artifact"]["text"].encode("utf-8")).hexdigest().join(["sha256:",""]),
+        refuse(returned["artifact"]["sha256"] == digest(
+            returned["artifact"]["text"].encode("utf-8")),
             "return text digest mismatch")
         return returned
