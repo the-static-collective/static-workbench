@@ -12,10 +12,10 @@ grade PR quality or make a merge recommendation.
 
 1. Put a normal checkout of [Dogram](https://github.com/the-static-collective/Dogram)
    and at least one Python repository with two commits under configured HOUSE roots.
-   HOUSE must discover exactly one checkout named \`Dogram\` for the run.
+   HOUSE must discover exactly one checkout named `Dogram` for the run.
 2. Keep the Dogram checkout clean. HOUSE will explicitly show its **full HEAD SHA**
    and refuse a run if HEAD moves or tracked/untracked work makes it dirty.
-3. Open HOUSE → **Dogram Lab** at \`http://127.0.0.1:13700\`. Select the Python
+3. Open HOUSE → **Dogram Lab** at `http://127.0.0.1:13700`. Select the Python
    repository and choose **Preview committed source**.
 4. Inspect both commits, file counts, exact input digest, dirty-worktree flag and
    pinned Dogram SHA. Choose **Run exactly this Dogram comparison**.
@@ -28,14 +28,14 @@ The checked-out Dogram code itself is executed; treat that local repository as
 trusted software. The target repository is **never imported or executed**:
 HOUSE takes only Python blob bytes from two immutable Git commits, stores them
 in temporary snapshot directories, and passes those directories to Dogram's
-existing \`repo_impact\` *research* kernel. Do not confuse this research kernel
-with Dogram's four public \`dogram.specimen/v0\` operators.
+existing `repo_impact` *research* kernel. Do not confuse this research kernel
+with Dogram's four public `dogram.specimen/v0` operators.
 
 ## Fixed boundaries
 
 - One repository selected from existing HOUSE root discovery, not an arbitrary
   path or user-supplied shell command. Python source paths must be safe ordinary
-  Git blobs; symlinks/submodules for \`.py\` paths are refused.
+  Git blobs; symlinks/submodules for `.py` paths are refused.
 - Max **64 Python files per snapshot**, **64 KiB per Python file**, **2 MiB per
   snapshot**. Unsupported, oversized, missing-parent or malformed snapshots refuse.
   Complex or invalid Python that cannot be parsed refuses when Dogram runs.
@@ -45,10 +45,10 @@ with Dogram's four public \`dogram.specimen/v0\` operators.
   even if the selected worktree is dirty.
 - The output is a **Workbench-owned report** with both Git snapshot identities,
   the pinned Dogram HEAD, Dogram's internal graph digests and exact structural
-  delta. The report is saved in \`state_dir/dogram-impact/<sha256>.json\`; its
+  delta. The report is saved in `state_dir/dogram-impact/<sha256>.json`; its
   stored content digest is verified when reopened. The Workbench operational
   journal records only the report ID and input address, not source content.
-- This is NOT a public \`dogram.receipt/v0\`, an ALEX interpretation, a LOADOUT
+- This is NOT a public `dogram.receipt/v0`, an ALEX interpretation, a LOADOUT
   grant, a historical/causal claim, a correctness verdict, or authorization to
   merge code. No automatic trigger, background indexing, project mutation,
   publishing or network call is introduced.
