@@ -23,3 +23,23 @@ A parent with an existing child cannot later add an effect that would retroactiv
 This is a real local Creator Desk save, not a write to the inspected repository, not a committed patch or pull request, not an external action witness, and not an execution of Free Graph, Dogram, LOADOUT or a third-party AI service. Plain-text local data requires a private backup. The local session-token guard is not multi-user authentication. HASH != AUTHORITY; PROPOSAL != SOURCE; STORED != ADOPTED.
 
 A future effectful project.patch/v0 adapter requires an owner-published versioned interface, a separately evaluated effect fence, precise destination authorization, clean exact source HEAD, durable attempt identity, interruption/outcome reconciliation, native receipts and hostile replay tests. It must not be smuggled through the narrower creator.seed/v0 gate.
+
+## Native seed -> next rocket -> another native seed
+
+Once the first rocket has a verified Creator seed effect, the UI offers
+an explicit child option called "Consume exact parent Creator seed".
+A human may select the exact native record id/digest and the parent effect
+receipt as the child's source without selecting an unrelated Git checkout.
+
+The child's prepare stage records a Creator-owned native source reference,
+and its read-only execute stage reveals a bounded excerpt of the actual
+saved seed body. Its separation stage records a human-selected next action.
+After another explicit authorization, it can save one new immutable Creator
+seed with the prior native seed's id, digest and parent effect identity
+retained separately from its own output identity.
+
+This proves two bounded generations of growth under real owner-local storage
+without automatic child execution. The next generation is never equated with
+the original writing; each derived seed remains a human-authored proposal.
+Missing, substituted, or mismatched owner-native ids/digests refuse the child
+and do not silently fall back to a repository with a similar name.
