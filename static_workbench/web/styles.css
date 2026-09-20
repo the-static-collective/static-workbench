@@ -238,3 +238,14 @@ input:focus, select:focus { border-color: var(--green-dim); outline: 2px solid r
 .maxhinal-ride-json { width: 100%; resize: vertical; min-height: 105px; color: var(--ink); background: #0f1512; border: 1px solid var(--line); border-radius: 8px; padding: 11px 12px; font: 12px/1.5 ui-monospace, monospace; }
 .maxhinal-ride-preview { display: grid; gap: 8px; overflow-wrap: anywhere; }
 .maxhinal-ride-dock > button, .maxhinal-ride-preview > button { justify-self: start; }
+
+/* HOUSE-native Maxhinal: deliberate fuel rack and human-readable ride cards. */
+.native-maxhinal-rack { display: grid; gap: 18px; }
+.native-fuel-form, .native-spin-form { display: grid; gap: 11px; min-width: 0; }
+.native-fuel-form h2 { margin: 0; }
+.native-fuel-form > button, .native-spin-form > button { justify-self: start; }
+.native-spin-form textarea { width: 100%; resize: vertical; min-height: 76px; padding: 11px; border: 1px solid var(--line); border-radius: 8px; background: #101712; color: var(--ink); }
+.native-fuel-preview { display: grid; gap: 13px; margin-top: 14px; overflow-wrap: anywhere; }
+.native-fuel-preview .raw-carrier { white-space: pre-wrap; overflow-wrap: anywhere; max-height: 240px; overflow: auto; }
+#native-maxhinal-ride { display: grid; gap: 10px; overflow-wrap: anywhere; }
+#native-maxhinal-history { display: grid; justify-items: start; gap: 9px; }

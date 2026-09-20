@@ -155,6 +155,14 @@ class CreatorShelf:
                 pack_id INTEGER NOT NULL REFERENCES creator_packs(id),
                 created_at TEXT NOT NULL
             )""")
+            db.execute("""CREATE TABLE IF NOT EXISTS house_native_maxhinal_rides(
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                created_at TEXT NOT NULL,
+                fuel_digest TEXT NOT NULL,
+                ride_digest TEXT NOT NULL,
+                mode TEXT NOT NULL,
+                payload_json TEXT NOT NULL
+            )""")
             db.execute("""CREATE TABLE IF NOT EXISTS creator_maxhinal_rides(
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 pack_id INTEGER NOT NULL REFERENCES creator_packs(id),
@@ -233,6 +241,42 @@ class CreatorShelf:
              "ride_sha256": row["digest"], "ride_id": row["source_ride_id"]}
             for row in rows
         ]
+
+    def save_native_ride(self, ride: dict[str, Any]) -> dict[str, Any]:
+        payload = _json(ride)
+        ride_digest = _digest(payload.encode("utf-8"))
+        with self._connect() as db:
+            new_id = int(db.execute(
+                """INSERT INTO house_native_maxhinal_rides
+                (created_at,fuel_digest,ride_digest,mode,payload_json)
+                VALUES(?,?,?,?,?)""",
+                (_now(), ride["fuel_sha256"], ride_digest, ride["mode"], payload),
+            ).lastrowid)
+        return {"id": new_id, "ride_sha256": ride_digest, "fuel_sha256": ride["fuel_sha256"],
+                "mode": ride["mode"]}
+
+    def list_native_rides(self) -> list[dict[str, Any]]:
+        with self._connect() as db:
+            rows = db.execute(
+                """SELECT id,created_at,fuel_digest,ride_digest,mode FROM house_native_maxhinal_rides
+                ORDER BY id DESC LIMIT 50"""
+            ).fetchall()
+        return [
+            {"id": row["id"], "created_at": row["created_at"], "fuel_sha256": row["fuel_digest"],
+             "ride_sha256": row["ride_digest"], "mode": row["mode"]}
+            for row in rows
+        ]
+
+    def get_native_ride(self, ride_id: int) -> dict[str, Any] | None:
+        with self._connect() as db:
+            row = db.execute(
+                "SELECT id,created_at,ride_digest,payload_json FROM house_native_maxhinal_rides WHERE id=?",
+                (ride_id,),
+            ).fetchone()
+        return None if row is None else {
+            "id": row["id"], "created_at": row["created_at"], "ride_sha256": row["ride_digest"],
+            **json.loads(row["payload_json"]),
+        }
 
     def save_revision(self, draft_id: int | None, expected_revision: int, payload: dict[str, Any]) -> dict[str, Any]:
         if len(payload["body"].encode("utf-8")) > MAX_DRAFT_BYTES:

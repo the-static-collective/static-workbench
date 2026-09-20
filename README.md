@@ -260,3 +260,28 @@ publishes drafts, or promotes projections to evidence. The original Maxhinal
 machine, its corpus and its receipts remain project-owned.
 
 See [Maxhinal Ride Dock setup and boundaries](docs/creator-maxhinal-ride-dock.md).
+
+## HOUSE Native Maxhinal v0.1 — selected local computer fuel
+
+**HOUSE Maxhinal** is a separate deterministic creative instrument in the
+navigator and House action grid. Select one to four explicit files underneath
+configured HOUSE roots and/or previously reviewed saved Creator Desk source
+packs. Preview every item's root-relative identity, SHA-256 and bounded text
+excerpt before selecting Discontinuity, Braid, Compose, Pressure or Shuffle,
+an optional creative question and reproducible seed.
+
+A confirmed spin **re-reads and checks the entire previewed fuel digest**,
+then saves an immutable HOUSE-native ride with projections, unresolved residuals,
+bad spins and exact source references into the Workbench-owned local shelf.
+Copying a ride into a Creator Desk draft is an explicit manual action; no
+source file, project receipt, Daily Slice corpus or draft is silently modified.
+
+Unlike Daily Slice's Hugh Jackman Maxhinal, HOUSE Native Maxhinal accepts
+user-chosen local fuel; it does not claim Daily Slice's engine or receipt
+format. Binary, image, audio and large-text files yield **metadata/digest
+only**, not invented media understanding. Individual files are capped at
+16 MiB; text inspection is capped at 128 KiB and a 1,600-character excerpt.
+No recursive whole-computer search, arbitrary script execution, external
+model call, media transcription or automatic publication occurs.
+
+See [Native Maxhinal setup, limits and source-law](docs/house-native-maxhinal-v01.md).

@@ -94,3 +94,28 @@ class MaxhinalRideRequest(BaseModel):
 
 class MaxhinalRideSaveRequest(MaxhinalRideRequest):
     expected_ride_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
+
+
+class NativeFuelItem(BaseModel):
+    kind: str = Field(pattern=r"^(file|source_pack)$")
+    root_id: str | None = Field(default=None, max_length=64)
+    path: str | None = Field(default=None, max_length=512)
+    pack_id: int | None = Field(default=None, ge=1)
+
+    @field_validator("path")
+    @classmethod
+    def reject_absolute_input(cls, value: str | None) -> str | None:
+        if value is not None and ("\\x00" in value or value.startswith(("/", "\\\\"))):
+            raise ValueError("only root-relative paths may be selected")
+        return value
+
+
+class NativeFuelRequest(BaseModel):
+    fuels: list[NativeFuelItem] = Field(min_length=1, max_length=4)
+
+
+class NativeSpinRequest(NativeFuelRequest):
+    expected_fuel_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
+    mode: str = Field(pattern=r"^(discontinuity|braid|compose|pressure|shuffle)$")
+    seed: str = Field(default="0", max_length=100)
+    question: str = Field(default="", max_length=400)
