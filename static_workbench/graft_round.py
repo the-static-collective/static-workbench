@@ -85,7 +85,7 @@ def build_round(shelf: CreatorShelf, ride_id: int, ride_sha256: str, keep: Any,
                         declarations["intruder"], declarations["human_question"]) for variant in CARDS]
     candidates = [
         {**card, "candidate_sha256": sha({
-            "ride_sha256": ride_sha256, "declarations": declarations, "card": card,
+            "ride_id": ride_id, "ride_sha256": ride_sha256, "declarations": declarations, "card": card,
         })}
         for card in cards
     ]
