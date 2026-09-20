@@ -249,3 +249,16 @@ input:focus, select:focus { border-color: var(--green-dim); outline: 2px solid r
 .native-fuel-preview .raw-carrier { white-space: pre-wrap; overflow-wrap: anywhere; max-height: 240px; overflow: auto; }
 #native-maxhinal-ride { display: grid; gap: 10px; overflow-wrap: anywhere; }
 #native-maxhinal-history { display: grid; justify-items: start; gap: 9px; }
+
+/* HOUSE-FLYWHEEL-002: quiet, bounded, read-only return shelf. */
+.return-shelf-intro { margin-bottom: 16px; }
+.return-list { display: grid; gap: 12px; min-width: 0; }
+.return-card { display: grid; gap: 8px; min-width: 0; overflow-wrap: anywhere; }
+.return-card h2 { overflow-wrap: anywhere; }
+.return-card > .quiet-button { justify-self: start; }
+.return-details { display: grid; gap: 12px; border-top: 1px solid var(--line-soft); padding-top: 12px; }
+.return-details[hidden] { display: none; }
+.return-field { display: grid; gap: 4px; }
+.return-text { white-space: pre-wrap; overflow-wrap: anywhere; font: 12px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace; }
+.return-artifacts { display: grid; gap: 8px; }
+.return-artifact { background: var(--panel-2); border: 1px solid var(--line-soft); border-radius: 7px; padding: 9px; }
