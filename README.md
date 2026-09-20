@@ -305,3 +305,10 @@ experimental internal-kernel integration, **not** a public Dogram operator or
 a project-native Dogram receipt, a merge verdict, or automatic execution rights.
 
 See [Dogram Impact Desk setup and boundaries](docs/dogram-impact-desk-001.md).
+
+
+## GROUNDKEEPER-001 — synthetic field laboratory
+
+HOUSE now exposes an experimental **GROUNDKEEPER** door. Run a reproducible simulated ground signal through a coupled sound/visual feedback network; inspect a derived note phrase, visual frame, three bounded graph-change comparisons, and an exact-replay receipt. It does **not** access live sensors, mutate project state, admit generated capabilities, or implement a TranchNOSE optical field.
+
+Use the **GROUNDKEEPER** navigator view or run `python -m static_workbench.groundkeeper --seed static-first-ignition --output ~/groundkeeper-first.json`, followed by `python -m static_workbench.groundkeeper --replay ~/groundkeeper-first.json`. The output file must not already exist. Read [first-flight setup, controls, and next stages](docs/groundkeeper-001.md).

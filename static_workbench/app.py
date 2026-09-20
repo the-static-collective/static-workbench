@@ -24,6 +24,7 @@ from .native_maxhinal import preview_fuels, spin, FuelConflict
 from .broadcast import broadcast_door
 from .journal import Journal, SenseFieldRecord
 from .house import build_house_status
+from .groundkeeper import make_receipt as groundkeeper_first_ignition
 from .machine import sample_machine
 from .paths import PathOutsideRoot, resolve_under_root
 from .repos import discover_repositories
@@ -529,6 +530,16 @@ def create_app(config: WorkbenchConfig | None = None) -> FastAPI:
     def local_broadcast_door():
         repos = discover_repositories(config.roots, config.max_repo_depth)
         return broadcast_door(config, repos)
+
+    @app.get("/api/groundkeeper/first-ignition")
+    def groundkeeper_ignition(seed: str = Query(
+        default="static-first-ignition", min_length=1, max_length=128
+    )):
+        """Synthetic-only, deterministic, non-persistent HOUSE experimental view."""
+        try:
+            return groundkeeper_first_ignition(seed=seed)
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
 
     @app.get("/api/machine")
     def machine():
