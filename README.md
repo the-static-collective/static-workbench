@@ -240,3 +240,23 @@ is changed. The local single-user browser/session boundary is not a
 multi-user authentication system.
 
 See [Creator Desk v0.2 boundaries and use](docs/creator-desk-v02.md).
+
+## Hugh Jackman Discontinuity Maxhinal — Creator Desk Ride Dock
+
+HOUSE now exposes a **project-native Maxhinal door and an explicit imported-ride
+dock** in the Creator Desk. The real eight-chamber Maxhinal continues to run in
+`the-daily-slice` against actual Slice corpus gas, not generic search hits.
+From a saved Creator Desk source pack, paste a genuine exported
+`.maxhinal.json` ride, review its self-reported gas/operations/residuals/bad
+spins and exact pasted-byte SHA-256, then intentionally save a Workbench-owned
+copy. A person can associate that ride with a local draft on the next explicit
+revision save; the draft's manual copy handoff carries the dock id/digest.
+
+The relation between a source pack and a ride is **human-declared creative use**,
+not a claim that the Maxhinal executed on the pack, that its corpus replay was
+independently verified, or that a creative relation proves source identity.
+Neither HOUSE nor the dock runs Daily Slice code, edits Slice history,
+publishes drafts, or promotes projections to evidence. The original Maxhinal
+machine, its corpus and its receipts remain project-owned.
+
+See [Maxhinal Ride Dock setup and boundaries](docs/creator-maxhinal-ride-dock.md).
