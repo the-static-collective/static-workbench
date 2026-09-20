@@ -28,6 +28,7 @@ from .groundkeeper import make_receipt as groundkeeper_first_ignition
 from .machine import sample_machine
 from .paths import PathOutsideRoot, resolve_under_root
 from .repos import discover_repositories
+from .branch_deck import build_branch_deck
 from .schemas import (
     ApertureAnalyzeRequest,
     CreatorPackRequest,
@@ -176,6 +177,17 @@ def create_app(config: WorkbenchConfig | None = None) -> FastAPI:
         result = discover_repositories(config.roots, config.max_repo_depth)
         journal.append("repos.scanned", {"count": len(result)})
         return {"repos": [asdict(item) for item in result]}
+
+    @app.get("/api/branches")
+    def branch_deck():
+        # No user-controlled paths, Git arguments, network fetch or checkout.
+        result = build_branch_deck(discover_repositories(config.roots, config.max_repo_depth))
+        journal.append("branches.scanned", {
+            "repos": result["repos_scanned"],
+            "refs": len(result["branches"]),
+            "gaps": len(result["gaps"]),
+        })
+        return result
 
     @app.get("/api/house")
     def house():
