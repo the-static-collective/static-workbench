@@ -18,6 +18,7 @@ class RepoStatus:
     dirty: bool
     ahead: int | None
     behind: int | None
+    full_head: str | None = None
     root_id: str | None = None
     relative_path: str | None = None
     stacks: tuple[str, ...] = ()
@@ -50,6 +51,7 @@ def inspect_repository(path: Path) -> RepoStatus:
 
     branch = _text(_git(repo, "symbolic-ref", "--quiet", "--short", "HEAD"))
     head = _text(_git(repo, "rev-parse", "--short", "HEAD"))
+    full_head = _text(_git(repo, "rev-parse", "--verify", "HEAD^{commit}"))
     status = _git(repo, "status", "--porcelain=v1", "--untracked-files=normal")
     if status.returncode != 0:
         raise ValueError(f"unable to inspect Git status: {repo}")
@@ -87,6 +89,7 @@ def inspect_repository(path: Path) -> RepoStatus:
         detached=branch is None,
         head=head,
         dirty=dirty,
+        full_head=full_head,
         ahead=ahead,
         behind=behind,
         stacks=stacks,
