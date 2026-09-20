@@ -169,6 +169,15 @@ class CreatorShelf:
                 ride_id INTEGER NOT NULL REFERENCES house_native_maxhinal_rides(id),
                 payload_json TEXT NOT NULL
             )""")
+            db.execute("""CREATE TABLE IF NOT EXISTS house_graft_draft_revisions(
+                candidate_sha256 TEXT NOT NULL,
+                revision INTEGER NOT NULL,
+                created_at TEXT NOT NULL,
+                digest TEXT NOT NULL,
+                parent_digest TEXT,
+                payload_json TEXT NOT NULL,
+                PRIMARY KEY(candidate_sha256,revision)
+            )""")
             db.execute("""CREATE TABLE IF NOT EXISTS house_graft_witnesses(
                 witness_sha256 TEXT PRIMARY KEY,
                 created_at TEXT NOT NULL,
@@ -363,6 +372,117 @@ class CreatorShelf:
                     return {"round_sha256": row["round_sha256"],
                             "round": packet, "candidate": card}
         return None
+
+    def _graft_draft_row(self, candidate_sha256: str, revision: int | None = None):
+        with self._connect() as db:
+            if revision is None:
+                return db.execute(
+                    """SELECT candidate_sha256,revision,created_at,digest,parent_digest,payload_json
+                    FROM house_graft_draft_revisions WHERE candidate_sha256=?
+                    ORDER BY revision DESC LIMIT 1""", (candidate_sha256,),
+                ).fetchone()
+            return db.execute(
+                """SELECT candidate_sha256,revision,created_at,digest,parent_digest,payload_json
+                FROM house_graft_draft_revisions WHERE candidate_sha256=? AND revision=?""",
+                (candidate_sha256, revision),
+            ).fetchone()
+
+    def _graft_draft_receipt(self, row) -> dict[str, Any]:
+        if _digest(row["payload_json"].encode("utf-8")) != row["digest"]:
+            raise CreatorConflict("Stored GRAFT draft revision digest mismatch")
+        draft = json.loads(row["payload_json"])
+        if (draft.get("candidate_sha256") != row["candidate_sha256"]
+            or draft.get("revision") != row["revision"]
+            or draft.get("parent_draft_sha256") != row["parent_digest"]):
+            raise CreatorConflict("Stored GRAFT draft revision identity mismatch")
+        if row["revision"] > 1:
+            previous = self._graft_draft_row(row["candidate_sha256"], row["revision"] - 1)
+            if previous is None or previous["digest"] != row["parent_digest"]:
+                raise CreatorConflict("Stored GRAFT draft revision parent is missing or changed")
+            self._graft_draft_receipt(previous)
+        elif row["parent_digest"] is not None:
+            raise CreatorConflict("First GRAFT draft revision cannot have a parent digest")
+        return {
+            "candidate_sha256": row["candidate_sha256"], "revision": row["revision"],
+            "draft_sha256": row["digest"], "draft": draft, "saved": True,
+            "created_at": row["created_at"],
+        }
+
+    def latest_graft_draft(self, candidate_sha256: str) -> dict[str, Any] | None:
+        row = self._graft_draft_row(candidate_sha256)
+        return None if row is None else self._graft_draft_receipt(row)
+
+    def get_graft_draft_revision(self, candidate_sha256: str, revision: int) -> dict[str, Any] | None:
+        row = self._graft_draft_row(candidate_sha256, revision)
+        return None if row is None else self._graft_draft_receipt(row)
+
+    def list_graft_draft_revisions(self, candidate_sha256: str) -> list[dict[str, Any]]:
+        with self._connect() as db:
+            rows = db.execute(
+                """SELECT revision,digest FROM house_graft_draft_revisions
+                WHERE candidate_sha256=? ORDER BY revision DESC LIMIT 40""",
+                (candidate_sha256,),
+            ).fetchall()
+        return [{"revision": row["revision"], "draft_sha256": row["digest"]}
+                for row in rows]
+
+    def save_graft_draft(self, proposal: dict[str, Any], expected_revision: int,
+                         expected_draft_sha256: str | None) -> dict[str, Any]:
+        """Append a local draft revision under a separately validated, immutable candidate."""
+        if len(_json(proposal).encode("utf-8")) > 32768:
+            raise CreatorConflict("GRAFT draft exceeds 32 KiB")
+        candidate_sha256 = proposal["candidate_sha256"]
+        with self._connect() as db:
+            # BEGIN IMMEDIATE prevents competing writers from both seeing the same head.
+            db.execute("BEGIN IMMEDIATE")
+            parent = db.execute(
+                """SELECT revision,digest,payload_json FROM house_graft_draft_revisions
+                WHERE candidate_sha256=? ORDER BY revision DESC LIMIT 1""",
+                (candidate_sha256,),
+            ).fetchone()
+            revision = parent["revision"] if parent is not None else 0
+            digest = parent["digest"] if parent is not None else None
+            if revision != expected_revision or digest != expected_draft_sha256:
+                raise CreatorConflict("GRAFT draft changed since it was opened; reload before saving")
+            if parent is not None:
+                self._graft_draft_receipt(parent)
+            # Re-check source round while write transaction is held.
+            round_rows = db.execute(
+                "SELECT round_sha256,payload_json FROM house_graft_rounds"
+            ).fetchall()
+            valid_parent = False
+            for parent_round in round_rows:
+                if parent_round["round_sha256"] != proposal["round_sha256"]:
+                    continue
+                if _digest(parent_round["payload_json"].encode("utf-8")) != parent_round["round_sha256"]:
+                    raise CreatorConflict("GRAFT round was changed")
+                packet = json.loads(parent_round["payload_json"])
+                if (packet.get("ride_id") != proposal["ride_id"]
+                    or packet.get("ride_sha256") != proposal["ride_sha256"]
+                    or not any(c.get("candidate_sha256") == candidate_sha256
+                               for c in packet.get("candidates", []))):
+                    raise CreatorConflict("GRAFT draft candidate or ride differs from the saved round")
+                ride = db.execute(
+                    "SELECT ride_digest,payload_json FROM house_native_maxhinal_rides WHERE id=?",
+                    (proposal["ride_id"],),
+                ).fetchone()
+                if (ride is None or ride["ride_digest"] != proposal["ride_sha256"]
+                    or _digest(ride["payload_json"].encode("utf-8")) != ride["ride_digest"]):
+                    raise CreatorConflict("GRAFT draft parent ride is missing or corrupted")
+                valid_parent = True
+                break
+            if not valid_parent:
+                raise CreatorConflict("GRAFT draft candidate round is missing")
+            packet = {**proposal, "revision": revision + 1, "parent_draft_sha256": digest}
+            raw = _json(packet)
+            saved_digest = _digest(raw.encode("utf-8"))
+            db.execute(
+                """INSERT INTO house_graft_draft_revisions
+                (candidate_sha256,revision,created_at,digest,parent_digest,payload_json)
+                VALUES(?,?,?,?,?,?)""",
+                (candidate_sha256, revision + 1, _now(), saved_digest, digest, raw),
+            )
+        return self.latest_graft_draft(candidate_sha256)
 
     def save_graft_witness(self, witness: dict[str, Any]) -> dict[str, Any]:
         """Immutable Workbench-owned attachment; native ride and Dogram receipt remain separate."""
