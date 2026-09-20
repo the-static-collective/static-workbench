@@ -79,7 +79,7 @@ def _graph(raw: Any) -> dict[str, Any]:
 
 
 def _specimen(graph: dict[str, Any], operator: str, change: Any, queries: Any,
-              ride_id: int, ride_sha256: str) -> dict[str, Any]:
+              ride_id: int, ride_sha256: str, candidate_sha256: str | None = None) -> dict[str, Any]:
     if operator not in {"reach", "ablate"} or not isinstance(change, dict):
         raise GraftWitnessError("Choose public reach@1 or ablate@1 with one declared change")
     if not isinstance(queries, list) or len(queries) > MAX_QUERIES:
@@ -106,6 +106,9 @@ def _specimen(graph: dict[str, Any], operator: str, change: Any, queries: Any,
         if not all(type(n) is str and n in node_set for n in edge) or edge not in edge_set:
             raise GraftWitnessError("Ablated edge must exist in the declared baseline graph")
         inputs = {"graph": graph, "target": change, "requested_targets": queries}
+    metadata = {"origin": "house.graft-structural-witness/v0.1", "ride_sha256": ride_sha256}
+    if candidate_sha256 is not None:
+        metadata["candidate_sha256"] = candidate_sha256
     return {
         "schema": "dogram.specimen/v0",
         "specimen_id": f"house-graft-ride-{ride_id}-{ride_sha256[:12]}",
@@ -114,7 +117,7 @@ def _specimen(graph: dict[str, Any], operator: str, change: Any, queries: Any,
             "Graph is human-declared hypothetical structure, not an observed system.",
             "Edges assert only the user's proposed graph relation, not causation or implemented data flow.",
         ],
-        "metadata": {"origin": "house.graft-structural-witness/v0.1", "ride_sha256": ride_sha256},
+        "metadata": metadata,
     }
 
 
@@ -134,14 +137,18 @@ def _dogram_version(config: WorkbenchConfig) -> tuple[Path, str]:
 
 def preview(config: WorkbenchConfig, shelf: CreatorShelf, ride_id: int,
             ride_sha256: str, graph: Any, operator: str,
-            change: Any, queries: Any) -> dict[str, Any]:
+            change: Any, queries: Any, candidate_sha256: str | None = None) -> dict[str, Any]:
     _ride(shelf, ride_id, ride_sha256)
+    if candidate_sha256 is not None:
+        from .graft_round import get_candidate
+        get_candidate(shelf, ride_id, ride_sha256, candidate_sha256)
     checked_graph = _graph(graph)
-    specimen = _specimen(checked_graph, operator, change, queries, ride_id, ride_sha256)
+    specimen = _specimen(checked_graph, operator, change, queries, ride_id, ride_sha256, candidate_sha256)
     _path, dogram_commit = _dogram_version(config)
     return {
         "schema": "house.graft-structural-preview/v0.1",
         "ride_id": ride_id, "ride_sha256": ride_sha256,
+        "candidate_sha256": candidate_sha256,
         "dogram_commit": dogram_commit, "specimen_sha256": sha(specimen),
         "specimen": specimen, "authority": "none",
         "notice": "Review every declared node, edge, change and query. No graph relation was inferred from source content.",
@@ -151,8 +158,8 @@ def preview(config: WorkbenchConfig, shelf: CreatorShelf, ride_id: int,
 def measure(config: WorkbenchConfig, shelf: CreatorShelf, ride_id: int,
             ride_sha256: str, graph: Any, operator: str, change: Any,
             queries: Any, expected_specimen_sha256: str,
-            expected_dogram_commit: str) -> dict[str, Any]:
-    reviewed = preview(config, shelf, ride_id, ride_sha256, graph, operator, change, queries)
+            expected_dogram_commit: str, candidate_sha256: str | None = None) -> dict[str, Any]:
+    reviewed = preview(config, shelf, ride_id, ride_sha256, graph, operator, change, queries, candidate_sha256)
     if (reviewed["specimen_sha256"] != expected_specimen_sha256
         or reviewed["dogram_commit"] != expected_dogram_commit):
         raise GraftWitnessError("Graph, ride or Dogram version changed; review again")
@@ -186,6 +193,7 @@ def measure(config: WorkbenchConfig, shelf: CreatorShelf, ride_id: int,
     record = {
         "schema": "house.graft-structural-witness/v0.1",
         "ride_id": ride_id, "ride_sha256": ride_sha256,
+        "candidate_sha256": candidate_sha256,
         "dogram_commit": expected_dogram_commit,
         "specimen_sha256": expected_specimen_sha256,
         "specimen": reviewed["specimen"],

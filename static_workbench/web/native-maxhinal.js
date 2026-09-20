@@ -202,6 +202,7 @@ function nativeMaxhinalRenderRide() {
     status.appendChild(area); area.focus(); area.select();
   });
   host.append(copy, status);
+  graftRoundRenderForRide(ride, host);
   graftRenderForRide(ride, host);
 }
 

@@ -163,6 +163,12 @@ class CreatorShelf:
                 mode TEXT NOT NULL,
                 payload_json TEXT NOT NULL
             )""")
+            db.execute("""CREATE TABLE IF NOT EXISTS house_graft_rounds(
+                round_sha256 TEXT PRIMARY KEY,
+                created_at TEXT NOT NULL,
+                ride_id INTEGER NOT NULL REFERENCES house_native_maxhinal_rides(id),
+                payload_json TEXT NOT NULL
+            )""")
             db.execute("""CREATE TABLE IF NOT EXISTS house_graft_witnesses(
                 witness_sha256 TEXT PRIMARY KEY,
                 created_at TEXT NOT NULL,
@@ -283,6 +289,80 @@ class CreatorShelf:
             "id": row["id"], "created_at": row["created_at"], "ride_sha256": row["ride_digest"],
             **json.loads(row["payload_json"]),
         }
+
+    def save_graft_round(self, packet: dict[str, Any]) -> dict[str, Any]:
+        """Save reviewed proposal questions without selecting, harvesting or modifying a ride."""
+        raw = _json(packet)
+        if len(raw.encode("utf-8")) > 32768:
+            raise CreatorConflict("GRAFT proposal round exceeds 32 KiB")
+        round_sha256 = _digest(raw.encode("utf-8"))
+        with self._connect() as db:
+            ride = db.execute(
+                "SELECT ride_digest,payload_json FROM house_native_maxhinal_rides WHERE id=?",
+                (packet["ride_id"],),
+            ).fetchone()
+            if (ride is None or ride["ride_digest"] != packet["ride_sha256"]
+                or _digest(ride["payload_json"].encode("utf-8")) != ride["ride_digest"]):
+                raise CreatorConflict("GRAFT round parent ride is missing or corrupted")
+            db.execute(
+                """INSERT OR IGNORE INTO house_graft_rounds
+                (round_sha256,created_at,ride_id,payload_json) VALUES(?,?,?,?)""",
+                (round_sha256, _now(), packet["ride_id"], raw),
+            )
+            stored = db.execute(
+                "SELECT payload_json FROM house_graft_rounds WHERE round_sha256=?",
+                (round_sha256,),
+            ).fetchone()
+        if stored is None or stored["payload_json"] != raw:
+            raise CreatorConflict("Stored GRAFT round differs from its content address")
+        return {"round_sha256": round_sha256, "round": packet}
+
+    def get_graft_round(self, round_sha256: str) -> dict[str, Any] | None:
+        if not isinstance(round_sha256, str) or len(round_sha256) != 64 or any(
+            ch not in "0123456789abcdef" for ch in round_sha256
+        ):
+            return None
+        with self._connect() as db:
+            row = db.execute(
+                "SELECT payload_json FROM house_graft_rounds WHERE round_sha256=?",
+                (round_sha256,),
+            ).fetchone()
+        if row is None:
+            return None
+        if _digest(row["payload_json"].encode("utf-8")) != round_sha256:
+            raise CreatorConflict("Stored GRAFT proposal round digest mismatch")
+        return {"round_sha256": round_sha256, "round": json.loads(row["payload_json"])}
+
+    def list_graft_rounds(self, ride_id: int) -> list[dict[str, Any]]:
+        with self._connect() as db:
+            rows = db.execute(
+                """SELECT round_sha256,created_at,payload_json FROM house_graft_rounds
+                WHERE ride_id=? ORDER BY created_at DESC LIMIT 40""",
+                (ride_id,),
+            ).fetchall()
+        return [{"round_sha256": row["round_sha256"], "created_at": row["created_at"],
+                 "candidate_count": len(json.loads(row["payload_json"])["candidates"])}
+                for row in rows]
+
+    def get_graft_candidate(self, candidate_sha256: str) -> dict[str, Any] | None:
+        """Resolve a uniquely addressed candidate from a verified immutable proposal round."""
+        if not isinstance(candidate_sha256, str) or len(candidate_sha256) != 64 or any(
+            ch not in "0123456789abcdef" for ch in candidate_sha256
+        ):
+            return None
+        with self._connect() as db:
+            rows = db.execute(
+                "SELECT round_sha256,payload_json FROM house_graft_rounds ORDER BY created_at DESC LIMIT 1000"
+            ).fetchall()
+        for row in rows:
+            if _digest(row["payload_json"].encode("utf-8")) != row["round_sha256"]:
+                raise CreatorConflict("Stored GRAFT round digest mismatch")
+            packet = json.loads(row["payload_json"])
+            for card in packet["candidates"]:
+                if card["candidate_sha256"] == candidate_sha256:
+                    return {"round_sha256": row["round_sha256"],
+                            "round": packet, "candidate": card}
+        return None
 
     def save_graft_witness(self, witness: dict[str, Any]) -> dict[str, Any]:
         """Immutable Workbench-owned attachment; native ride and Dogram receipt remain separate."""

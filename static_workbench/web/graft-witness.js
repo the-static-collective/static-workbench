@@ -50,6 +50,9 @@ function graftRenderForRide(ride, host) {
     destination.append(el('div', 'repo-name', 'HOUSE witness SHA-256: ' + record.witness_sha256),
       el('p', 'muted tiny', 'Dogram commit: ' + record.witness.dogram_commit),
       el('p', 'muted tiny', record.witness.non_claims.join(' · ')));
+    destination.appendChild(el('p', 'muted tiny', record.witness.candidate_sha256
+      ? 'Selected candidate SHA-256: ' + record.witness.candidate_sha256
+      : 'Ride-only structural witness; no GRAFT candidate was selected.'));
     const receipt = record.witness.dogram_receipt;
     destination.append(el('div', 'repo-name', 'DOGRAM ' + receipt.operator + '@'
       + receipt.operator_version + ' · ' + receipt.status),
@@ -76,15 +79,20 @@ function graftRenderForRide(ride, host) {
   }
   form.addEventListener('submit', async event => {
     event.preventDefault(); clear(output); previewButton.disabled = true;
+    const candidateAtPreview = graftRoundState.selectedByRide[String(ride.id)] || null;
     let request;
     try {
       request = {
         ride_id: ride.id, ride_sha256: ride.ride_sha256,
+        candidate_sha256: candidateAtPreview,
         graph: JSON.parse(graph.value), operator: mode.value,
         change: JSON.parse(change.value), queries: JSON.parse(queries.value),
       };
       const reviewed = await creatorV2Write('/api/house-maxhinal/graft/preview', request);
       output.append(el('div', 'repo-name', 'Review this EXACT declared specimen before measuring'),
+        el('p', 'muted tiny', candidateAtPreview
+          ? 'Selected GRAFT candidate: ' + candidateAtPreview
+          : 'No candidate selected: this is a ride-only structural witness.'),
         el('p', 'muted tiny', 'Pinned local Dogram: ' + reviewed.dogram_commit),
         el('p', 'muted tiny', 'Specimen SHA-256: ' + reviewed.specimen_sha256),
         el('pre', 'raw-carrier', JSON.stringify(reviewed.specimen, null, 2)));
@@ -97,6 +105,7 @@ function graftRenderForRide(ride, host) {
           // Re-read inputs from the form; server independently checks all frozen digests.
           const now = {
             ride_id: ride.id, ride_sha256: ride.ride_sha256,
+            candidate_sha256: graftRoundState.selectedByRide[String(ride.id)] || null,
             graph: JSON.parse(graph.value), operator: mode.value,
             change: JSON.parse(change.value), queries: JSON.parse(queries.value),
           };
