@@ -96,8 +96,7 @@ def test_receipt_tampering_and_relabeling_refused_even_when_rehashed():
     with pytest.raises(GroundkeeperError, match="sample digest"):
         replay(changed)
     changed = copy.deepcopy(original)
-    changed["source"]["kind"] = "provided-unverified"
-    changed["source"]["seed"] = None
+    changed["source"]["seed"] = "a-different-ground-signal"
     changed["receipt_digest"] = digest({k: v for k, v in changed.items() if k != "receipt_digest"})
     with pytest.raises(GroundkeeperError, match="replay mismatch"):
         replay(changed)
