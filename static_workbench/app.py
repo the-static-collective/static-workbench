@@ -25,6 +25,7 @@ from .broadcast import broadcast_door
 from .lifestream_inbox import MomentInbox
 from .journal import Journal, SenseFieldRecord
 from .capability_returns import CapabilityReturnLedger
+from .capability_loom import preview_composition
 from .house import build_house_status
 from .groundkeeper import make_receipt as groundkeeper_first_ignition
 from .machine import sample_machine
@@ -205,6 +206,15 @@ def create_app(config: WorkbenchConfig | None = None) -> FastAPI:
         if record is None:
             raise HTTPException(status_code=404, detail="return not found")
         return {"format": "house.capability-return/v0", "verification": "not_evaluated", "record": asdict(record)}
+
+    @app.post("/api/house/loom/preview")
+    def house_loom_preview(payload: dict, request: Request):
+        # Preview requires an explicit local session, even though it produces no effect.
+        _creator_write_guard(request)
+        try:
+            return preview_composition(return_ledger, payload)
+        except ValueError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
 
     @app.get("/api/repos")
     def repos():

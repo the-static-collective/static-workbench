@@ -1,6 +1,6 @@
-/* HOUSE-FLYWHEEL-002: read-only display for manually imported, self-reported returns.
- * All source-provided content is rendered as text, never HTML or executable URLs.
- * No import, permission, checkout, successor proposal, or project effect is exposed.
+/* HOUSE-FLYWHEEL-003: reported returns plus explicit, inert human-selected preview.
+ * All source-provided content is text, never HTML or executable URLs.
+ * No import, permission, checkout, autonomous successor, or project effect.
  */
 async function renderReturnShelf() {
   state.view = 'returns';
@@ -31,6 +31,67 @@ async function renderReturnShelf() {
     workspaceBody.appendChild(el('div', 'empty-state', 'No capability returns recorded locally. This view does not import projects or synthesize returns from operational events.'));
     return;
   }
+  // A human chooses exactly two individual owner-scoped artifacts; there is no
+  // automatic pairing, usefulness score, or reuse/equivalence assertion.
+  const selected = new Map();
+  let previewRevision = 0;
+  const loom = el('section', 'card return-loom');
+  const count = el('div', 'muted tiny', '0 / 2 exact artifacts selected');
+  const question = el('input');
+  question.type = 'text';
+  question.maxLength = 512;
+  question.placeholder = 'What specific relationship would you test?';
+  question.setAttribute('aria-label', 'Composition question');
+  const previewButton = el('button', 'action-button', 'Preview selected composition');
+  previewButton.type = 'button';
+  previewButton.disabled = true;
+  const previewResult = el('div', 'return-loom-result');
+  function syncSelection() {
+    count.textContent = selected.size + ' / 2 exact artifacts selected';
+    previewButton.disabled = selected.size !== 2 || !question.value.trim();
+    clear(previewResult);
+    previewRevision += 1;
+  }
+  question.addEventListener('input', syncSelection);
+  previewButton.addEventListener('click', async () => {
+    if (selected.size !== 2 || !question.value.trim()) return;
+    const revision = ++previewRevision;
+    const payload = { selections: [...selected.values()], question: question.value };
+    previewButton.disabled = true;
+    clear(previewResult);
+    previewResult.appendChild(el('div', 'muted', 'Preparing inert preview…'));
+    try {
+      const proposal = await api('/api/house/loom/preview', {
+        method: 'POST',
+        headers: { 'X-Workbench-Session': state.bootstrap.session_token },
+        body: JSON.stringify(payload),
+      });
+      if (state.view !== 'returns' || revision !== previewRevision) return;
+      clear(previewResult);
+      previewResult.append(
+        el('div', 'eyebrow', 'INERT / UNRUN / NOT AUTHORIZED'),
+        el('div', 'repo-meta', 'Proposal digest (local fingerprint): ' + proposal.proposal_digest),
+        el('div', 'muted tiny', 'Compatibility: ' + proposal.compatibility + ' · execution: ' + proposal.execution),
+        el('pre', 'code-preview', JSON.stringify(proposal, null, 2))
+      );
+    } catch (error) {
+      if (state.view !== 'returns' || revision !== previewRevision) return;
+      clear(previewResult);
+      previewResult.appendChild(el('div', 'notice error', error.message || String(error)));
+    } finally {
+      if (state.view === 'returns' && revision === previewRevision) {
+        previewButton.disabled = selected.size !== 2 || !question.value.trim();
+      }
+    }
+  });
+  loom.append(
+    el('div', 'eyebrow', 'CAPABILITY LOOM / EXPERIMENTAL / NO EFFECTS'),
+    el('h2', '', 'Select two artifacts to explore'),
+    el('p', 'muted', 'Expand return cards and select exactly two exact references. The preview preserves each original identity and reports compatibility, verification, and authorization as unevaluated. It cannot run a flight.'),
+    count, question, previewButton, previewResult
+  );
+  workspaceBody.appendChild(loom);
+
   const list = el('section', 'return-list');
   list.appendChild(el('div', 'section-heading', 'RECORDED RETURNS — NEWEST FIRST'));
   for (const record of records) {
@@ -72,6 +133,34 @@ async function renderReturnShelf() {
         el('div', 'muted tiny', artifact.kind + ' · ' + artifact.capability_state + ' (source claim only)'),
         el('div', 'muted tiny', 'Evidence refs: ' + (artifact.evidence_refs.join('; ') || 'none supplied'))
       );
+      const checkbox = el('input');
+      checkbox.type = 'checkbox';
+      checkbox.setAttribute('aria-label', 'Select artifact ' + artifact.owner + ' / ' + artifact.artifact_ref + ' from ' + packet.return_id);
+      const choice = {
+        return_id: packet.return_id,
+        local_digest: record.local_digest,
+        owner: artifact.owner,
+        artifact_ref: artifact.artifact_ref,
+      };
+      const choiceKey = JSON.stringify(choice);
+      checkbox.addEventListener('change', () => {
+        if (checkbox.checked) {
+          const sameIdentitySelected = [...selected.values()].some(
+            other => other.owner === choice.owner && other.artifact_ref === choice.artifact_ref
+          );
+          if (selected.size >= 2 || sameIdentitySelected) {
+            checkbox.checked = false;
+            return;
+          }
+          selected.set(choiceKey, choice);
+        } else {
+          selected.delete(choiceKey);
+        }
+        syncSelection();
+      });
+      const choiceLabel = el('label', 'return-artifact-choice');
+      choiceLabel.append(checkbox, el('span', '', 'Select this exact reported artifact'));
+      item.appendChild(choiceLabel);
       artifacts.appendChild(item);
     }
     details.appendChild(artifacts);

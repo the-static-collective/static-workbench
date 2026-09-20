@@ -109,5 +109,7 @@ def test_return_shelf_displays_hostile_fields_only_as_text_and_never_exposes_wri
         assert "innerHTML" not in script
         assert "createElement('a')" not in script
         assert "fetch(" not in script
-        assert "method: 'POST'" not in script
+        assert "method: 'POST'" in script  # the separate, inert Loom preview only
+        assert "'/api/house/loom/preview'" in script
+        assert "'/api/house/returns'" not in script  # no import/write target
         assert 'REPORTED · NOT INDEPENDENTLY VERIFIED' in script
