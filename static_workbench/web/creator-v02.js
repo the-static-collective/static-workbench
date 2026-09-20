@@ -3,7 +3,7 @@
  */
 function creatorV2State() {
   if (!state.creatorV2) state.creatorV2 = {
-    selected: [], preview: null, packs: [], drafts: [], pack: null, draft: null,
+    selected: [], preview: null, packs: [], drafts: [], pack: null, draft: null, maxhinalRides: [], linkedRideId: undefined,
   };
   return state.creatorV2;
 }
@@ -139,9 +139,10 @@ function creatorV2RenderSelection() {
 }
 async function creatorV2Load() {
   const s = creatorV2State();
-  const results = await Promise.all([api('/api/creator/packs'), api('/api/creator/drafts')]);
+  const results = await Promise.all([api('/api/creator/packs'), api('/api/creator/drafts'), api('/api/creator/maxhinal/rides')]);
   s.packs = results[0].packs;
   s.drafts = results[1].drafts;
+  s.maxhinalRides = results[2].rides;
   if (state.view === 'creator') creatorV2RenderShelf();
 }
 function creatorV2RenderShelf() {
@@ -161,6 +162,7 @@ function creatorV2RenderShelf() {
       try {
         s.pack = await api('/api/creator/packs/' + item.id);
         s.draft = null;
+        s.linkedRideId = undefined;
         creatorV2RenderShelf();
       } catch (error) { creatorV2Message(packs, error.message || String(error), true); }
     });
@@ -181,6 +183,7 @@ function creatorV2RenderShelf() {
           api('/api/creator/packs/' + item.pack_id),
         ]);
         s.draft = loaded[0];
+        s.linkedRideId = undefined;
         s.pack = loaded[1];
         creatorV2RenderShelf();
       } catch (error) { creatorV2Message(drafts, error.message || String(error), true); }
@@ -221,7 +224,7 @@ function creatorV2RenderShelf() {
   gaps.setAttribute('aria-label', 'Unresolved gaps'); gaps.value = s.draft?.gaps || '';
   const save = el('button', 'action-button', 'Save new local revision'); save.type = 'submit';
   const fresh = el('button', 'quiet-button', 'Start another draft from this pack'); fresh.type = 'button';
-  fresh.addEventListener('click', () => { s.draft = null; creatorV2RenderShelf(); });
+  fresh.addEventListener('click', () => { s.draft = null; s.linkedRideId = undefined; creatorV2RenderShelf(); });
   const feedback = el('div', 'creator-feedback');
   form.append(title, kind, body, assumptions, gaps, save, fresh, feedback);
   form.addEventListener('submit', async event => {
@@ -231,6 +234,7 @@ function creatorV2RenderShelf() {
       pack_id: pack.id, expected_revision: s.draft?.revision || 0,
       title: title.value, kind: kind.value, body: body.value,
       assumptions: assumptions.value, gaps: gaps.value,
+      maxhinal_ride_id: s.linkedRideId === undefined ? (s.draft?.maxhinal_ride_id || null) : s.linkedRideId,
     };
     const path = s.draft ? '/api/creator/drafts/' + s.draft.id + '/revisions' : '/api/creator/drafts';
     try {
@@ -260,6 +264,11 @@ function creatorV2RenderShelf() {
         'Format: ' + s.draft.kind,
         'Local draft #' + s.draft.id + ', revision ' + s.draft.revision,
         'Source pack #' + pack.id + ' · ' + pack.pack_sha256,
+        'Optional Maxhinal ride: ' + (s.draft.maxhinal_ride_id ? (() => {
+          const ride = (s.maxhinalRides || []).find(item => item.id === s.draft.maxhinal_ride_id);
+          return ride ? 'HOUSE dock #' + ride.id + ', source ride ' + ride.ride_id + ', raw JSON SHA-256 ' + ride.ride_sha256
+            + ' (unverified imported ride; Slice gas is not this source pack)' : 'linked ride not loaded';
+        })() : '(none linked)'),
         'Selected local source references:\n' + refs,
         'Creative assumptions: ' + (s.draft.assumptions || '(none declared)'),
         'Unresolved gaps: ' + (s.draft.gaps || '(none declared)'),
@@ -282,4 +291,5 @@ function creatorV2RenderShelf() {
     editor.append(copy, result);
   }
   host.appendChild(editor);
+  maxhinalRenderDock(host, s);
 }
