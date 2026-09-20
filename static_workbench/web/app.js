@@ -176,6 +176,8 @@ function renderHouse() {
   const grid = el('div', 'organ-grid');
   for (const organ of house.organs) {
     const card = el('article', `organ-card ${organ.present ? 'present' : 'missing'}`);
+    card.dataset.attentionKind = 'organ';
+    card.dataset.attentionId = organ.id;
     const top = el('div', 'organ-top');
     top.append(el('strong', '', organ.label), el('span', `state-pill ${organ.present ? 'good' : ''}`, organ.present ? 'present' : 'missing'));
     card.append(top, el('div', 'muted organ-role', organ.role));
@@ -229,6 +231,8 @@ function renderCreatorHits(body, host) {
   for (const hit of body.hits) {
     const card = el('article', 'card creator-hit');
     const marker = `${hit.root_id}:${hit.repo_path}/${hit.source_path}#L${hit.line}`;
+    card.dataset.attentionKind = 'source-hit';
+    card.dataset.attentionId = marker + '@' + (hit.head || 'unborn') + (hit.dirty ? ':dirty' : '');
     card.append(el('div', 'repo-name', marker), el('pre', 'raw-carrier', hit.snippet));
     card.appendChild(el('div', 'muted tiny', `${hit.head || 'unborn HEAD'} · ${hit.dirty ? 'DIRTY WORKTREE; excerpt not commit-anchored' : 'working tree; verify against commit before citing'}`));
     const button = el('button', 'quiet-button', 'Copy source handoff');
@@ -372,6 +376,8 @@ function renderRepoDetail(repo) {
   setWorkspace('Repository', repo.name);
   clear(workspaceBody);
   const card = el('article', 'card');
+  card.dataset.attentionKind = 'repository';
+  card.dataset.attentionId = repo.root_id + ':' + repo.relative_path;
   card.appendChild(el('h2', '', repo.dirty ? 'Working tree has changes' : 'Working tree clean'));
   const dl = el('dl', 'definition-grid');
   const fields = [
@@ -409,6 +415,8 @@ async function inspectObject(rootId, path) {
     setWorkspace('Object', obj.path || rootId);
     clear(workspaceBody);
     const card = el('article', 'card');
+    card.dataset.attentionKind = 'object';
+    card.dataset.attentionId = obj.root_id + ':' + (obj.path || '.');
     const dl = el('dl', 'definition-grid');
     [['Owner root', obj.root_id], ['Kind', obj.kind], ['Relative path', obj.path || '.'], ['Size', obj.size === null ? '—' : formatBytes(obj.size)]].forEach(([k,v]) => dl.append(el('dt','',k), el('dd','',String(v))));
     card.appendChild(dl);
@@ -446,6 +454,8 @@ function renderApertureResult(record) {
   host.appendChild(summary);
 
   const receipt = el('article', 'card aperture-receipt');
+  receipt.dataset.attentionKind = 'sense-cut';
+  receipt.dataset.attentionId = String(record.id);
   receipt.appendChild(el('div', 'eyebrow', `Cut #${record.id} · ${analysis.status}`));
   receipt.appendChild(el('pre', 'raw-carrier', record.raw_text));
   receipt.appendChild(el('div', 'muted tiny', record.parent_id === null ? 'Root sense-field cut.' : `Descends from cut #${record.parent_id}. Earlier receipt remains unchanged.`));
@@ -589,6 +599,7 @@ async function refreshCurrent() {
     else if (state.view === 'repos') await loadRepos();
     else if (state.view === 'branches') await Promise.all([loadBranchDeck(), loadBranchRadar()]);
     else if (state.view === 'objects') renderObjects();
+    else if (state.view === 'attention') await window.HumanValueBar.openShelf();
     else if (state.view === 'creator') await Promise.all([loadRepos(), loadCreatorDesk()]);
     else if (state.view === 'maxhinal') await nativeMaxhinalLoad();
     else if (state.view === 'dogram-impact') { await loadRepos(); renderDogramImpactDesk(); }
@@ -629,7 +640,7 @@ async function start() {
 
 document.querySelectorAll('.nav-button').forEach(button => button.addEventListener('click', () => {
   const view = button.dataset.view;
-  if (view === 'house') renderHouse(); else if (view === 'machine') renderMachine(); else if (view === 'repos') renderRepos(); else if (view === 'branches') { branchDeckOpen().catch(showError); } else if (view === 'objects') renderObjects(); else if (view === 'creator') { renderCreatorDesk(); creatorV2Load().catch(showError); } else if (view === 'maxhinal') { renderNativeMaxhinal(); nativeMaxhinalLoad().catch(showError); } else if (view === 'dogram-impact') renderDogramImpactDesk(); else if (view === 'return') returnDeskLoad().catch(showError); else if (view === 'rocket') { state.view = 'rocket'; rocketLoad().catch(showError); } else if (view === 'composition') renderCompositionInspection(); else if (view === 'living-main') renderLivingMain(); else if (view === 'groundkeeper') groundkeeperView(); else renderHumanTerminal();
+  if (view === 'house') renderHouse(); else if (view === 'machine') renderMachine(); else if (view === 'repos') renderRepos(); else if (view === 'branches') { branchDeckOpen().catch(showError); } else if (view === 'objects') renderObjects(); else if (view === 'attention') { state.view = 'attention'; window.HumanValueBar.openShelf(); } else if (view === 'creator') { renderCreatorDesk(); creatorV2Load().catch(showError); } else if (view === 'maxhinal') { renderNativeMaxhinal(); nativeMaxhinalLoad().catch(showError); } else if (view === 'dogram-impact') renderDogramImpactDesk(); else if (view === 'return') returnDeskLoad().catch(showError); else if (view === 'rocket') { state.view = 'rocket'; rocketLoad().catch(showError); } else if (view === 'composition') renderCompositionInspection(); else if (view === 'living-main') renderLivingMain(); else if (view === 'groundkeeper') groundkeeperView(); else renderHumanTerminal();
 }));
 $('#refresh-view').addEventListener('click', refreshCurrent);
 $('#refresh-events').addEventListener('click', () => loadEvents().catch(showError));
