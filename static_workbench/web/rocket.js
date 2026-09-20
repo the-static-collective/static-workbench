@@ -202,11 +202,65 @@ function rocketRender() {
     active.appendChild(form);
   }
   if (stages.length === 3) {
-    active.appendChild(el('div', 'notice', 'All three stages preserved. No further action has run automatically.'));
+    active.appendChild(el('div', 'notice', 'All three inspection stages are preserved. No project action has run automatically.'));
+    if (mission.effect) {
+      const result = el('section', 'rocket-stage');
+      result.append(
+        el('h3', '', 'Owner-native effect confirmed'),
+        el('p', 'muted', 'Creator Desk seed #' + mission.effect.output.native_seed_id +
+          ' was saved locally. This receipt does not claim that an external project was modified.'),
+        el('div', 'muted tiny rocket-digest', 'Effect SHA-256 ' + mission.effect.receipt_sha256),
+      );
+      const inspect = el('button', 'quiet-button', 'Inspect saved Creator seed');
+      inspect.type = 'button';
+      inspect.addEventListener('click', async () => {
+        try {
+          const seed = await api('/api/creator/rocket-seeds/' + mission.effect.output.native_seed_id);
+          result.appendChild(el('pre', 'raw-carrier rocket-output', JSON.stringify(seed, null, 2)));
+          inspect.disabled = true;
+        } catch (error) { showError(error); }
+      });
+      result.appendChild(inspect);
+      active.appendChild(result);
+    } else if (mission.mode === 'source-preview') {
+      const owner = el('section', 'rocket-stage');
+      owner.appendChild(el('h3', '', 'Flight Two · Save one real Creator Desk seed'));
+      owner.appendChild(el('p', 'muted',
+        'Only HOUSE Creator Desk storage will change. Read the proposed text, explicitly authorize the local save, and keep the original source separate.'));
+      const form = el('form', 'rocket-form');
+      const title = rocketField(form, 'New seed title', false, 160, true);
+      title.value = mission.title + ' — proposed continuation';
+      const body = rocketField(form, 'Human-reviewed proposed content (not original source)', true, 8000, true);
+      body.value = stages[2].output.next_action_proposed_by_human;
+      const consentWrap = el('label', 'rocket-field');
+      const consent = el('input'); consent.type = 'checkbox'; consent.required = true;
+      consentWrap.append(consent, el('span', '', 'I authorize this exact proposed text to be saved as a HOUSE-local Creator Desk seed. No source repository write or publication.'));
+      form.appendChild(consentWrap);
+      const save = el('button', 'action-button', 'Authorize and save Creator seed');
+      save.type = 'submit';
+      const feedback = el('div');
+      form.append(save, feedback);
+      form.addEventListener('submit', async event => {
+        event.preventDefault();
+        if (!consent.checked) return;
+        save.disabled = true;
+        try {
+          await rocketWrite('/api/rockets/missions/' + mission.id + '/launch-creator-seed', {
+            expected_stage_sha256: stages[2].sha256, target: 'creator.seed/v0',
+            authorization: 'save_creator_seed', title: title.value, body: body.value,
+          });
+          await rocketOpen(mission.id);
+          await rocketLoad();
+          await loadEvents();
+        } catch (error) { rocketError(feedback, error); save.disabled = false; }
+      });
+      owner.appendChild(form); active.appendChild(owner);
+    }
     const child = el('button', 'action-button', 'Declare a new rocket from this result');
     child.type = 'button';
     child.addEventListener('click', () => {
-      rocketState.parent = { id: mission.id, sha256: stages[2].sha256 };
+      rocketState.parent = { id: mission.id, sha256: mission.effect
+        ? mission.effect.receipt_sha256 : stages[2].sha256 };
       rocketState.current = null;
       rocketRender();
     });
