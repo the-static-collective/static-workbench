@@ -151,6 +151,7 @@ function creatorV2RenderShelf() {
   const s = creatorV2State();
   clear(host);
   host.appendChild(el('div', 'section-heading', 'LOCAL DRAFT SHELF / NOT PROJECT CANON'));
+  host.appendChild(maxhinalSourceDoor());
 
   const packs = el('article', 'card creator-shelf-card');
   packs.appendChild(el('h2', '', 'Saved source packs'));
