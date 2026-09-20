@@ -30,6 +30,7 @@ from .paths import PathOutsideRoot, resolve_under_root
 from .repos import discover_repositories
 from .branch_deck import build_branch_deck
 from .branch_remote import inspect_github_repo, RemoteDiscoveryError
+from .branch_worktree import WorktreeError, preview_worktree, create_worktree
 from .schemas import (
     ApertureAnalyzeRequest,
     CreatorPackRequest,
@@ -46,6 +47,8 @@ from .schemas import (
     GraftRoundPreviewRequest,
     GraftRoundSaveRequest,
     GraftDraftSaveRequest,
+    BranchWorktreeRequest,
+    BranchWorktreeCreateRequest,
     ApertureHistoryResponse,
     ApertureRecordResponse,
     BootstrapResponse,
@@ -249,6 +252,53 @@ def create_app(config: WorkbenchConfig | None = None) -> FastAPI:
         token = request.headers.get("x-workbench-session", "")
         if not secrets.compare_digest(token, session_token):
             raise HTTPException(status_code=403, detail="creator write requires a local session token")
+
+    def _worktree_source(payload: BranchWorktreeRequest):
+        repos = discover_repositories(config.roots, config.max_repo_depth)
+        selected = next(
+            (repo for repo in repos if repo.root_id == payload.root_id and repo.relative_path == payload.repo_path),
+            None,
+        )
+        if selected is None:
+            raise HTTPException(status_code=404, detail="local checkout is not under a configured root")
+        deck = build_branch_deck([selected])
+        if deck["gaps"]:
+            raise HTTPException(status_code=409, detail="local branch scan incomplete; inspect before worktree preparation")
+        matching = next((
+            card for card in deck["branches"]
+            if card["kind"] == "local" and card["ref"] == payload.ref
+            and card["commit"] == payload.expected_commit
+        ), None)
+        if matching is None:
+            raise HTTPException(status_code=409, detail="local branch/commit not observed or moved; refresh Branch Deck")
+        return selected
+
+    @app.post("/api/branches/worktrees/preview")
+    def worktree_preview(payload: BranchWorktreeRequest, request: Request):
+        _creator_write_guard(request)
+        selected = _worktree_source(payload)
+        try:
+            return preview_worktree(config, selected, payload.ref, payload.expected_commit)
+        except WorktreeError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+    @app.post("/api/branches/worktrees/create")
+    def worktree_create(payload: BranchWorktreeCreateRequest, request: Request):
+        _creator_write_guard(request)
+        if payload.acknowledge_effect is not True:
+            raise HTTPException(status_code=422, detail="explicit worktree effect acknowledgement required")
+        selected = _worktree_source(payload)
+        try:
+            result = create_worktree(config, selected, payload.ref, payload.expected_commit,
+                                     payload.expected_preview_digest)
+        except WorktreeError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+        journal.append("branches.worktree_created", {
+            "root_id": selected.root_id, "repo_path": selected.relative_path,
+            "commit": result["actual_commit"], "destination": result["destination"],
+            "preview_digest": result["preview_digest"], "tests": "not_run",
+        })
+        return result
 
     @app.post("/api/dogram/impact/preview")
     def dogram_impact_preview(payload: DogramImpactRequest, request: Request):
