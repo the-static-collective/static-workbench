@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import secrets
+import asyncio
 from contextlib import asynccontextmanager
 from dataclasses import asdict
 from pathlib import Path
@@ -31,6 +32,7 @@ from .repos import discover_repositories
 from .branch_deck import build_branch_deck
 from .branch_remote import inspect_github_repo, RemoteDiscoveryError
 from .branch_worktree import WorktreeError, preview_worktree, create_worktree
+from .branch_radar import CollectiveRadar
 from .schemas import (
     ApertureAnalyzeRequest,
     CreatorPackRequest,
@@ -136,11 +138,31 @@ def create_app(config: WorkbenchConfig | None = None) -> FastAPI:
     journal = Journal(config.state_dir / "workbench.sqlite3")
     creator_shelf = CreatorShelf(config.state_dir / "creator.sqlite3")
     session_token = secrets.token_urlsafe(32)
+    branch_radar = CollectiveRadar(config.state_dir) if config.branch_radar_enabled else None
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):
         journal.append("workbench.started", {"version": __version__})
-        yield
+        async def rolling_radar():
+            while True:
+                # The work happens off the event loop; no branch or project
+                # execution is initiated by this observational cycle.
+                result = await asyncio.to_thread(branch_radar.scan_once)
+                journal.append("branches.radar_cycle", {
+                    "repos_scanned": len(result["repos_scanned"]),
+                    "errors": result["errors"][:5],
+                })
+                await asyncio.sleep(1800)
+        task = asyncio.create_task(rolling_radar()) if branch_radar is not None else None
+        try:
+            yield
+        finally:
+            if task is not None:
+                task.cancel()
+                try:
+                    await task
+                except asyncio.CancelledError:
+                    pass
 
     app = FastAPI(title="Static Workbench", version=__version__, lifespan=lifespan)
     app.state.config = config
@@ -192,6 +214,13 @@ def create_app(config: WorkbenchConfig | None = None) -> FastAPI:
             "gaps": len(result["gaps"]),
         })
         return result
+
+    @app.get("/api/branches/radar")
+    def branch_deck_radar():
+        if branch_radar is None:
+            return {"enabled": False, "branches": [], "last_error": None,
+                    "scope": "radar_opt_in_disabled"}
+        return {"enabled": True, **branch_radar.snapshot()}
 
     @app.get("/api/branches/remote")
     def branch_deck_remote(root_id: str, repo_path: str):
