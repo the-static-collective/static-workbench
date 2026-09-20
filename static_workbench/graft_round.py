@@ -127,7 +127,7 @@ def get_candidate(shelf: CreatorShelf, ride_id: int, ride_sha256: str,
     round_data = resolved["round"]
     candidate = resolved["candidate"]
     card = {k: v for k, v in candidate.items() if k != "candidate_sha256"}
-    if sha({"ride_sha256": ride_sha256, "declarations": round_data["declarations"],
+    if sha({"ride_id": ride_id, "ride_sha256": ride_sha256, "declarations": round_data["declarations"],
             "card": card}) != candidate_sha256:
         raise GraftWitnessError("Stored candidate identity is invalid")
     return resolved
