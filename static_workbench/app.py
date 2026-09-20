@@ -24,6 +24,7 @@ from .native_maxhinal import preview_fuels, spin, FuelConflict
 from .broadcast import broadcast_door
 from .journal import Journal, SenseFieldRecord
 from .house import build_house_status
+from .composition_inspection import CompositionInspectionError, inspect_composition
 from .machine import sample_machine
 from .paths import PathOutsideRoot, resolve_under_root
 from .repos import discover_repositories
@@ -43,6 +44,7 @@ from .schemas import (
     GraftRoundPreviewRequest,
     GraftRoundSaveRequest,
     GraftDraftSaveRequest,
+    CompositionInspectRequest,
     ApertureHistoryResponse,
     ApertureRecordResponse,
     BootstrapResponse,
@@ -182,6 +184,18 @@ def create_app(config: WorkbenchConfig | None = None) -> FastAPI:
         status = build_house_status(result)
         journal.append("house.scanned", status["summary"])
         return status
+
+    @app.post("/api/house/composition/inspect")
+    def house_composition_inspect(payload: CompositionInspectRequest, request: Request):
+        # Parsing untrusted pasted JSON is a read-only operation, but protect
+        # this local inspection surface with the same session and origin gate
+        # used for other browser-submitted payloads. It stores no descriptor.
+        _creator_write_guard(request)
+        try:
+            repos = discover_repositories(config.roots, config.max_repo_depth)
+            return inspect_composition(payload.raw_json, repos)
+        except CompositionInspectionError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
 
     @app.get("/api/creator/desk")
     def creator_desk():

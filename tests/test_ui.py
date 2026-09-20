@@ -64,3 +64,21 @@ def test_house_is_default_habitat_surface(tmp_path: Path):
     assert "/api/house" in js
     assert "house.laws" in js
     assert "The house is awake." in js
+
+
+def test_composition_inspection_browser_surface_is_explicit_and_local(tmp_path: Path):
+    with TestClient(create_app(make_config(tmp_path)), base_url="http://127.0.0.1") as client:
+        html = client.get("/").text
+        app_js = client.get("/assets/app.js").text
+        composer_js = client.get("/assets/composition-inspection.js").text
+
+    assert 'data-view="composition"' in html
+    assert '/assets/composition-inspection.js' in html
+    assert 'renderCompositionInspection()' in app_js
+    assert '/api/house/composition/inspect' in composer_js
+    assert 'x-workbench-session' in composer_js
+    assert 'Source authenticated: no' in composer_js
+    assert 'execution authorized: no' in composer_js
+    assert 'Inspect local candidates' in composer_js
+    assert 'eval(' not in composer_js
+    assert 'innerHTML' not in composer_js
