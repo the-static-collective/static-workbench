@@ -212,6 +212,17 @@ snapshots; **no `git fetch`, test run, worktree creation, project write, token
 exchange or merge is performed**. See
 [Branch Deck 002 setup and authority boundary](docs/branch-deck-002.md).
 
+## Branch Deck 003 — two-step isolated local worktree preparation
+
+Set `branch_worktrees_enabled = true` in the top-level Workbench TOML to
+enable a separate **Preview isolated checkout → Create this isolated checkout**
+workflow on an exact-SHA *local* branch card. This creates a detached Git
+worktree under Workbench state with a local receipt and leaves the original
+checkout's current branch untouched. It changes Git administrative worktree
+metadata; Git hooks are disabled and checkout filters are refused. It does
+not fetch remote-only code, install packages or run tests. See
+[Branch Deck 003 setup, effects and recovery](docs/branch-deck-003.md).
+
 ## HOUSE ↔ Static Broadcast v0.1 — an operator door, not an operator proxy
 
 To enable the **Open Static Broadcast** action in HOUSE, first install/checkout
