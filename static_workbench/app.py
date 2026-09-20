@@ -24,7 +24,7 @@ from .native_maxhinal import preview_fuels, spin, FuelConflict
 from .broadcast import broadcast_door
 from .journal import Journal, SenseFieldRecord
 from .return_desk import ReturnDesk, ReturnConflict, NoteInput, SessionInput, CheckpointInput
-from .rocket import RocketDesk, RocketConflict, RocketMissionInput, RocketAdvanceInput, RocketSeparateInput
+from .rocket import RocketDesk, RocketConflict, RocketMissionInput, RocketAdvanceInput, RocketSeparateInput, RocketLaunchInput
 from .house import build_house_status
 from .composition_inspection import CompositionInspectionError, inspect_composition
 from .living_main import CompositionError, preview_composition
@@ -136,7 +136,7 @@ def create_app(config: WorkbenchConfig | None = None) -> FastAPI:
     journal = Journal(config.state_dir / "workbench.sqlite3")
     creator_shelf = CreatorShelf(config.state_dir / "creator.sqlite3")
     return_desk = ReturnDesk(config.state_dir / "return.sqlite3")
-    rocket_desk = RocketDesk(config.state_dir / "rockets.sqlite3", config)
+    rocket_desk = RocketDesk(config.state_dir / "rockets.sqlite3", config, creator_shelf)
     session_token = secrets.token_urlsafe(32)
 
     @asynccontextmanager
@@ -320,6 +320,30 @@ def create_app(config: WorkbenchConfig | None = None) -> FastAPI:
         journal.append("rocket.mission.declared", {
             "mission_id": result["id"], "mission_sha256": result["mission_sha256"],
             "parent_id": result["parent_id"], "mode": result["mode"],
+        })
+        return result
+
+    @app.get("/api/creator/rocket-seeds")
+    def creator_rocket_seeds():
+        return {"seeds": creator_shelf.list_rocket_seeds()}
+
+    @app.get("/api/creator/rocket-seeds/{seed_id}")
+    def creator_rocket_seed(seed_id: int):
+        result = creator_shelf.get_rocket_seed(seed_id)
+        if result is None:
+            raise HTTPException(status_code=404, detail="Creator seed not found")
+        return result
+
+    @app.post("/api/rockets/missions/{mission_id}/launch-creator-seed")
+    def rocket_launch_creator_seed(mission_id: int, payload: RocketLaunchInput, request: Request):
+        _creator_write_guard(request)
+        try:
+            result = rocket_desk.launch_creator_seed(mission_id, payload)
+        except (RocketConflict, OSError) as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+        journal.append("rocket.effect.creator_seed", {
+            "mission_id": mission_id, "effect_sha256": result["receipt_sha256"],
+            "native_seed_id": result["output"]["native_seed_id"],
         })
         return result
 
