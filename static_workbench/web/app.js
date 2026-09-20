@@ -581,6 +581,7 @@ async function refreshCurrent() {
     else if (state.view === 'maxhinal') await nativeMaxhinalLoad();
     else if (state.view === 'dogram-impact') { await loadRepos(); renderDogramImpactDesk(); }
     else if (state.view === 'return') await returnDeskLoad();
+    else if (state.view === 'rocket') await rocketLoad();
     else { await loadApertureHistory(); renderHumanTerminal(); }
     await loadEvents();
   } catch (error) { showError(error); }
@@ -605,7 +606,7 @@ async function start() {
 
 document.querySelectorAll('.nav-button').forEach(button => button.addEventListener('click', () => {
   const view = button.dataset.view;
-  if (view === 'house') renderHouse(); else if (view === 'machine') renderMachine(); else if (view === 'repos') renderRepos(); else if (view === 'objects') renderObjects(); else if (view === 'creator') { renderCreatorDesk(); creatorV2Load().catch(showError); } else if (view === 'maxhinal') { renderNativeMaxhinal(); nativeMaxhinalLoad().catch(showError); } else if (view === 'dogram-impact') renderDogramImpactDesk(); else if (view === 'return') returnDeskLoad().catch(showError); else renderHumanTerminal();
+  if (view === 'house') renderHouse(); else if (view === 'machine') renderMachine(); else if (view === 'repos') renderRepos(); else if (view === 'objects') renderObjects(); else if (view === 'creator') { renderCreatorDesk(); creatorV2Load().catch(showError); } else if (view === 'maxhinal') { renderNativeMaxhinal(); nativeMaxhinalLoad().catch(showError); } else if (view === 'dogram-impact') renderDogramImpactDesk(); else if (view === 'return') returnDeskLoad().catch(showError); else if (view === 'rocket') { state.view = 'rocket'; rocketLoad().catch(showError); } else renderHumanTerminal();
 }));
 $('#refresh-view').addEventListener('click', refreshCurrent);
 $('#refresh-events').addEventListener('click', () => loadEvents().catch(showError));
