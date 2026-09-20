@@ -163,6 +163,12 @@ class CreatorShelf:
                 mode TEXT NOT NULL,
                 payload_json TEXT NOT NULL
             )""")
+            db.execute("""CREATE TABLE IF NOT EXISTS house_graft_witnesses(
+                witness_sha256 TEXT PRIMARY KEY,
+                created_at TEXT NOT NULL,
+                ride_id INTEGER NOT NULL REFERENCES house_native_maxhinal_rides(id),
+                payload_json TEXT NOT NULL
+            )""")
             db.execute("""CREATE TABLE IF NOT EXISTS creator_maxhinal_rides(
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 pack_id INTEGER NOT NULL REFERENCES creator_packs(id),
@@ -277,6 +283,59 @@ class CreatorShelf:
             "id": row["id"], "created_at": row["created_at"], "ride_sha256": row["ride_digest"],
             **json.loads(row["payload_json"]),
         }
+
+    def save_graft_witness(self, witness: dict[str, Any]) -> dict[str, Any]:
+        """Immutable Workbench-owned attachment; native ride and Dogram receipt remain separate."""
+        raw = _json(witness)
+        if len(raw.encode("utf-8")) > 65536:
+            raise CreatorConflict("GRAFT witness exceeds 64 KiB")
+        witness_id = _digest(raw.encode("utf-8"))
+        with self._connect() as db:
+            ride_row = db.execute(
+                "SELECT ride_digest,payload_json FROM house_native_maxhinal_rides WHERE id=?",
+                (witness["ride_id"],),
+            ).fetchone()
+            if (ride_row is None or ride_row["ride_digest"] != witness["ride_sha256"]
+                or _digest(ride_row["payload_json"].encode("utf-8")) != ride_row["ride_digest"]):
+                raise CreatorConflict("Linked native ride was removed or corrupted")
+            db.execute(
+                """INSERT OR IGNORE INTO house_graft_witnesses
+                (witness_sha256,created_at,ride_id,payload_json) VALUES(?,?,?,?)""",
+                (witness_id, _now(), witness["ride_id"], raw),
+            )
+            existing = db.execute(
+                "SELECT payload_json FROM house_graft_witnesses WHERE witness_sha256=?",
+                (witness_id,),
+            ).fetchone()
+        if existing is None or existing["payload_json"] != raw:
+            raise CreatorConflict("Stored GRAFT witness differs from its content address")
+        return {"witness_sha256": witness_id, "witness": witness}
+
+    def get_graft_witness(self, witness_sha256: str) -> dict[str, Any] | None:
+        if not isinstance(witness_sha256, str) or len(witness_sha256) != 64 or any(
+            ch not in "0123456789abcdef" for ch in witness_sha256
+        ):
+            return None
+        with self._connect() as db:
+            row = db.execute(
+                "SELECT payload_json FROM house_graft_witnesses WHERE witness_sha256=?",
+                (witness_sha256,),
+            ).fetchone()
+        if row is None:
+            return None
+        if _digest(row["payload_json"].encode("utf-8")) != witness_sha256:
+            raise CreatorConflict("Stored GRAFT witness digest mismatch")
+        return {"witness_sha256": witness_sha256, "witness": json.loads(row["payload_json"])}
+
+    def list_graft_witnesses(self, ride_id: int) -> list[dict[str, Any]]:
+        with self._connect() as db:
+            rows = db.execute(
+                """SELECT witness_sha256,created_at FROM house_graft_witnesses
+                WHERE ride_id=? ORDER BY created_at DESC LIMIT 40""",
+                (ride_id,),
+            ).fetchall()
+        return [{"witness_sha256": row["witness_sha256"], "created_at": row["created_at"]}
+                for row in rows]
 
     def save_revision(self, draft_id: int | None, expected_revision: int, payload: dict[str, Any]) -> dict[str, Any]:
         if len(payload["body"].encode("utf-8")) > MAX_DRAFT_BYTES:
