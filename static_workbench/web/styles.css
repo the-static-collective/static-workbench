@@ -231,3 +231,10 @@ input:focus, select:focus { border-color: var(--green-dim); outline: 2px solid r
   .creator-selected-row { display: grid; }
   .creator-selected-row button { justify-self: start; }
 }
+
+/* Creator Desk / Hugh Jackman Maxhinal ride-dock (locally reviewed copies only). */
+.maxhinal-ride-dock { display: grid; gap: 11px; margin-top: 14px; }
+.maxhinal-ride-dock h2, .maxhinal-ride-dock p { margin-block: 0; }
+.maxhinal-ride-json { width: 100%; resize: vertical; min-height: 105px; color: var(--ink); background: #0f1512; border: 1px solid var(--line); border-radius: 8px; padding: 11px 12px; font: 12px/1.5 ui-monospace, monospace; }
+.maxhinal-ride-preview { display: grid; gap: 8px; overflow-wrap: anywhere; }
+.maxhinal-ride-dock > button, .maxhinal-ride-preview > button { justify-self: start; }
