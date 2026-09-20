@@ -8,6 +8,8 @@
 - Source: [Flight Cards #29](https://github.com/the-static-collective/static-workbench/pull/29), head `1a2fc2f8bc8167b4ab753797d9a84fb5d55f4085`. This first crossing copied three standalone, non-executing files byte-for-byte from that exact head; **it did not merge or close PR #29 and does not imply its external Lovable adapter exists**.
 - Source blob receipts: `static_workbench/flight_cards.py` = `217d924d20e9113d7d7e50f70e2fd9ad8cab08dd`; `tests/test_flight_cards.py` = `4eed52670489ca1542a9c53f1932c92198908551`; `docs/flight-card-handoff-v0.md` = `4e1b4f5c309b15e3937c74a716b0609fe0b88e65`.
 - No app routes, UI, automatic actions, or main-branch changes are authorized by that file transfer. Run checks on the **carrier head**, not only on source PR #29.
+- Second independent crossing: [Capability Return Ledger #41](https://github.com/the-static-collective/static-workbench/pull/41), head `92b0b89c07028c7c6690e51de55d18edd3de5a37`. Copied three standalone, non-executing files byte-for-byte: `static_workbench/capability_returns.py` = `6101a2a7a888b3279c4b9b62bb1f9626e1830079`; `tests/test_capability_returns.py` = `29e92c0dcec8798f43a7715fadb254bf901be56f`; `docs/HOUSE-FLYWHEEL-001.md` = `b1b4bdb46c7342a7e7d1ba57f1be7f79c75fe846`. The source remains a **draft** and was not merged or closed; its dependent #43/#46 UI/preview branches were **not** adopted. These files are a local reported-return backend only, not an executed or independently verified capability.
+
 
 ## Ownership and order of the next crossings
 
@@ -29,14 +31,14 @@ These are integration dependencies, not a claim that source PRs are reviewed, cu
 - **Actual workstation gate:** Linux browser/keyboard navigation, project-root permissions, SQLite migration + restart, backup/recovery and explicitly reviewed effect boundaries remain manual checks before declaring a main carrier fit for daily use. Remote CI is not a substitute.
 - **Promotion:** stage on this isolated integration branch. Do not silently retarget original PRs, force-push shared branches, delete branches, enable automatic effects, or move main until the combined tree has passed its own checks and the original PRs' dispositions are recorded.
 
-## Immediate verification for the copied Flight Cards slice
+## Immediate verification for the two copied inert slices
 
 ```sh
-python -m pytest -q tests/test_flight_cards.py
+python -m pytest -q tests/test_flight_cards.py tests/test_capability_returns.py
 python -m pytest -q
 ```
 
-Both commands must be run on this **carrier**, not inferred from the source head's CI. The Flight Cards v0 receiver remains inert and standalone; it is not wired into HOUSE action routes.
+Both commands must be run on this **carrier**, not inferred from the source head's CI. The Flight Cards v0 receiver and Capability Return Ledger remain inert and standalone; neither is wired into HOUSE action routes.
 
 ## Current unresolved boundary
 
