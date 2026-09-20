@@ -123,7 +123,11 @@ function renderHouse() {
   nativeMaxhinal.append(el('strong', '', 'Open HOUSE Maxhinal'),
     el('span', 'muted', 'Spin explicitly selected local files and source packs into bounded creative projections with attributable receipts.'));
   nativeMaxhinal.addEventListener('click', renderNativeMaxhinal);
-  actions.append(inspect, terminal, creator, nativeMaxhinal);
+  const dogramLab = el('button', 'action-card');
+  dogramLab.append(el('strong', '', 'Open Dogram Lab'),
+    el('span', 'muted', 'Compare two committed Python dependency graphs with a pinned local Dogram research calculation.'));
+  dogramLab.addEventListener('click', renderDogramImpactDesk);
+  actions.append(inspect, terminal, creator, nativeMaxhinal, dogramLab);
   const staticLive = house.organs.find(organ => organ.id === 'static-live' && organ.present);
   if (staticLive) {
     const live = el('button', 'action-card');
@@ -575,6 +579,7 @@ async function refreshCurrent() {
     else if (state.view === 'objects') renderObjects();
     else if (state.view === 'creator') await Promise.all([loadRepos(), loadCreatorDesk()]);
     else if (state.view === 'maxhinal') await nativeMaxhinalLoad();
+    else if (state.view === 'dogram-impact') { await loadRepos(); renderDogramImpactDesk(); }
     else { await loadApertureHistory(); renderHumanTerminal(); }
     await loadEvents();
   } catch (error) { showError(error); }
@@ -599,7 +604,7 @@ async function start() {
 
 document.querySelectorAll('.nav-button').forEach(button => button.addEventListener('click', () => {
   const view = button.dataset.view;
-  if (view === 'house') renderHouse(); else if (view === 'machine') renderMachine(); else if (view === 'repos') renderRepos(); else if (view === 'objects') renderObjects(); else if (view === 'creator') { renderCreatorDesk(); creatorV2Load().catch(showError); } else if (view === 'maxhinal') { renderNativeMaxhinal(); nativeMaxhinalLoad().catch(showError); } else renderHumanTerminal();
+  if (view === 'house') renderHouse(); else if (view === 'machine') renderMachine(); else if (view === 'repos') renderRepos(); else if (view === 'objects') renderObjects(); else if (view === 'creator') { renderCreatorDesk(); creatorV2Load().catch(showError); } else if (view === 'maxhinal') { renderNativeMaxhinal(); nativeMaxhinalLoad().catch(showError); } else if (view === 'dogram-impact') renderDogramImpactDesk(); else renderHumanTerminal();
 }));
 $('#refresh-view').addEventListener('click', refreshCurrent);
 $('#refresh-events').addEventListener('click', () => loadEvents().catch(showError));

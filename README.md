@@ -285,3 +285,23 @@ No recursive whole-computer search, arbitrary script execution, external
 model call, media transcription or automatic publication occurs.
 
 See [Native Maxhinal setup, limits and source-law](docs/house-native-maxhinal-v01.md).
+
+
+## Dogram Impact Desk 001 — committed Python change instrument
+
+Open **Dogram Lab** in HOUSE, choose a discovered Python repo with at least two
+commits, preview its first-parent HEAD comparison and explicitly run the
+comparison using exactly one clean, discovered local Dogram checkout. HOUSE
+materializes only bounded Python blobs from Git commits into temporary snapshots
+and invokes Dogram's existing internal repository-impact research kernel; it
+does **not** import or execute the selected project's code. Dirty working-tree
+content is excluded and marked as such. A moved HEAD, altered preview, dirty
+Dogram checkout or unsupported Python path refuses.
+
+A successful calculation produces a SHA-256-addressed, Workbench-owned local
+report containing Dogram's exact node/edge/reachability deltas and source/version
+references. It can be reopened by report ID after restart. This is an
+experimental internal-kernel integration, **not** a public Dogram operator or
+a project-native Dogram receipt, a merge verdict, or automatic execution rights.
+
+See [Dogram Impact Desk setup and boundaries](docs/dogram-impact-desk-001.md).

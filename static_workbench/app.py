@@ -13,6 +13,7 @@ from fastapi.staticfiles import StaticFiles
 from . import __version__
 from .aperture import analyze_aperture
 from .config import RootConfig, WorkbenchConfig, load_config
+from .dogram_impact import ImpactDeskError, preview_impact, run_impact, read_report
 from .creator import creator_desk_status, search_sources
 from .creator_shelf import CreatorShelf, CreatorConflict, preview_pack
 from .maxhinal_dock import parse_ride
@@ -32,6 +33,8 @@ from .schemas import (
     MaxhinalRideSaveRequest,
     NativeFuelRequest,
     NativeSpinRequest,
+    DogramImpactRequest,
+    DogramImpactRunRequest,
     ApertureHistoryResponse,
     ApertureRecordResponse,
     BootstrapResponse,
@@ -197,6 +200,39 @@ def create_app(config: WorkbenchConfig | None = None) -> FastAPI:
         token = request.headers.get("x-workbench-session", "")
         if not secrets.compare_digest(token, session_token):
             raise HTTPException(status_code=403, detail="creator write requires a local session token")
+
+    @app.post("/api/dogram/impact/preview")
+    def dogram_impact_preview(payload: DogramImpactRequest, request: Request):
+        _creator_write_guard(request)
+        try:
+            return preview_impact(config, payload.root_id, payload.repo_path)
+        except ImpactDeskError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+    @app.post("/api/dogram/impact/run")
+    def dogram_impact_run(payload: DogramImpactRunRequest, request: Request):
+        _creator_write_guard(request)
+        try:
+            result = run_impact(
+                config, payload.root_id, payload.repo_path,
+                payload.expected_input_sha256, payload.expected_candidate_commit,
+                payload.expected_dogram_commit,
+            )
+        except ImpactDeskError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+        journal.append(
+            "dogram.impact.saved",
+            {"report_id": result["report_id"],
+             "input_sha256": result["report"]["source"]["input_sha256"]},
+        )
+        return result
+
+    @app.get("/api/dogram/impact/reports/{report_id}")
+    def dogram_impact_report(report_id: str):
+        try:
+            return {"report_id": report_id, "report": read_report(config, report_id)}
+        except ImpactDeskError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
 
     def _pack_for_request(payload: CreatorPackRequest):
         try:
