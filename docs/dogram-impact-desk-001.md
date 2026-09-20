@@ -66,10 +66,12 @@ with Dogram's four public `dogram.specimen/v0` operators.
 The Workbench suite covers guarded API requests, exact two-commit selection,
 a dirty-but-excluded source worktree, moved HEAD refusal, changed/dirty Dogram
 refusal, symlinked Python blob refusal, an isolated subprocess contract fixture,
-persistent report retrieval and digest tamper refusal. That stub calculation
-is an **integration contract fixture**, not a claim of a measured full upstream
-Dogram run. A real-machine end-to-end check with the actual Dogram checkout
-remains required before claiming field deployment.
+persistent report retrieval and digest tamper refusal. The unit-test stub calculation is an **integration contract fixture**, not a
+claim of a measured upstream Dogram run. The GitHub Actions smoke separately
+checks out upstream Dogram at pinned commit `0d2d848ef9a3c5243492bd28fa5c9a71423b2508`
+and invokes its real internal kernel on frozen two-commit Python source, checking
+that `b.py` and import edge `b.py -> a.py` appear in the resulting delta.
+That CI witness does not establish deployment on the user's actual Linux machine.
 
 ## Next seams
 
