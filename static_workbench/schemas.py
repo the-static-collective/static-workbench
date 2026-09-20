@@ -164,6 +164,10 @@ class GraftWitnessRunRequest(GraftWitnessPreviewRequest):
     expected_dogram_commit: str = Field(pattern=r"^[0-9a-f]{40}$")
 
 
+class CompositionInspectRequest(BaseModel):
+    raw_json: str = Field(min_length=1, max_length=65536)
+
+
 class GraftExperimentPlan(BaseModel):
     input: str = Field(min_length=1, max_length=1200)
     procedure: str = Field(min_length=1, max_length=1200)
