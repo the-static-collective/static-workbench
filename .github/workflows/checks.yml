@@ -26,3 +26,4 @@ jobs:
           node --check static_workbench/web/creator-v02.js
           node --check static_workbench/web/maxhinal-dock.js
           node --check static_workbench/web/native-maxhinal.js
+          node --check static_workbench/web/dogram-impact.js
