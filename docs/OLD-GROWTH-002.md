@@ -59,6 +59,19 @@ Two session-guarded loopback endpoints:
 python -m pytest -q tests/test_old_growth.py tests/test_old_growth_import.py
 python -m pytest -q
 
-A browser affordance for entering the two selectors and reviewing excerpts is
-a separate follow-on. The endpoints are live only when this stacked PR is
-deployed; their presence in a draft branch is not a claim that main has them.
+## Browser desk
+
+The existing HOUSE Maxhinal view mounts the OLD GROWTH source selector panel.
+It offers two discovered local checkout selections (defaulting to pinned HEAD),
+explicit relative paths/UTF-8 byte ranges, KEEP/BEND/human question and the
+declared relation/transformation. Preview renders each source's exact locator,
+Git blob ID, excerpt SHA-256 and selected text. Each excerpt requires an
+individual review checkbox, followed by an explicit separate import checkbox.
+Changing form values clears the displayed preview. Imported rides render in
+the **existing** native Maxhinal ride/history panel, which exposes the
+existing GRAFT round/draft interface; neither preview nor import auto-selects
+or executes a GRAFT candidate. Git/source text is rendered via textContent,
+never as HTML.
+
+The endpoints and browser panel are live only when this stacked PR is
+deployed; their presence in a draft branch is not a claim main has them.
