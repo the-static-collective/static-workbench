@@ -169,7 +169,7 @@ class CollectiveRadar:
                     "repo_count": str(len(names)),
                     "repository_list_truncated": str(int(len(repositories) == MAX_REPOS)),
                     "last_error": "; ".join(errors)[:160],
-                    "last_success_at": now if successes else "",
+                    **({"last_success_at": now} if successes else {}),
                 }
                 for key, value in metadata.items():
                     db.execute("INSERT OR REPLACE INTO meta VALUES (?,?)", (key, value))
