@@ -41,6 +41,8 @@ def digest(data: bytes) -> str:
 
 
 def _checked_file(roots: tuple[RootConfig, ...], item: dict[str, Any]) -> dict[str, Any]:
+    if not item.get("root_id") or not item.get("path"):
+        raise ValueError("file fuel requires a configured root id and relative path")
     root = next((r for r in roots if r.id == item["root_id"]), None)
     if root is None:
         raise ValueError("choose an explicitly configured root")
@@ -95,6 +97,8 @@ def preview_fuels(roots: tuple[RootConfig, ...], shelf: CreatorShelf, items: lis
         if item["kind"] == "file":
             result.append(_checked_file(roots, item))
         elif item["kind"] == "source_pack":
+            if item.get("pack_id") is None:
+                raise ValueError("source pack fuel requires an explicit saved pack id")
             pack = shelf.get_pack(item["pack_id"])
             if pack is None:
                 raise ValueError("selected Creator Desk source pack is missing")
