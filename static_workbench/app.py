@@ -22,6 +22,7 @@ from .creator_shelf import CreatorShelf, CreatorConflict, preview_pack
 from .maxhinal_dock import parse_ride
 from .native_maxhinal import preview_fuels, spin, FuelConflict
 from .broadcast import broadcast_door
+from .lifestream_inbox import MomentInbox
 from .journal import Journal, SenseFieldRecord
 from .house import build_house_status
 from .groundkeeper import make_receipt as groundkeeper_first_ignition
@@ -49,6 +50,8 @@ from .schemas import (
     BootstrapResponse,
     ObjectResponse,
     RootInfo,
+    LivingMomentImportRequest,
+    LivingMomentDraftRequest,
 )
 
 
@@ -130,6 +133,7 @@ def create_app(config: WorkbenchConfig | None = None) -> FastAPI:
     config = config or load_config()
     journal = Journal(config.state_dir / "workbench.sqlite3")
     creator_shelf = CreatorShelf(config.state_dir / "creator.sqlite3")
+    moment_inbox = MomentInbox(config.state_dir / "lifestream.sqlite3", config)
     session_token = secrets.token_urlsafe(32)
 
     @asynccontextmanager
@@ -141,6 +145,7 @@ def create_app(config: WorkbenchConfig | None = None) -> FastAPI:
     app.state.config = config
     app.state.journal = journal
     app.state.creator_shelf = creator_shelf
+    app.state.moment_inbox = moment_inbox
     app.state.session_token = session_token
 
     web_dir = Path(__file__).resolve().parent / "web"
@@ -158,6 +163,10 @@ def create_app(config: WorkbenchConfig | None = None) -> FastAPI:
     @app.get("/", include_in_schema=False)
     def index():
         return FileResponse(web_dir / "index.html")
+
+    @app.get("/lifestream", include_in_schema=False)
+    def lifestream_page():
+        return FileResponse(web_dir / "lifestream.html")
 
     @app.get("/api/bootstrap", response_model=BootstrapResponse)
     def bootstrap() -> BootstrapResponse:
@@ -525,6 +534,58 @@ def create_app(config: WorkbenchConfig | None = None) -> FastAPI:
         if result is None:
             raise HTTPException(status_code=404, detail="GRAFT witness not found")
         return result
+
+
+    # LIFESTREAM-002: explicit root-scoped inbox. No request supplies a host, OBS
+    # command, arbitrary shell action, absolute source path, or publish capability.
+    @app.get("/api/lifestream/moments")
+    def lifestream_list():
+        return {"moments": moment_inbox.list_moments()}
+
+    @app.post("/api/lifestream/moments/import")
+    def lifestream_import(payload: LivingMomentImportRequest, request: Request):
+        _creator_write_guard(request)
+        try:
+            result = moment_inbox.import_moment(
+                payload.root_id, payload.manifest_path, payload.source_path)
+        except (ValueError, OSError, UnicodeError, TypeError) as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+        journal.append("lifestream.moment.imported", {"moment_id": result["momentId"]})
+        return result
+
+    @app.get("/api/lifestream/moments/{moment_id}")
+    def lifestream_inspect(moment_id: str):
+        try:
+            return moment_inbox.inspect(moment_id)
+        except (ValueError, OSError, TypeError) as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+    @app.get("/api/lifestream/moments/{moment_id}/returns")
+    def lifestream_returns(moment_id: str):
+        try:
+            return {"returns": moment_inbox.list_returns(moment_id)}
+        except (ValueError, OSError, TypeError) as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+    @app.post("/api/lifestream/moments/{moment_id}/returns")
+    def lifestream_draft(moment_id: str, payload: LivingMomentDraftRequest, request: Request):
+        _creator_write_guard(request)
+        try:
+            result = moment_inbox.save_return(
+                moment_id, kind=payload.kind, text=payload.text,
+                admitted_by=payload.admitted_by, reviewed=payload.reviewed)
+        except (ValueError, OSError, UnicodeError, TypeError) as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+        journal.append("lifestream.return.reviewed", {
+            "moment_id": result["momentId"], "return_id": result["returnId"]})
+        return result
+
+    @app.get("/api/lifestream/moments/{moment_id}/returns/{return_id}")
+    def lifestream_export(moment_id: str, return_id: str):
+        try:
+            return moment_inbox.export_return(moment_id, return_id)
+        except (ValueError, OSError, TypeError, KeyError) as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
 
     @app.get("/api/broadcast/door")
     def local_broadcast_door():

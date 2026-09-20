@@ -180,3 +180,15 @@ class GraftDraftSaveRequest(BaseModel):
     experiment: GraftExperimentPlan
     assumptions: str = Field(min_length=1, max_length=2000)
     unresolved: str = Field(min_length=1, max_length=2000)
+
+class LivingMomentImportRequest(BaseModel):
+    root_id: str = Field(min_length=1, max_length=64)
+    manifest_path: str = Field(min_length=1, max_length=512)
+    source_path: str = Field(min_length=1, max_length=512)
+
+
+class LivingMomentDraftRequest(BaseModel):
+    kind: str = Field(pattern=r"^(lyric|journal|invention)$")
+    text: str = Field(min_length=1, max_length=32768)
+    admitted_by: str = Field(min_length=1, max_length=120)
+    reviewed: bool = False
