@@ -16,6 +16,7 @@ from .config import RootConfig, WorkbenchConfig, load_config
 from .creator import creator_desk_status, search_sources
 from .creator_shelf import CreatorShelf, CreatorConflict, preview_pack
 from .maxhinal_dock import parse_ride
+from .native_maxhinal import preview_fuels, spin, FuelConflict
 from .broadcast import broadcast_door
 from .journal import Journal, SenseFieldRecord
 from .house import build_house_status
@@ -29,6 +30,8 @@ from .schemas import (
     CreatorDraftRequest,
     MaxhinalRideRequest,
     MaxhinalRideSaveRequest,
+    NativeFuelRequest,
+    NativeSpinRequest,
     ApertureHistoryResponse,
     ApertureRecordResponse,
     BootstrapResponse,
@@ -309,6 +312,61 @@ def create_app(config: WorkbenchConfig | None = None) -> FastAPI:
         saved = creator_shelf.get_maxhinal_ride(ride_id)
         if saved is None:
             raise HTTPException(status_code=404, detail="docked ride not found")
+        return saved
+
+    def _house_fuel(payload: NativeFuelRequest):
+        try:
+            return preview_fuels(
+                config.roots, creator_shelf,
+                [item.model_dump() for item in payload.fuels],
+            )
+        except (FuelConflict, ValueError, OSError) as exc:
+            raise HTTPException(
+                status_code=409 if isinstance(exc, FuelConflict) else 400,
+                detail=str(exc),
+            ) from exc
+
+    @app.get("/api/house-maxhinal")
+    def house_maxhinal_info():
+        return {
+            "format": "house.native-maxhinal/v0.1",
+            "modes": ["discontinuity", "braid", "compose", "pressure", "shuffle"],
+            "max_fuels": 4, "max_file_bytes": 16777216,
+            "authority": "none", "promotion": "NONE",
+            "notice": "Local user-selected fuel only; not the Daily Slice Maxhinal runtime.",
+        }
+
+    @app.post("/api/house-maxhinal/fuel/preview")
+    def house_maxhinal_preview(payload: NativeFuelRequest, request: Request):
+        _creator_write_guard(request)
+        return _house_fuel(payload)
+
+    @app.post("/api/house-maxhinal/spin")
+    def house_maxhinal_spin(payload: NativeSpinRequest, request: Request):
+        _creator_write_guard(request)
+        preview = _house_fuel(payload)
+        if preview["fuel_sha256"] != payload.expected_fuel_sha256:
+            raise HTTPException(status_code=409, detail="fuel changed since preview; review again")
+        try:
+            ride = spin(preview, payload.mode, payload.seed, payload.question)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        saved = creator_shelf.save_native_ride(ride)
+        journal.append("house.maxhinal.spin_saved", {
+            "ride_id": saved["id"], "mode": saved["mode"],
+            "fuel_sha256": saved["fuel_sha256"],
+        })
+        return {"receipt": saved, "ride": ride}
+
+    @app.get("/api/house-maxhinal/rides")
+    def house_maxhinal_rides():
+        return {"rides": creator_shelf.list_native_rides()}
+
+    @app.get("/api/house-maxhinal/rides/{ride_id}")
+    def house_maxhinal_ride(ride_id: int):
+        saved = creator_shelf.get_native_ride(ride_id)
+        if saved is None:
+            raise HTTPException(status_code=404, detail="native Maxhinal ride not found")
         return saved
 
     @app.get("/api/broadcast/door")
