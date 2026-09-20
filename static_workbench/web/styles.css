@@ -263,3 +263,17 @@ input:focus, select:focus { border-color: var(--green-dim); outline: 2px solid r
 .return-checkpoint { border: 1px solid var(--line-soft); border-radius: 8px; padding: 12px; overflow-wrap: anywhere; }
 .return-checkpoint p { margin: 5px 0; white-space: pre-wrap; }
 .return-digest { word-break: break-all; }
+
+/* Staged Rocket v0.1: bounded declaration and append-only stage receipts. */
+.rocket-panel { display: grid; gap: 12px; margin-bottom: 18px; min-width: 0; }
+.rocket-panel h2, .rocket-panel h3 { margin: 0; }
+.rocket-form { display: grid; gap: 12px; }
+.rocket-form > button, .rocket-panel > button { justify-self: start; }
+.rocket-field { display: grid; gap: 5px; }
+.rocket-field[hidden] { display: none !important; }
+.rocket-field input, .rocket-field textarea, .rocket-field select { min-width: 0; width: 100%; resize: vertical; background: #101712; color: var(--ink); border: 1px solid var(--line); border-radius: 8px; padding: 10px; }
+.rocket-history { display: block; text-align: left; overflow-wrap: anywhere; }
+.rocket-stage-chain { display: grid; gap: 10px; }
+.rocket-stage { border: 1px solid var(--line-soft); border-radius: 8px; padding: 12px; min-width: 0; }
+.rocket-output { white-space: pre-wrap; overflow-wrap: anywhere; max-height: 320px; overflow: auto; }
+.rocket-digest { overflow-wrap: anywhere; }
