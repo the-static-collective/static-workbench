@@ -29,6 +29,7 @@ from .lifestream_inbox import MomentInbox
 from .journal import Journal, SenseFieldRecord
 from .capability_returns import CapabilityReturnLedger
 from .capability_loom import preview_composition as preview_loom
+from .composition_ecology import preview_ecology
 from .return_desk import ReturnDesk, ReturnConflict, NoteInput, SessionInput, CheckpointInput
 from .rocket import RocketDesk, RocketConflict, RocketMissionInput, RocketAdvanceInput, RocketSeparateInput, RocketLaunchInput
 from .composition_inspection import CompositionInspectionError, inspect_composition
@@ -257,6 +258,15 @@ def create_app(config: WorkbenchConfig | None = None) -> FastAPI:
         _creator_write_guard(request)
         try:
             return preview_loom(return_ledger, payload)
+        except ValueError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+    @app.post("/api/house/ecology/preview")
+    def house_ecology_preview(payload: dict, request: Request):
+        # Exactly the same local-session guard and exact-source contract as Loom.
+        _creator_write_guard(request)
+        try:
+            return preview_ecology(return_ledger, payload)
         except ValueError as exc:
             raise HTTPException(status_code=409, detail=str(exc)) from exc
 
