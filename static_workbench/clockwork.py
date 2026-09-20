@@ -9,6 +9,7 @@ from __future__ import annotations
 import argparse
 import json
 import math
+import time
 import unicodedata
 from typing import Any
 
@@ -135,8 +136,17 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Experimental abstract clock of clocks (no astronomical date implied)")
     parser.add_argument("--tick", type=int, default=960)
     parser.add_argument("--jubilee-period", type=int, choices=(49, 50), default=50)
+    parser.add_argument("--steps", type=int, default=1, help="number of abstract ticks to emit, maximum 10000")
+    parser.add_argument("--interval-seconds", type=float, default=0.0,
+                        help="wall-clock pause between emissions; NOT a calendar time unit")
     args = parser.parse_args()
-    print(json.dumps(tick_state(args.tick, jubilee_period=args.jubilee_period), ensure_ascii=False, indent=2))
+    if not 1 <= args.steps <= 10000 or not math.isfinite(args.interval_seconds) or not 0 <= args.interval_seconds <= 60:
+        parser.error("steps must be 1..10000 and interval-seconds must be finite in 0..60")
+    for offset in range(args.steps):
+        if offset and args.interval_seconds:
+            time.sleep(args.interval_seconds)
+        print(json.dumps(tick_state(args.tick + offset, jubilee_period=args.jubilee_period),
+                         ensure_ascii=False, separators=(",", ":")), flush=True)
 
 
 if __name__ == "__main__":
