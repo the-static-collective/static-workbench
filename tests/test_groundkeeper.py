@@ -131,3 +131,32 @@ def test_cli_requires_explicit_bounded_samples_and_does_not_create_a_receipt_on_
     source.write_text(json.dumps({"samples": [0.1] * 257, "label": "too many"}))
     assert subprocess.run(command, capture_output=True).returncode == 2
     assert not output.exists()
+
+
+def test_house_browser_synthetic_api_and_navigation(tmp_path):
+    from fastapi.testclient import TestClient
+    from static_workbench.app import create_app
+    from static_workbench.config import RootConfig, WorkbenchConfig
+
+    root = tmp_path / "root"
+    root.mkdir()
+    config = WorkbenchConfig(
+        bind_host="127.0.0.1", port=13700, state_dir=tmp_path / "state",
+        roots=(RootConfig("static", root),), max_repo_depth=2,
+    )
+    with TestClient(create_app(config), base_url="http://127.0.0.1") as client:
+        one = client.get("/api/groundkeeper/first-ignition?seed=house")
+        two = client.get("/api/groundkeeper/first-ignition?seed=house")
+        assert one.status_code == two.status_code == 200
+        assert one.json() == two.json()
+        assert replay(one.json())
+        assert client.get("/api/groundkeeper/first-ignition?seed=").status_code == 422
+        assert client.get("/api/groundkeeper/first-ignition?seed=" + "x" * 129).status_code == 422
+        index = client.get("/").text
+        interface = client.get("/assets/groundkeeper.js")
+        app = client.get("/assets/app.js").text
+        assert interface.status_code == 200
+        assert 'data-view="groundkeeper"' in index
+        assert '/assets/groundkeeper.js' in index
+        assert "groundkeeperView()" in app
+        assert "Run synthetic first flight" in interface.text
