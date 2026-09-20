@@ -162,3 +162,21 @@ class GraftWitnessPreviewRequest(BaseModel):
 class GraftWitnessRunRequest(GraftWitnessPreviewRequest):
     expected_specimen_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
     expected_dogram_commit: str = Field(pattern=r"^[0-9a-f]{40}$")
+
+
+class GraftExperimentPlan(BaseModel):
+    input: str = Field(min_length=1, max_length=1200)
+    procedure: str = Field(min_length=1, max_length=1200)
+    observable: str = Field(min_length=1, max_length=1200)
+    stop_condition: str = Field(min_length=1, max_length=1200)
+
+
+class GraftDraftSaveRequest(BaseModel):
+    candidate_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
+    expected_revision: int = Field(ge=0)
+    expected_draft_sha256: str | None = Field(default=None, pattern=r"^[0-9a-f]{64}$")
+    title: str = Field(min_length=1, max_length=160)
+    body: str = Field(min_length=1, max_length=8192)
+    experiment: GraftExperimentPlan
+    assumptions: str = Field(min_length=1, max_length=2000)
+    unresolved: str = Field(min_length=1, max_length=2000)
