@@ -25,6 +25,7 @@ class WorkbenchConfig:
     preview_bytes: int = 131072
     broadcast_port: int | None = None
     github_remote_discovery: bool = False
+    branch_worktrees_enabled: bool = False
 
 
 def _expand_path(value: str | os.PathLike[str]) -> Path:
@@ -64,6 +65,9 @@ def load_config(path: Path | None = None) -> WorkbenchConfig:
         github_remote_discovery = raw.get("github_remote_discovery", False)
         if type(github_remote_discovery) is not bool:
             raise ValueError("github_remote_discovery must be a boolean")
+        branch_worktrees_enabled = raw.get("branch_worktrees_enabled", False)
+        if type(branch_worktrees_enabled) is not bool:
+            raise ValueError("branch_worktrees_enabled must be a boolean")
         if broadcast_port is not None and (type(broadcast_port) is not int):
             raise ValueError("broadcast_port must be an integer")
     else:
@@ -76,6 +80,7 @@ def load_config(path: Path | None = None) -> WorkbenchConfig:
         preview_bytes = 131072
         broadcast_port = None
         github_remote_discovery = False
+        branch_worktrees_enabled = False
 
     if bind_host not in {"127.0.0.1", "::1", "localhost"}:
         raise ValueError("v0.1 only supports loopback bind hosts")
@@ -102,4 +107,5 @@ def load_config(path: Path | None = None) -> WorkbenchConfig:
         preview_bytes=preview_bytes,
         broadcast_port=broadcast_port,
         github_remote_discovery=github_remote_discovery,
+        branch_worktrees_enabled=branch_worktrees_enabled,
     )
