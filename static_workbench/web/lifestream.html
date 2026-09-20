@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="color-scheme" content="dark">
+<title>HOUSE / Living Moment Inbox</title>
+<link rel="stylesheet" href="/assets/styles.css">
+<style>
+body { max-width:1040px; margin:auto; padding:24px; background:#111; color:#eee; font:16px/1.5 system-ui,sans-serif; }
+main { display:grid; grid-template-columns: minmax(240px,1fr) minmax(320px,2fr); gap:18px; }
+section { background:#1b1b1b; border:1px solid #454545; padding:16px; border-radius:12px; margin:12px 0; }
+form, .fields { display:grid; gap:10px; }
+input,textarea,select,button { font:inherit; padding:10px; max-width:100%; }
+textarea { width:100%; box-sizing:border-box; min-height:130px; }
+button { cursor:pointer; }
+button:disabled { cursor:wait; opacity:.6; }
+.muted { opacity:.8; }
+pre { white-space:pre-wrap; overflow-wrap:anywhere; }
+#message { white-space:pre-wrap; overflow-wrap:anywhere; }
+#message.error { color:#ffabab; }
+.entry { display:block; width:100%; text-align:left; margin:8px 0; }
+@media(max-width:750px) {main {grid-template-columns:1fr;}}
+</style>
+</head>
+<body>
+<header><p><a href="/">← HOUSE</a> / LOCAL CREATIVE WORKSPACE</p>
+<h1>Living Moment Inbox</h1>
+<p class="muted">One explicitly selected STATIC LIVE recording + moment manifest → verified source → human-reviewed local artifact. No automatic media upload, model invocation, OBS control or publication.</p></header>
+<p id="message" role="status">Loading local session…</p>
+<main>
+<div>
+<section>
+<h2>Import a finished moment</h2>
+<p class="muted">Select files under one configured HOUSE root. OBS marks are observations; use LIFESTREAM-001 to reconcile an actual finished recording and explicit media offsets before importing.</p>
+<form id="import-form">
+<label>Configured root <select id="root" required></select></label>
+<label>Moment JSON relative path <input id="manifest" maxlength="512" placeholder="sessions/01/moment.json" required></label>
+<label>Original recording relative path <input id="source" maxlength="512" placeholder="sessions/01/recording.mkv" required></label>
+<button type="submit">Verify source + import</button>
+</form>
+</section>
+<section><h2>Moments</h2><div id="moments">No imported moments.</div></section>
+</div>
+<div>
+<section id="detail"><h2>Select a moment</h2><p class="muted">Original media and independent clock readings remain separately attributable.</p></section>
+<section id="compose" hidden>
+<h2>Create a reviewed artifact</h2>
+<form id="draft-form">
+<label>Artifact type <select id="kind"><option value="lyric">Lyric</option><option value="journal">Journal</option><option value="invention">Invention</option></select></label>
+<label>Attribution token <input id="admitted-by" value="human:operator" maxlength="120" required></label>
+<label>Human-authored / reviewed text <textarea id="draft" maxlength="32768" required></textarea></label>
+<label><input type="checkbox" id="reviewed" required> I reviewed this text and authorize saving a private, non-effectful draft.</label>
+<button type="submit">Save reviewed candidate</button>
+</form>
+<h3>Returns</h3>
+<div id="returns">No returned drafts yet.</div>
+<p class="muted">Export the JSON only after source re-verification. A return is not broadcast, performed, or published. The STATIC LIVE verify-return command independently checks it before any further use.</p>
+</section>
+</div>
+</main>
+<script src="/assets/lifestream.js" defer></script>
+</body></html>
