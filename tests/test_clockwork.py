@@ -1,3 +1,6 @@
+import json
+import sys
+
 import pytest
 
 from static_workbench.clockwork import (
@@ -54,3 +57,11 @@ def test_text_arithmetic_and_explicit_search_limits():
         gematria("ABC")
     with pytest.raises(ValueError):
         els_matches("אבגד", "א", max_skip=2)
+
+def test_cli_clicks_three_abstract_ticks(monkeypatch, capsys):
+    from static_workbench.clockwork import main
+    monkeypatch.setattr(sys, "argv", ["clockwork", "--tick", "960", "--steps", "3"])
+    main()
+    states = [json.loads(line) for line in capsys.readouterr().out.splitlines()]
+    assert [s["tick"] for s in states] == [960, 961, 962]
+    assert sum(s["alignment"]["sixty_sixtyfour_return"] for s in states) == 1
