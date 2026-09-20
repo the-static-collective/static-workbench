@@ -32,7 +32,7 @@ def first_run_map() -> dict:
                 "title": "Prepare the STATIC OS build",
                 "state": "not_observed",
                 "details": "Clone the dedicated bootstrap candidate and invoke its user-only, pinned HOUSE starter. This does not build or install the OS. Existing local checkout/configuration may require manual inspection.",
-                "command": "git clone --branch " + BRANCH + " " + STATIC_OS_REPO + ".git ~/static-os-launchpad && cd ~/static-os-launchpad && ./scripts/start-train.sh --check",
+                "command": "git clone --branch " + BRANCH + " " + STATIC_OS_REPO + ".git ~/static-os-launchpad && cd ~/static-os-launchpad && bash ./scripts/start-train.sh --check",
             },
             {
                 "id": "iso",
