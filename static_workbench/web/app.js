@@ -119,6 +119,12 @@ function renderHouse() {
   const creator = el('button', 'action-card');
   creator.append(el('strong', '', 'Open Creator Desk'), el('span', 'muted', 'Search a chosen local source and carry its exact provenance into a draft or research brief.'));
   creator.addEventListener('click', renderCreatorDesk);
+  const livingMain = el('button', 'action-card');
+  livingMain.append(el('strong', '', 'Compose Living Main'), el('span', 'muted', 'Review clean exact-source bodies and explicitly declared relationships without executing them.'));
+  livingMain.addEventListener('click', renderLivingMain);
+  const inspectComposition = el('button', 'action-card');
+  inspectComposition.append(el('strong', '', 'Inspect composition'), el('span', 'muted', 'Review an explicit Founder Node descriptor against observed local checkouts.'));
+  inspectComposition.addEventListener('click', renderCompositionInspection);
   const nativeMaxhinal = el('button', 'action-card');
   nativeMaxhinal.append(el('strong', '', 'Open HOUSE Maxhinal'),
     el('span', 'muted', 'Spin explicitly selected local files and source packs into bounded creative projections with attributable receipts.'));
@@ -127,7 +133,7 @@ function renderHouse() {
   dogramLab.append(el('strong', '', 'Open Dogram Lab'),
     el('span', 'muted', 'Compare two committed Python dependency graphs with a pinned local Dogram research calculation.'));
   dogramLab.addEventListener('click', renderDogramImpactDesk);
-  actions.append(inspect, terminal, creator, nativeMaxhinal, dogramLab);
+  actions.append(inspect, livingMain, inspectComposition, terminal, creator, nativeMaxhinal, dogramLab);
   const staticLive = house.organs.find(organ => organ.id === 'static-live' && organ.present);
   if (staticLive) {
     const live = el('button', 'action-card');
@@ -580,6 +586,10 @@ async function refreshCurrent() {
     else if (state.view === 'creator') await Promise.all([loadRepos(), loadCreatorDesk()]);
     else if (state.view === 'maxhinal') await nativeMaxhinalLoad();
     else if (state.view === 'dogram-impact') { await loadRepos(); renderDogramImpactDesk(); }
+    else if (state.view === 'return') await returnDeskLoad();
+    else if (state.view === 'rocket') await rocketLoad();
+    else if (state.view === 'composition') { await loadRepos(); renderCompositionInspection(); }
+    else if (state.view === 'living-main') { await loadRepos(); livingMainInvalidate(); renderLivingMain(); }
     else { await loadApertureHistory(); renderHumanTerminal(); }
     await loadEvents();
   } catch (error) { showError(error); }
@@ -604,7 +614,7 @@ async function start() {
 
 document.querySelectorAll('.nav-button').forEach(button => button.addEventListener('click', () => {
   const view = button.dataset.view;
-  if (view === 'house') renderHouse(); else if (view === 'machine') renderMachine(); else if (view === 'repos') renderRepos(); else if (view === 'objects') renderObjects(); else if (view === 'creator') { renderCreatorDesk(); creatorV2Load().catch(showError); } else if (view === 'maxhinal') { renderNativeMaxhinal(); nativeMaxhinalLoad().catch(showError); } else if (view === 'dogram-impact') renderDogramImpactDesk(); else renderHumanTerminal();
+  if (view === 'house') renderHouse(); else if (view === 'machine') renderMachine(); else if (view === 'repos') renderRepos(); else if (view === 'objects') renderObjects(); else if (view === 'creator') { renderCreatorDesk(); creatorV2Load().catch(showError); } else if (view === 'maxhinal') { renderNativeMaxhinal(); nativeMaxhinalLoad().catch(showError); } else if (view === 'dogram-impact') renderDogramImpactDesk(); else if (view === 'return') returnDeskLoad().catch(showError); else if (view === 'rocket') { state.view = 'rocket'; rocketLoad().catch(showError); } else if (view === 'composition') renderCompositionInspection(); else if (view === 'living-main') renderLivingMain(); else renderHumanTerminal();
 }));
 $('#refresh-view').addEventListener('click', refreshCurrent);
 $('#refresh-events').addEventListener('click', () => loadEvents().catch(showError));

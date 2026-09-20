@@ -23,7 +23,12 @@ from .maxhinal_dock import parse_ride
 from .native_maxhinal import preview_fuels, spin, FuelConflict
 from .broadcast import broadcast_door
 from .journal import Journal, SenseFieldRecord
+from .return_desk import ReturnDesk, ReturnConflict, NoteInput, SessionInput, CheckpointInput
+from .rocket import RocketDesk, RocketConflict, RocketMissionInput, RocketAdvanceInput, RocketSeparateInput, RocketLaunchInput
 from .house import build_house_status
+from .composition_inspection import CompositionInspectionError, inspect_composition
+from .living_main import CompositionError, preview_composition
+from .relation_chamber import RelationError, preview_relation
 from .machine import sample_machine
 from .paths import PathOutsideRoot, resolve_under_root
 from .repos import discover_repositories
@@ -43,6 +48,7 @@ from .schemas import (
     GraftRoundPreviewRequest,
     GraftRoundSaveRequest,
     GraftDraftSaveRequest,
+    CompositionInspectRequest,
     ApertureHistoryResponse,
     ApertureRecordResponse,
     BootstrapResponse,
@@ -129,6 +135,8 @@ def create_app(config: WorkbenchConfig | None = None) -> FastAPI:
     config = config or load_config()
     journal = Journal(config.state_dir / "workbench.sqlite3")
     creator_shelf = CreatorShelf(config.state_dir / "creator.sqlite3")
+    return_desk = ReturnDesk(config.state_dir / "return.sqlite3")
+    rocket_desk = RocketDesk(config.state_dir / "rockets.sqlite3", config, creator_shelf)
     session_token = secrets.token_urlsafe(32)
 
     @asynccontextmanager
@@ -140,6 +148,8 @@ def create_app(config: WorkbenchConfig | None = None) -> FastAPI:
     app.state.config = config
     app.state.journal = journal
     app.state.creator_shelf = creator_shelf
+    app.state.return_desk = return_desk
+    app.state.rocket_desk = rocket_desk
     app.state.session_token = session_token
 
     web_dir = Path(__file__).resolve().parent / "web"
@@ -183,6 +193,18 @@ def create_app(config: WorkbenchConfig | None = None) -> FastAPI:
         journal.append("house.scanned", status["summary"])
         return status
 
+    @app.post("/api/house/composition/inspect")
+    def house_composition_inspect(payload: CompositionInspectRequest, request: Request):
+        # Parsing untrusted pasted JSON is a read-only operation, but protect
+        # this local inspection surface with the same session and origin gate
+        # used for other browser-submitted payloads. It stores no descriptor.
+        _creator_write_guard(request)
+        try:
+            repos = discover_repositories(config.roots, config.max_repo_depth)
+            return inspect_composition(payload.raw_json, repos)
+        except CompositionInspectionError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+
     @app.get("/api/creator/desk")
     def creator_desk():
         repos = discover_repositories(config.roots, config.max_repo_depth)
@@ -208,6 +230,184 @@ def create_app(config: WorkbenchConfig | None = None) -> FastAPI:
         token = request.headers.get("x-workbench-session", "")
         if not secrets.compare_digest(token, session_token):
             raise HTTPException(status_code=403, detail="creator write requires a local session token")
+
+
+    # Return Desk is Workbench-owned local writing, not a GOATnote protocol
+    # or a claim that a project checkout has been modified.
+    @app.get("/api/return/notes")
+    def return_notes():
+        return {"notes": return_desk.list_notes()}
+
+    @app.get("/api/return/notes/{note_id}")
+    def return_note(note_id: int):
+        note = return_desk.get_note(note_id)
+        if note is None:
+            raise HTTPException(status_code=404, detail="note not found")
+        return note
+
+    @app.post("/api/return/notes")
+    def return_note_save(payload: NoteInput, request: Request):
+        _creator_write_guard(request)
+        try:
+            result = return_desk.save_note(payload)
+        except ReturnConflict as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        journal.append("return.note.saved", {"note_id": result["id"], "sha256": result["sha256"]})
+        return result
+
+    @app.get("/api/return/sessions")
+    def return_sessions():
+        return {"sessions": return_desk.list_sessions()}
+
+    @app.get("/api/return/sessions/{session_id}")
+    def return_session(session_id: int):
+        result = return_desk.get_session(session_id)
+        if result is None:
+            raise HTTPException(status_code=404, detail="session not found")
+        return result
+
+    @app.post("/api/return/sessions")
+    def return_session_save(payload: SessionInput, request: Request):
+        _creator_write_guard(request)
+        try:
+            result = return_desk.create_session(payload)
+        except ReturnConflict as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+        journal.append("return.session.opened", {
+            "session_id": result["id"], "note_id": result["note_id"],
+            "checkpoint_sha256": result["checkpoint"]["sha256"],
+        })
+        return result
+
+    @app.post("/api/return/sessions/{session_id}/checkpoints")
+    def return_checkpoint_save(session_id: int, payload: CheckpointInput, request: Request):
+        _creator_write_guard(request)
+        try:
+            result = return_desk.save_checkpoint(session_id, payload)
+        except ReturnConflict as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+        journal.append("return.session.checkpointed", {
+            "session_id": session_id, "revision": result["revision"],
+            "checkpoint_sha256": result["sha256"],
+        })
+        return result
+
+
+    # Staged Rocket is an explicit, local, read-only composition. Inert
+    # descendants require a fresh human request, never automatic dispatch.
+    @app.get("/api/rockets/catalog")
+    def rocket_catalog():
+        return rocket_desk.catalog()
+
+    @app.get("/api/rockets/missions")
+    def rocket_missions():
+        return {"missions": rocket_desk.list()}
+
+    @app.get("/api/rockets/missions/{mission_id}")
+    def rocket_mission(mission_id: int):
+        result = rocket_desk.get(mission_id)
+        if result is None:
+            raise HTTPException(status_code=404, detail="mission not found")
+        return result
+
+    @app.post("/api/rockets/missions")
+    def rocket_create(payload: RocketMissionInput, request: Request):
+        _creator_write_guard(request)
+        try:
+            result = rocket_desk.create(payload)
+        except RocketConflict as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+        journal.append("rocket.mission.declared", {
+            "mission_id": result["id"], "mission_sha256": result["mission_sha256"],
+            "parent_id": result["parent_id"], "mode": result["mode"],
+        })
+        return result
+
+    @app.get("/api/creator/rocket-seeds")
+    def creator_rocket_seeds():
+        return {"seeds": creator_shelf.list_rocket_seeds()}
+
+    @app.get("/api/creator/rocket-seeds/{seed_id}")
+    def creator_rocket_seed(seed_id: int):
+        result = creator_shelf.get_rocket_seed(seed_id)
+        if result is None:
+            raise HTTPException(status_code=404, detail="Creator seed not found")
+        return result
+
+    @app.post("/api/rockets/missions/{mission_id}/launch-creator-seed")
+    def rocket_launch_creator_seed(mission_id: int, payload: RocketLaunchInput, request: Request):
+        _creator_write_guard(request)
+        try:
+            result = rocket_desk.launch_creator_seed(mission_id, payload)
+        except (RocketConflict, OSError) as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+        journal.append("rocket.effect.creator_seed", {
+            "mission_id": mission_id, "effect_sha256": result["receipt_sha256"],
+            "native_seed_id": result["output"]["native_seed_id"],
+        })
+        return result
+
+    @app.post("/api/rockets/missions/{mission_id}/prepare")
+    def rocket_prepare(mission_id: int, request: Request):
+        _creator_write_guard(request)
+        try:
+            result = rocket_desk.prepare(mission_id)
+        except (RocketConflict, OSError) as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+        journal.append("rocket.stage.prepared", {
+            "mission_id": mission_id, "stage_sha256": result["sha256"],
+        })
+        return result
+
+    @app.post("/api/rockets/missions/{mission_id}/execute")
+    def rocket_execute(mission_id: int, payload: RocketAdvanceInput, request: Request):
+        _creator_write_guard(request)
+        try:
+            result = rocket_desk.execute(mission_id, payload.expected_stage_sha256)
+        except (RocketConflict, OSError) as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+        journal.append("rocket.stage.executed", {
+            "mission_id": mission_id, "stage_sha256": result["sha256"],
+            "tool": result["output"]["tool"],
+        })
+        return result
+
+    @app.post("/api/rockets/missions/{mission_id}/separate")
+    def rocket_separate(mission_id: int, payload: RocketSeparateInput, request: Request):
+        _creator_write_guard(request)
+        try:
+            result = rocket_desk.separate(mission_id, payload)
+        except RocketConflict as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+        journal.append("rocket.stage.separated", {
+            "mission_id": mission_id, "stage_sha256": result["sha256"],
+        })
+        return result
+
+    @app.post("/api/living-main/preview")
+    def living_main_preview(payload: dict, request: Request):
+        _creator_write_guard(request)
+        if set(payload) != {"selections"}:
+            raise HTTPException(status_code=400, detail="only selections is accepted")
+        repos = discover_repositories(config.roots, config.max_repo_depth)
+        try:
+            return preview_composition(config.roots, repos, payload["selections"])
+        except (CompositionError, OSError, ValueError) as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+    @app.post("/api/living-main/relations/preview")
+    def living_main_relation_preview(payload: dict, request: Request):
+        _creator_write_guard(request)
+        if set(payload) != {"selections", "declaration", "expected_configuration_id"}:
+            raise HTTPException(status_code=400, detail="selections, declaration and expected_configuration_id required")
+        try:
+            repos = discover_repositories(config.roots, config.max_repo_depth)
+            composition = preview_composition(config.roots, repos, payload["selections"])
+            if composition["configuration_id"] != payload["expected_configuration_id"]:
+                raise RelationError("composition changed since preview; inspect the body again")
+            return preview_relation(composition, payload["declaration"])
+        except (CompositionError, RelationError, OSError, ValueError) as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
 
     @app.post("/api/dogram/impact/preview")
     def dogram_impact_preview(payload: DogramImpactRequest, request: Request):
