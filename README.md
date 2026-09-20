@@ -223,6 +223,17 @@ metadata; Git hooks are disabled and checkout filters are refused. It does
 not fetch remote-only code, install packages or run tests. See
 [Branch Deck 003 setup, effects and recovery](docs/branch-deck-003.md).
 
+## Branch Deck 004 — rolling public Collective radar
+
+Enable `branch_radar_enabled = true` to start a local-supervisor
+rolling public GitHub observation. It checks up to five repositories every
+30 minutes, preserving per-branch first-seen and last-observed timestamps
+in Workbench-owned SQLite. Its HOUSE/Branch Deck indicators distinguish
+initial baselines from newly observed branches and show scan gaps. It does
+not guarantee complete or instant public GitHub coverage, inspect private
+repos, fetch project code, execute tests or merge. See
+[Collective radar coverage and safeguards](docs/branch-deck-004.md).
+
 ## HOUSE ↔ Static Broadcast v0.1 — an operator door, not an operator proxy
 
 To enable the **Open Static Broadcast** action in HOUSE, first install/checkout
