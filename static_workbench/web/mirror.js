@@ -53,6 +53,8 @@ async function renderMirror() {
     hasSelection = true;
     target.style.outline = '3px dashed #eeb86c';
     selected.textContent = 'Selected: demo-card · Workbench-owned CSS tokens';
+    // The selected fixture is the declared target; iframe DOM is not a generic project adapter.
+    window.HumanValueBar.mount(inspector, {kind:'mirror-fixture', id:'mirror-001:demo-card'});
     for (const element of [width, accent, review, reset]) element.disabled = false;
     paint();
   }
