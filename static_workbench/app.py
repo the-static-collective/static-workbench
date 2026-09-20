@@ -15,6 +15,7 @@ from .aperture import analyze_aperture
 from .config import RootConfig, WorkbenchConfig, load_config
 from .creator import creator_desk_status, search_sources
 from .creator_shelf import CreatorShelf, CreatorConflict, preview_pack
+from .maxhinal_dock import parse_ride
 from .broadcast import broadcast_door
 from .journal import Journal, SenseFieldRecord
 from .house import build_house_status
@@ -26,6 +27,8 @@ from .schemas import (
     CreatorPackRequest,
     CreatorPackSaveRequest,
     CreatorDraftRequest,
+    MaxhinalRideRequest,
+    MaxhinalRideSaveRequest,
     ApertureHistoryResponse,
     ApertureRecordResponse,
     BootstrapResponse,
@@ -267,6 +270,46 @@ def create_app(config: WorkbenchConfig | None = None) -> FastAPI:
         if creator_shelf.get_draft(draft_id) is None:
             raise HTTPException(status_code=404, detail="draft not found")
         return {"revisions": creator_shelf.revisions(draft_id)}
+
+    @app.post("/api/creator/maxhinal/preview")
+    def maxhinal_ride_preview(payload: MaxhinalRideRequest, request: Request):
+        _creator_write_guard(request)
+        if creator_shelf.get_pack(payload.pack_id) is None:
+            raise HTTPException(status_code=404, detail="selected source pack not found")
+        try:
+            _ride, summary = parse_ride(payload.raw_json)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        return {"pack_id": payload.pack_id, **summary}
+
+    @app.post("/api/creator/maxhinal/rides")
+    def maxhinal_ride_import(payload: MaxhinalRideSaveRequest, request: Request):
+        _creator_write_guard(request)
+        try:
+            _ride, summary = parse_ride(payload.raw_json)
+            if summary["ride_sha256"] != payload.expected_ride_sha256:
+                raise HTTPException(status_code=409, detail="ride differs from preview; review again")
+            saved = creator_shelf.save_maxhinal_ride(payload.pack_id, payload.raw_json, summary)
+        except CreatorConflict as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        journal.append("creator.maxhinal.ride_docked", {
+            "ride_id": saved["id"], "pack_id": payload.pack_id,
+            "ride_sha256": saved["ride_sha256"],
+        })
+        return saved
+
+    @app.get("/api/creator/maxhinal/rides")
+    def maxhinal_rides():
+        return {"rides": creator_shelf.list_maxhinal_rides()}
+
+    @app.get("/api/creator/maxhinal/rides/{ride_id}")
+    def maxhinal_ride(ride_id: int):
+        saved = creator_shelf.get_maxhinal_ride(ride_id)
+        if saved is None:
+            raise HTTPException(status_code=404, detail="docked ride not found")
+        return saved
 
     @app.get("/api/broadcast/door")
     def local_broadcast_door():

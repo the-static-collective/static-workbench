@@ -73,6 +73,7 @@ class CreatorDraftRequest(BaseModel):
     body: str = Field(max_length=32768)
     assumptions: str = Field(default="", max_length=4000)
     gaps: str = Field(default="", max_length=4000)
+    maxhinal_ride_id: int | None = Field(default=None, ge=1)
 
     @field_validator("title")
     @classmethod
@@ -84,3 +85,12 @@ class CreatorDraftRequest(BaseModel):
 
 class CreatorPackSaveRequest(CreatorPackRequest):
     expected_pack_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
+
+
+class MaxhinalRideRequest(BaseModel):
+    pack_id: int = Field(ge=1)
+    raw_json: str = Field(min_length=1, max_length=131072)
+
+
+class MaxhinalRideSaveRequest(MaxhinalRideRequest):
+    expected_ride_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
