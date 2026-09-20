@@ -334,3 +334,25 @@ input:focus, select:focus { border-color: var(--green-dim); outline: 2px solid r
 .lm-relation-result { display:grid; gap:9px; }
 .lm-relation-witness { display:grid; gap:9px; padding:16px; border:1px solid #89734d; border-radius:11px; overflow-wrap:anywhere; }
 .lm-relation-witness p { margin:0; }
+
+/* HOUSE-FLYWHEEL-002: quiet, bounded, read-only return shelf. */
+.return-shelf-intro { margin-bottom: 16px; }
+.return-list { display: grid; gap: 12px; min-width: 0; }
+.return-card { display: grid; gap: 8px; min-width: 0; overflow-wrap: anywhere; }
+.return-card h2 { overflow-wrap: anywhere; }
+.return-card > .quiet-button { justify-self: start; }
+.return-details { display: grid; gap: 12px; border-top: 1px solid var(--line-soft); padding-top: 12px; }
+.return-details[hidden] { display: none; }
+.return-field { display: grid; gap: 4px; }
+.return-text { white-space: pre-wrap; overflow-wrap: anywhere; font: 12px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace; }
+.return-artifacts { display: grid; gap: 8px; }
+.return-artifact { background: var(--panel-2); border: 1px solid var(--line-soft); border-radius: 7px; padding: 9px; }
+
+/* HOUSE-FLYWHEEL-003: visibly inert human-chosen two-artifact loom. */
+.return-loom { display: grid; gap: 11px; margin-bottom: 18px; }
+.return-loom input[type="text"] { max-width: 100%; }
+.return-loom .action-button { justify-self: start; }
+.return-loom .action-button:disabled { cursor: not-allowed; opacity: .55; }
+.return-loom-result { display: grid; gap: 8px; min-width: 0; }
+.return-artifact-choice { display: inline-flex; gap: 8px; align-items: center; margin-top: 9px; font-size: 12px; cursor: pointer; }
+.return-artifact-choice input { width: auto; flex: none; }

@@ -117,6 +117,10 @@ function renderHouse() {
   const terminal = el('button', 'action-card');
   terminal.append(el('strong', '', 'Open HumanTerminal'), el('span', 'muted', 'Preserve a raw carrier and bounded sense-field cut without promoting meaning to authority.'));
   terminal.addEventListener('click', renderHumanTerminal);
+  const returns = el('button', 'action-card');
+  returns.append(el('strong', '', 'Inspect Capability Returns'),
+    el('span', 'muted', 'Read existing local self-reported returns; their artifacts and outcomes are not independently verified.'));
+  returns.addEventListener('click', renderReturnShelf);
   const creator = el('button', 'action-card');
   creator.append(el('strong', '', 'Open Creator Desk'), el('span', 'muted', 'Search a chosen local source and carry its exact provenance into a draft or research brief.'));
   creator.addEventListener('click', renderCreatorDesk);
@@ -138,7 +142,7 @@ function renderHouse() {
   groundkeeper.append(el('strong', '', 'Open GROUNDKEEPER field lab'),
     el('span', 'muted', 'Run synthetic ground-to-sound-to-visual feedback experiments and compare topology changes.'));
   groundkeeper.addEventListener('click', groundkeeperView);
-  actions.append(inspect, livingMain, inspectComposition, terminal, creator, nativeMaxhinal, dogramLab, groundkeeper);
+  actions.append(inspect, livingMain, inspectComposition, terminal, returns, creator, nativeMaxhinal, dogramLab, groundkeeper);
   const staticLive = house.organs.find(organ => organ.id === 'static-live' && organ.present);
   if (staticLive) {
     const live = el('button', 'action-card');
@@ -600,6 +604,7 @@ async function refreshCurrent() {
     else if (state.view === 'branches') await Promise.all([loadBranchDeck(), loadBranchRadar()]);
     else if (state.view === 'objects') renderObjects();
     else if (state.view === 'attention') await window.HumanValueBar.openShelf();
+    else if (state.view === 'returns') await renderReturnShelf();
     else if (state.view === 'creator') await Promise.all([loadRepos(), loadCreatorDesk()]);
     else if (state.view === 'maxhinal') await nativeMaxhinalLoad();
     else if (state.view === 'dogram-impact') { await loadRepos(); renderDogramImpactDesk(); }
@@ -640,7 +645,7 @@ async function start() {
 
 document.querySelectorAll('.nav-button').forEach(button => button.addEventListener('click', () => {
   const view = button.dataset.view;
-  if (view === 'house') renderHouse(); else if (view === 'machine') renderMachine(); else if (view === 'repos') renderRepos(); else if (view === 'branches') { branchDeckOpen().catch(showError); } else if (view === 'objects') renderObjects(); else if (view === 'attention') { state.view = 'attention'; window.HumanValueBar.openShelf(); } else if (view === 'creator') { renderCreatorDesk(); creatorV2Load().catch(showError); } else if (view === 'maxhinal') { renderNativeMaxhinal(); nativeMaxhinalLoad().catch(showError); } else if (view === 'dogram-impact') renderDogramImpactDesk(); else if (view === 'return') returnDeskLoad().catch(showError); else if (view === 'rocket') { state.view = 'rocket'; rocketLoad().catch(showError); } else if (view === 'composition') renderCompositionInspection(); else if (view === 'living-main') renderLivingMain(); else if (view === 'groundkeeper') groundkeeperView(); else renderHumanTerminal();
+  if (view === 'house') renderHouse(); else if (view === 'machine') renderMachine(); else if (view === 'repos') renderRepos(); else if (view === 'branches') { branchDeckOpen().catch(showError); } else if (view === 'objects') renderObjects(); else if (view === 'returns') renderReturnShelf(); else if (view === 'attention') { state.view = 'attention'; window.HumanValueBar.openShelf(); } else if (view === 'creator') { renderCreatorDesk(); creatorV2Load().catch(showError); } else if (view === 'maxhinal') { renderNativeMaxhinal(); nativeMaxhinalLoad().catch(showError); } else if (view === 'dogram-impact') renderDogramImpactDesk(); else if (view === 'return') returnDeskLoad().catch(showError); else if (view === 'rocket') { state.view = 'rocket'; rocketLoad().catch(showError); } else if (view === 'composition') renderCompositionInspection(); else if (view === 'living-main') renderLivingMain(); else if (view === 'groundkeeper') groundkeeperView(); else renderHumanTerminal();
 }));
 $('#refresh-view').addEventListener('click', refreshCurrent);
 $('#refresh-events').addEventListener('click', () => loadEvents().catch(showError));

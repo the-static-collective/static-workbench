@@ -63,6 +63,7 @@ jobs:
           node --check static_workbench/web/groundkeeper.js
           node --check static_workbench/web/branch-deck.js
           node --check static_workbench/web/attention.js
+          node --check static_workbench/web/return-shelf.js
           node --check static_workbench/web/return-desk.js
           node --check static_workbench/web/rocket.js
           node --check static_workbench/web/composition-inspection.js
