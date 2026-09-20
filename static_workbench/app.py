@@ -24,6 +24,7 @@ from .native_maxhinal import preview_fuels, spin, FuelConflict
 from .broadcast import broadcast_door
 from .journal import Journal, SenseFieldRecord
 from .return_desk import ReturnDesk, ReturnConflict, NoteInput, SessionInput, CheckpointInput
+from .rocket import RocketDesk, RocketConflict, RocketMissionInput, RocketAdvanceInput, RocketSeparateInput
 from .house import build_house_status
 from .machine import sample_machine
 from .paths import PathOutsideRoot, resolve_under_root
@@ -131,6 +132,7 @@ def create_app(config: WorkbenchConfig | None = None) -> FastAPI:
     journal = Journal(config.state_dir / "workbench.sqlite3")
     creator_shelf = CreatorShelf(config.state_dir / "creator.sqlite3")
     return_desk = ReturnDesk(config.state_dir / "return.sqlite3")
+    rocket_desk = RocketDesk(config.state_dir / "rockets.sqlite3", config)
     session_token = secrets.token_urlsafe(32)
 
     @asynccontextmanager
@@ -143,6 +145,7 @@ def create_app(config: WorkbenchConfig | None = None) -> FastAPI:
     app.state.journal = journal
     app.state.creator_shelf = creator_shelf
     app.state.return_desk = return_desk
+    app.state.rocket_desk = rocket_desk
     app.state.session_token = session_token
 
     web_dir = Path(__file__).resolve().parent / "web"
@@ -270,6 +273,74 @@ def create_app(config: WorkbenchConfig | None = None) -> FastAPI:
         journal.append("return.session.checkpointed", {
             "session_id": session_id, "revision": result["revision"],
             "checkpoint_sha256": result["sha256"],
+        })
+        return result
+
+
+    # Staged Rocket is an explicit, local, read-only composition. Inert
+    # descendants require a fresh human request, never automatic dispatch.
+    @app.get("/api/rockets/catalog")
+    def rocket_catalog():
+        return rocket_desk.catalog()
+
+    @app.get("/api/rockets/missions")
+    def rocket_missions():
+        return {"missions": rocket_desk.list()}
+
+    @app.get("/api/rockets/missions/{mission_id}")
+    def rocket_mission(mission_id: int):
+        result = rocket_desk.get(mission_id)
+        if result is None:
+            raise HTTPException(status_code=404, detail="mission not found")
+        return result
+
+    @app.post("/api/rockets/missions")
+    def rocket_create(payload: RocketMissionInput, request: Request):
+        _creator_write_guard(request)
+        try:
+            result = rocket_desk.create(payload)
+        except RocketConflict as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+        journal.append("rocket.mission.declared", {
+            "mission_id": result["id"], "mission_sha256": result["mission_sha256"],
+            "parent_id": result["parent_id"], "mode": result["mode"],
+        })
+        return result
+
+    @app.post("/api/rockets/missions/{mission_id}/prepare")
+    def rocket_prepare(mission_id: int, request: Request):
+        _creator_write_guard(request)
+        try:
+            result = rocket_desk.prepare(mission_id)
+        except (RocketConflict, OSError) as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+        journal.append("rocket.stage.prepared", {
+            "mission_id": mission_id, "stage_sha256": result["sha256"],
+        })
+        return result
+
+    @app.post("/api/rockets/missions/{mission_id}/execute")
+    def rocket_execute(mission_id: int, payload: RocketAdvanceInput, request: Request):
+        _creator_write_guard(request)
+        try:
+            result = rocket_desk.execute(mission_id, payload.expected_stage_sha256)
+        except (RocketConflict, OSError) as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+        journal.append("rocket.stage.executed", {
+            "mission_id": mission_id, "stage_sha256": result["sha256"],
+            "tool": result["output"]["tool"],
+        })
+        return result
+
+    @app.post("/api/rockets/missions/{mission_id}/separate")
+    def rocket_separate(mission_id: int, payload: RocketSeparateInput, request: Request):
+        _creator_write_guard(request)
+        try:
+            result = rocket_desk.separate(mission_id, payload)
+        except RocketConflict as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+        journal.append("rocket.stage.separated", {
+            "mission_id": mission_id, "stage_sha256": result["sha256"],
         })
         return result
 
