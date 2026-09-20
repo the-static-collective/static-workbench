@@ -133,9 +133,61 @@
       filter.appendChild(option);
     }
     filter.value = ["all",...dimensions].includes(dimension) ? dimension : "all";
+    const transfer = document.createElement("section");
+    transfer.className = "card attention-transfer";
+    const transferTitle = document.createElement("h2");
+    transferTitle.textContent = "Bring an attention crossing home";
+    const help = document.createElement("p");
+    help.className = "muted";
+    help.textContent = "Paste one explicitly exported GOATnote or Static Live handoff. Review its self-reported source and fingerprint before importing a local copy.";
+    const input = document.createElement("textarea");
+    input.rows = 5; input.maxLength = 8192;
+    input.placeholder = "Paste attention-crossing.handoff/v0.1 JSON";
+    input.setAttribute("aria-label", "Attention handoff JSON");
+    const review = document.createElement("button");
+    review.type = "button"; review.textContent = "Preview exact handoff";
+    const save = document.createElement("button");
+    save.type = "button"; save.textContent = "Import reviewed copy"; save.disabled = true;
+    const feedback = document.createElement("div");
+    feedback.setAttribute("role", "status"); feedback.className = "muted tiny";
+    let reviewed = null;
+    input.addEventListener("input", () => {reviewed = null;save.disabled = true;feedback.textContent = "Preview required after any change.";});
+    review.addEventListener("click", async () => {
+      reviewed = null;save.disabled = true;
+      try {
+        const token = await session();
+        const body = await api("/api/attention/import/preview", {
+          method:"POST", headers:{"Content-Type":"application/json","x-workbench-session":token},
+          body:JSON.stringify({raw_json:input.value})
+        });
+        reviewed = {raw:input.value, sha:body.raw_sha256};
+        const h = body.handoff;
+        feedback.textContent = h.source_app + " · " + h.source_locator + " · " +
+          (h.explicit_none ? "explicit none" : h.dimensions.join(" / ") || "unmarked") +
+          " · declared " + h.source_recorded_at + " · SHA-256 " + body.raw_sha256 +
+          " · self-reported source; not independently verified.";
+        save.disabled = false;
+      } catch(error) {feedback.textContent = error.message;}
+    });
+    save.addEventListener("click", async () => {
+      if (!reviewed || reviewed.raw !== input.value) {save.disabled = true;return;}
+      save.disabled = true;
+      try {
+        const token = await session();
+        const body = await api("/api/attention/import/save", {
+          method:"POST",headers:{"Content-Type":"application/json","x-workbench-session":token},
+          body:JSON.stringify({raw_json:reviewed.raw,expected_sha256:reviewed.sha})
+        });
+        feedback.textContent = body.duplicate ? "Already imported as local receipt #" + body.import.import_id :
+          "Imported as local receipt #" + body.import.import_id + ". Source-owned declaration remains separate.";
+        reviewed = null;
+        await draw();
+      } catch(error) {feedback.textContent = error.message;}
+    });
+    transfer.append(transferTitle,help,input,review,save,feedback);
     const list = document.createElement("div");
     list.className = "attention-shelf";
-    host.append(note, filter, list);
+    host.append(note,transfer,filter,list);
     async function draw() {
       list.textContent = "Loading local attention shelf…";
       try {
@@ -145,9 +197,12 @@
         if (!feed.entries.length) {
           const empty = document.createElement("p");
           empty.className = "muted";
-          empty.textContent = "No current declarations in this filter.";
+          empty.textContent = "No Workbench-originated declarations in this filter.";
           list.appendChild(empty);
         }
+        const localHeading=document.createElement("h2");
+        localHeading.textContent="Workbench-originated crossings";
+        list.appendChild(localHeading);
         for (const record of feed.entries) {
           const card = document.createElement("article");
           card.className = "card attention-shelf-card";
@@ -161,6 +216,32 @@
           card.append(heading, detail);
           list.appendChild(card);
           mount(card, {kind:record.kind, id:record.target_id, context:record.context});
+        }
+        const imported = await api("/api/attention/imports?" +
+          new URLSearchParams({dimension:filter.value,limit:"100"}));
+        const importedHeading = document.createElement("h2");
+        importedHeading.textContent = "Returned crossings · source-owned, imported copies";
+        list.appendChild(importedHeading);
+        if (!imported.entries.length) {
+          const empty = document.createElement("p");empty.className = "muted";
+          empty.textContent = "No reviewed external handoffs for this filter.";
+          list.appendChild(empty);
+        }
+        for (const entry of imported.entries) {
+          const h=entry.handoff;
+          const card=document.createElement("article");
+          card.className="card attention-shelf-card";
+          const heading=document.createElement("strong");
+          heading.textContent=h.label;
+          const detail=document.createElement("p");detail.className="muted tiny";
+          detail.textContent=h.source_app+" · "+h.source_locator+" · declared "+h.source_recorded_at+
+            " · imported "+new Date(entry.imported_at).toLocaleString();
+          const mark=document.createElement("p");mark.className="muted";
+          mark.textContent=h.explicit_none?"Explicitly none":h.dimensions.join(" / ")||"Unmarked revision";
+          const boundary=document.createElement("p");boundary.className="muted tiny";
+          boundary.textContent="Self-reported export · Workbench import #"+entry.import_id+
+            " · NOT a Workbench-originated declaration or verified source observation.";
+          card.append(heading,detail,mark,boundary);list.appendChild(card);
         }
       } catch (error) { list.textContent = error.message; }
     }
