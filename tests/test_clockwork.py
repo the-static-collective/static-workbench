@@ -58,6 +58,7 @@ def test_text_arithmetic_and_explicit_search_limits():
     with pytest.raises(ValueError):
         els_matches("אבגד", "א", max_skip=2)
 
+
 def test_cli_clicks_three_abstract_ticks(monkeypatch, capsys):
     from static_workbench.clockwork import main
     monkeypatch.setattr(sys, "argv", ["clockwork", "--tick", "960", "--steps", "3"])
