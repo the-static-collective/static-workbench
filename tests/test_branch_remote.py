@@ -142,7 +142,8 @@ def test_full_page_sets_uncertainty_not_complete(monkeypatch, tmp_path: Path):
                     for i in range(100)]
     def request(path: str):
         if "/branches?" in path:
-            return branch_items
+            return ([{"name": f"feat/m-{i}", "commit": {"sha": "d" * 40}}
+                     for i in range(100)] if "page=2" in path else branch_items)
         return []
     monkeypatch.setattr("static_workbench.branch_remote._github_json", request)
     status = discover_repositories(config.roots)[0]
