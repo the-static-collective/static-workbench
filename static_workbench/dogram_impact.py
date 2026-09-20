@@ -183,12 +183,17 @@ def run_impact(
         _materialize(repo, preview["candidate_commit"], candidate)
         try:
             proc = subprocess.run(
-                [sys.executable, "-I", "-c", _DOGRAM_SCRIPT, str(dogram), str(baseline), str(candidate)],
+                [sys.executable, "-I", "-B", "-c", _DOGRAM_SCRIPT, str(dogram), str(baseline), str(candidate)],
                 capture_output=True, timeout=20, check=False,
-                env={**os.environ, "PYTHONNOUSERSITE": "1"},
+                env={**os.environ, "PYTHONNOUSERSITE": "1", "PYTHONDONTWRITEBYTECODE": "1"},
             )
         except (OSError, subprocess.TimeoutExpired) as exc:
             raise ImpactDeskError("Dogram invocation failed or timed out") from exc
+    if (
+        str(_git(dogram, "rev-parse", "--verify", "HEAD^{commit}")) != expected_dogram_commit
+        or _git(dogram, "status", "--porcelain=v1", "--untracked-files=normal")
+    ):
+        raise ImpactDeskError("Dogram checkout changed during calculation")
     if proc.returncode or len(proc.stdout) > 1_000_000:
         raise ImpactDeskError("Dogram calculation refused or exceeded its output limit")
     try:
