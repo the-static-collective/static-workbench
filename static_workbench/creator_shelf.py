@@ -436,7 +436,8 @@ class CreatorShelf:
             # BEGIN IMMEDIATE prevents competing writers from both seeing the same head.
             db.execute("BEGIN IMMEDIATE")
             parent = db.execute(
-                """SELECT revision,digest,payload_json FROM house_graft_draft_revisions
+                """SELECT candidate_sha256,revision,created_at,digest,parent_digest,payload_json
+                FROM house_graft_draft_revisions
                 WHERE candidate_sha256=? ORDER BY revision DESC LIMIT 1""",
                 (candidate_sha256,),
             ).fetchone()
