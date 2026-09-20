@@ -23,6 +23,7 @@ from .maxhinal_dock import parse_ride
 from .native_maxhinal import preview_fuels, spin, FuelConflict
 from .broadcast import broadcast_door
 from .journal import Journal, SenseFieldRecord
+from .return_desk import ReturnDesk, ReturnConflict, NoteInput, SessionInput, CheckpointInput
 from .house import build_house_status
 from .machine import sample_machine
 from .paths import PathOutsideRoot, resolve_under_root
@@ -129,6 +130,7 @@ def create_app(config: WorkbenchConfig | None = None) -> FastAPI:
     config = config or load_config()
     journal = Journal(config.state_dir / "workbench.sqlite3")
     creator_shelf = CreatorShelf(config.state_dir / "creator.sqlite3")
+    return_desk = ReturnDesk(config.state_dir / "return.sqlite3")
     session_token = secrets.token_urlsafe(32)
 
     @asynccontextmanager
@@ -140,6 +142,7 @@ def create_app(config: WorkbenchConfig | None = None) -> FastAPI:
     app.state.config = config
     app.state.journal = journal
     app.state.creator_shelf = creator_shelf
+    app.state.return_desk = return_desk
     app.state.session_token = session_token
 
     web_dir = Path(__file__).resolve().parent / "web"
@@ -208,6 +211,67 @@ def create_app(config: WorkbenchConfig | None = None) -> FastAPI:
         token = request.headers.get("x-workbench-session", "")
         if not secrets.compare_digest(token, session_token):
             raise HTTPException(status_code=403, detail="creator write requires a local session token")
+
+
+    # Return Desk is Workbench-owned local writing, not a GOATnote protocol
+    # or a claim that a project checkout has been modified.
+    @app.get("/api/return/notes")
+    def return_notes():
+        return {"notes": return_desk.list_notes()}
+
+    @app.get("/api/return/notes/{note_id}")
+    def return_note(note_id: int):
+        note = return_desk.get_note(note_id)
+        if note is None:
+            raise HTTPException(status_code=404, detail="note not found")
+        return note
+
+    @app.post("/api/return/notes")
+    def return_note_save(payload: NoteInput, request: Request):
+        _creator_write_guard(request)
+        try:
+            result = return_desk.save_note(payload)
+        except ReturnConflict as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        journal.append("return.note.saved", {"note_id": result["id"], "sha256": result["sha256"]})
+        return result
+
+    @app.get("/api/return/sessions")
+    def return_sessions():
+        return {"sessions": return_desk.list_sessions()}
+
+    @app.get("/api/return/sessions/{session_id}")
+    def return_session(session_id: int):
+        result = return_desk.get_session(session_id)
+        if result is None:
+            raise HTTPException(status_code=404, detail="session not found")
+        return result
+
+    @app.post("/api/return/sessions")
+    def return_session_save(payload: SessionInput, request: Request):
+        _creator_write_guard(request)
+        try:
+            result = return_desk.create_session(payload)
+        except ReturnConflict as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+        journal.append("return.session.opened", {
+            "session_id": result["id"], "note_id": result["note_id"],
+            "checkpoint_sha256": result["checkpoint"]["sha256"],
+        })
+        return result
+
+    @app.post("/api/return/sessions/{session_id}/checkpoints")
+    def return_checkpoint_save(session_id: int, payload: CheckpointInput, request: Request):
+        _creator_write_guard(request)
+        try:
+            result = return_desk.save_checkpoint(session_id, payload)
+        except ReturnConflict as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+        journal.append("return.session.checkpointed", {
+            "session_id": session_id, "revision": result["revision"],
+            "checkpoint_sha256": result["sha256"],
+        })
+        return result
 
     @app.post("/api/dogram/impact/preview")
     def dogram_impact_preview(payload: DogramImpactRequest, request: Request):
