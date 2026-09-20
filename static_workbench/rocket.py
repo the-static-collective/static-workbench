@@ -341,12 +341,32 @@ class RocketDesk:
             result.add(tuple(fields))
         return result
 
+    def _native_source(self, mission: dict) -> dict:
+        """An exact Creator-owned record, never a repurposed repository identity."""
+        if self.creator_shelf is None or mission["mode"] != "creator-seed-preview":
+            raise RocketConflict("Creator seed adapter is not configured")
+        native = self.creator_shelf.get_rocket_seed(mission["creator_seed_id"])
+        if native is None or native["content_sha256"] != mission["expected_creator_sha256"]:
+            raise RocketConflict("Creator seed unavailable or changed; reopen its exact source")
+        return {
+            "owner": "static-workbench/Creator Desk",
+            "native_seed_id": native["id"],
+            "native_content_sha256": native["content_sha256"],
+            "parent_effect_sha256": mission["parent_sha256"],
+        }
+
     def prepare(self, mission_id: int) -> dict:
         with self._connect() as db:
             db.execute("BEGIN IMMEDIATE")
             mission = self._mission(db, mission_id)
             if self._stages(db, mission_id):
                 raise RocketConflict("mission has already prepared; stage receipts cannot be replaced")
+            if mission["mode"] == "creator-seed-preview":
+                return self._append(db, mission, 1, "prepare", None, {
+                    "tool": "creator.seed.snapshot/v0",
+                    "source": self._native_source(mission),
+                    "effect": "read-only", "authority": "none",
+                })
             observed = [self._observe(s) for s in mission["selections"]]
             return self._append(db, mission, 1, "prepare", None, {
                 "tool": "repo.snapshot/v0", "sources": observed, "effect": "read-only",
@@ -360,6 +380,23 @@ class RocketDesk:
             stages = self._stages(db, mission_id)
             if len(stages) != 1 or stages[0]["sha256"] != expected_stage_sha256:
                 raise RocketConflict("prepare receipt is missing, stale, or already consumed")
+            if mission["mode"] == "creator-seed-preview":
+                source = self._native_source(mission)
+                if source != stages[0]["output"]["source"]:
+                    raise RocketConflict("prepared Creator seed identity changed")
+                native = self.creator_shelf.get_rocket_seed(source["native_seed_id"])
+                body = native["body"]
+                result = {
+                    "tool": "creator.seed.preview/v0",
+                    "source": source,
+                    "excerpt": body[:4000],
+                    "truncated": len(body) > 4000,
+                    "authority": "none",
+                }
+                if source != self._native_source(mission):
+                    raise RocketConflict("Creator seed identity changed during read")
+                return self._append(db, mission, 2, "execute",
+                                    stages[-1]["sha256"], result)
             observed = [self._observe(s) for s in mission["selections"]]
             if observed != stages[0]["output"]["sources"]:
                 raise RocketConflict("prepared source observation changed; start a fresh mission")
@@ -440,8 +477,8 @@ class RocketDesk:
             db.execute("BEGIN IMMEDIATE")
             mission = self._mission(db, mission_id)
             stages = self._stages(db, mission_id)
-            if mission["mode"] != "source-preview" or len(stages) != 3:
-                raise RocketConflict("only a completed source-preview rocket can save a Creator seed")
+            if mission["mode"] not in {"source-preview", "creator-seed-preview"} or len(stages) != 3:
+                raise RocketConflict("only a completed source-preview or Creator seed rocket may save another seed")
             if stages[-1]["sha256"] != payload.expected_stage_sha256:
                 raise RocketConflict("separation receipt changed; review and authorize again")
             if db.execute("SELECT 1 FROM rocket_missions WHERE parent_id=? LIMIT 1", (mission_id,)).fetchone():
@@ -459,12 +496,18 @@ class RocketDesk:
                     raise RocketConflict("rocket effect is already committed with a different payload")
                 return self._effect_from_row(previous)
             source = stages[1]["output"]["source"]
-            if stages[1]["output"]["tool"] != "source.preview/v0":
-                raise RocketConflict("creator seed requires exact source preview")
-            observed = self._observe(mission["selections"][0])
-            reread = self._read_source(observed, mission["source_path"])
-            if reread["file_sha256"] != source["file_sha256"]:
-                raise RocketConflict("selected source bytes changed after preview")
+            if mission["mode"] == "creator-seed-preview":
+                if stages[1]["output"]["tool"] != "creator.seed.preview/v0":
+                    raise RocketConflict("native Creator seed preview is not available")
+                if self._native_source(mission) != source:
+                    raise RocketConflict("selected native seed identity changed after preview")
+            else:
+                if stages[1]["output"]["tool"] != "source.preview/v0":
+                    raise RocketConflict("creator seed requires exact source preview")
+                observed = self._observe(mission["selections"][0])
+                reread = self._read_source(observed, mission["source_path"])
+                if reread["file_sha256"] != source["file_sha256"]:
+                    raise RocketConflict("selected source bytes changed after preview")
             native_payload = {
                 "schema": "creator.rocket-seed/v0",
                 "title": payload.title,
