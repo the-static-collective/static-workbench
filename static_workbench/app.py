@@ -18,6 +18,7 @@ from fastapi.staticfiles import StaticFiles
 
 from . import __version__
 from .aperture import analyze_aperture
+from .attention import attention_router
 from .config import RootConfig, WorkbenchConfig, load_config
 from .dogram_impact import ImpactDeskError, preview_impact, run_impact, read_report
 from .graft_witness import GraftWitnessError, preview as preview_graft, measure as measure_graft
@@ -206,6 +207,7 @@ def create_app(config: WorkbenchConfig | None = None) -> FastAPI:
     app.state.creator_shelf = creator_shelf
     app.state.moment_inbox = moment_inbox
     app.state.session_token = session_token
+    app.include_router(attention_router(config.state_dir, session_token))
 
     web_dir = Path(__file__).resolve().parent / "web"
     app.mount("/assets", StaticFiles(directory=web_dir), name="assets")
