@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="color-scheme" content="dark"><title>Book of Machines / STATIC</title>
+<link rel="stylesheet" href="/assets/styles.css">
+<style>
+.book-shell{max-width:1140px;margin:0 auto;padding:20px;display:grid;gap:15px}
+.book-grid{display:grid;grid-template-columns:minmax(260px,1fr) minmax(0,2fr);gap:16px}
+.book-form{display:grid;gap:9px}
+.book-form textarea{width:100%;min-height:90px;background:#0f1512;color:var(--ink);border:1px solid var(--line);border-radius:8px;padding:10px;font:inherit}
+.book-form label{display:grid;gap:5px;font-size:12px;color:var(--muted)}
+.book-controls{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.book-plate{padding:14px;border:1px solid #b79e67;background:#e8d7ac;color:#433b2a;border-radius:9px;margin:10px 0}
+.book-plate h3{color:#322c20;margin:4px 0;font-family:Georgia,serif;font-size:20px}
+.book-plate p{margin:5px 0}
+.book-plate small{color:#665943;overflow-wrap:anywhere}
+.book-ports{display:flex;justify-content:space-between;border-block:1px solid #aa9262;padding:9px 2px;margin:8px 0;gap:8px;font-size:12px}
+.book-board{display:flex;align-items:stretch;gap:8px;overflow-x:auto;padding:15px 5px}
+.book-tile{flex:0 0 170px;min-height:130px;border:2px solid #a38d60;background:#e8d7ac;color:#403629;border-radius:9px;padding:10px;display:grid;gap:6px}
+.book-tile strong{font:19px Georgia,serif}
+.book-tile small{overflow-wrap:anywhere}
+.book-gap{border-color:var(--amber);background:#463a23;color:#f7dfaf;border-radius:7px;padding:12px;min-width:165px;white-space:pre-wrap}
+.book-section{display:grid;gap:8px}
+.book-line{border-left:3px solid var(--line);padding:8px;background:var(--panel-2);display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap}
+.book-compact{font-size:11px;color:var(--muted);overflow-wrap:anywhere}
+@media(max-width:740px){.book-grid{grid-template-columns:1fr}.book-shell{padding:10px}}
+</style>
+</head>
+<body>
+<header class="topbar">
+ <div><div class="brand">THE BOOK OF MACHINES</div><div class="subbrand">Da Vinci plates / domino grammar / exact join</div></div>
+ <div class="book-controls"><a class="quiet-button" href="/maddloop">MADDLOOP</a><a class="quiet-button" href="/">Workbench</a></div>
+</header>
+<main class="book-shell">
+ <div class="notice">EXPERIMENTAL / LOCAL: each folio freezes a human-authored MADDLOOP revision. Lay folios end-to-end to inspect exact joins; matching labels do not execute any project action. This is an invention notebook, not an autonomous factory.</div>
+ <div id="feedback" class="notice" role="status" aria-live="polite">Connecting…</div>
+ <div class="book-grid">
+ <section class="card book-section">
+  <div class="eyebrow">01 / INSCRIBE A MACHINE</div>
+  <h2>Make a folio from a loop</h2>
+  <form id="folio-form" class="book-form">
+   <label>Choose a recorded loop<select id="loop-select" name="loop_id" required><option value="">Loading loops…</option></select></label>
+   <div id="source-note" class="book-compact">Select a source loop to inspect its current revision.</div>
+   <label>Folio title<input name="title" maxlength="100" required placeholder="The listening hinge"></label>
+   <label>What is this machine meant to do?<textarea name="purpose" maxlength="1200" required placeholder="Describe the mechanism, what is known, and what remains speculative."></textarea></label>
+   <button class="action-button" type="submit" id="inscribe" disabled>Inscribe folio</button>
+  </form>
+  <div class="eyebrow">02 / THE BOOK</div>
+  <div id="folios" class="book-section"><div class="muted">No folios yet.</div></div>
+ </section>
+ <section class="card book-section">
+  <div class="eyebrow">03 / LAY THE DOMINOES</div>
+  <h2>Compose a mechanical sentence</h2>
+  <div class="muted tiny">Add two to eight folios in order. Repetition is allowed. The exact output port of each page must meet the exact input port of the next.</div>
+  <div id="board" class="book-board"><div class="empty-state">Choose a folio and add it to the board.</div></div>
+  <div class="book-controls">
+   <button type="button" class="quiet-button" id="clear">Clear board</button>
+   <button type="button" class="quiet-button" id="remove">Remove last</button>
+  </div>
+  <div id="passage" class="notice">Lay at least two folios to inspect the joins.</div>
+  <form id="board-form" class="book-form">
+    <label>Name this arrangement<input name="title" maxlength="100" required placeholder="The first mechanical sentence"></label>
+    <button type="submit" id="save-board" class="action-button" disabled>Preserve this arrangement</button>
+  </form>
+  <div class="eyebrow">04 / FROZEN ARRANGEMENTS</div>
+  <div id="boards" class="book-section"><div class="muted">No arrangements yet.</div></div>
+ </section>
+ </div>
+</main>
+<script src="/assets/machines.js" defer></script>
+</body>
+</html>
