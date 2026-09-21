@@ -223,6 +223,7 @@ function creatorV2RenderShelf() {
   const gaps = el('textarea'); gaps.rows = 3; gaps.maxLength = 4000;
   gaps.placeholder = 'Unresolved questions and gaps (optional)';
   gaps.setAttribute('aria-label', 'Unresolved gaps'); gaps.value = s.draft?.gaps || '';
+  editor.appendChild(creatorContextDoor(pack, s, { title, kind, body, assumptions, gaps }));
   const save = el('button', 'action-button', 'Save new local revision'); save.type = 'submit';
   const fresh = el('button', 'quiet-button', 'Start another draft from this pack'); fresh.type = 'button';
   fresh.addEventListener('click', () => { s.draft = null; s.linkedRideId = undefined; creatorV2RenderShelf(); });
