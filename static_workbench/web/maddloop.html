@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="color-scheme" content="dark"><title>MADDLOOP / Workbench</title>
+  <link rel="stylesheet" href="/assets/styles.css">
+  <style>
+    .loop-shell{max-width:1080px;margin:auto;padding:24px;display:grid;gap:18px}
+    .loop-grid{display:grid;grid-template-columns:minmax(210px,1fr) minmax(0,2fr);gap:16px}
+    .loop-field{display:grid;gap:5px;color:var(--muted);font-size:12px;margin:10px 0}
+    .loop-field textarea{width:100%;min-height:80px;background:#0f1512;color:var(--ink);
+      border:1px solid var(--line);border-radius:8px;padding:10px;font:inherit}
+    .loop-buttons{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0}
+    .loop-layer{border-left:3px solid var(--green-dim);padding:8px 12px;margin:10px 0;
+      background:var(--panel-2);overflow-wrap:anywhere}
+    .loop-layer pre{white-space:pre-wrap;overflow-wrap:anywhere}
+    .loop-gap{border-left-color:var(--amber)}
+    .loop-fieldset{border:1px solid var(--line);border-radius:9px;padding:12px;margin:10px 0}
+    .loop-notice{white-space:pre-wrap;overflow-wrap:anywhere}
+    @media(max-width:720px){.loop-grid{grid-template-columns:1fr}.loop-shell{padding:12px}}
+  </style>
+</head>
+<body>
+  <header class="topbar"><div><div class="brand">MADDLOOP / 001</div>
+    <div class="subbrand">Capture a passage. Overdub a possibility. Preview a new encounter.</div>
+    </div><a class="quiet-button" href="/">← Workbench</a></header>
+  <main class="loop-shell">
+    <section class="notice">LOCAL / EXPERIMENTAL. This pedal records human-entered sketches and
+    replays them as read-only previews. It cannot run project actions, play audio, publish,
+    or impersonate historical participants. A matched route is not execution authority.</section>
+    <div id="feedback" class="notice loop-notice" role="status" aria-live="polite">Connecting…</div>
+    <div class="loop-grid">
+      <section class="card">
+        <h2>Loops</h2>
+        <label class="loop-field">Choose a loop<select id="loop-select"><option value="">No loop selected</option></select></label>
+        <form id="create-form">
+          <h2>Record a new loop</h2>
+          <label class="loop-field">Loop name<input name="title" maxlength="100" required placeholder="First crossing"></label>
+          <label class="loop-field">First layer name<input name="label" maxlength="100" required placeholder="An idea arrives"></label>
+          <label class="loop-field">First layer content<textarea name="body" maxlength="2000" required placeholder="What happened, what could happen, or what was said…"></textarea></label>
+          <button class="action-button" type="submit">● REC · Create loop</button>
+        </form>
+      </section>
+      <section class="card">
+        <div class="eyebrow">CURRENT ARRANGEMENT</div><h2 id="loop-title">Choose or record a loop</h2>
+        <div id="loop-meta" class="muted tiny">No source selected.</div>
+        <div class="loop-buttons">
+          <button class="action-button" id="play" type="button" disabled>▶ PLAY · New preview encounter</button>
+          <button class="action-button" id="loop-start" type="button" disabled>⟳ LOOP · 8 preview passes max</button>
+          <button class="quiet-button" id="loop-stop" type="button" disabled>■ STOP</button>
+          <label class="loop-field">Cycle every <input id="loop-seconds" type="number" min="2" max="60" step="1" value="4"> seconds</label>
+          <button class="quiet-button" id="branch" type="button" disabled>⑂ BRANCH</button>
+          <button class="quiet-button" id="refresh" type="button">Refresh</button>
+        </div>
+        <div id="passage" class="notice">The exact join check appears here.</div>
+        <div id="layers"></div>
+        <form id="overdub-form">
+          <h2>+ Overdub another layer</h2>
+          <label class="loop-field">Layer name<input name="label" maxlength="100" required></label>
+          <label class="loop-field">Layer content<textarea name="body" maxlength="2000" required></textarea></label>
+          <label class="loop-field">Material type<select name="kind">
+            <option value="text">Text / idea</option><option value="action_sketch">Action sketch — never executed</option>
+            <option value="historical_message">Historical message — not live presence</option>
+            <option value="media_reference">Media reference — not media playback</option>
+          </select></label>
+          <details><summary>Advanced: exact join ports</summary>
+            <div class="muted tiny">The previous output port must equal this layer's input port. Matching
+            abstract classes alone will not satisfy the concrete join.</div>
+            <fieldset class="loop-fieldset">
+              <label class="loop-field">Input class<input name="input_class" value="note" maxlength="80"></label>
+              <label class="loop-field">Input port<input name="input_port" value="note" maxlength="80"></label>
+              <label class="loop-field">Output class<input name="output_class" value="note" maxlength="80"></label>
+              <label class="loop-field">Output port<input name="output_port" value="note" maxlength="80"></label>
+            </fieldset>
+          </details>
+          <button class="action-button" type="submit" id="overdub" disabled>＋ OVERDUB · Preserve previous revision</button>
+        </form>
+        <h2>Encounter receipts</h2><div id="encounters" class="muted">No encounters yet.</div>
+      </section>
+    </div>
+  </main>
+  <script src="/assets/maddloop.js" defer></script>
+</body>
+</html>
