@@ -46,6 +46,9 @@
         <div id="loop-meta" class="muted tiny">No source selected.</div>
         <div class="loop-buttons">
           <button class="action-button" id="play" type="button" disabled>▶ PLAY · New preview encounter</button>
+          <button class="action-button" id="loop-start" type="button" disabled>⟳ LOOP · 8 preview passes max</button>
+          <button class="quiet-button" id="loop-stop" type="button" disabled>■ STOP</button>
+          <label class="loop-field">Cycle every <input id="loop-seconds" type="number" min="2" max="60" step="1" value="4"> seconds</label>
           <button class="quiet-button" id="branch" type="button" disabled>⑂ BRANCH</button>
           <button class="quiet-button" id="refresh" type="button">Refresh</button>
         </div>
