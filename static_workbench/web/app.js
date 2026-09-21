@@ -99,7 +99,7 @@ function renderHouse() {
   workspaceBody.appendChild(hero);
   workspaceBody.appendChild(branchDeckTeaser());
   const launch = el('button', 'action-card');
-  launch.append(el('strong', '', 'Start the STATIC OS train'), el('span', 'muted', 'Open the staged first-run plan, exact source setup and independent VM gates.'));
+  launch.append(el('strong', '', 'Start using Workbench'), el('span', 'muted', 'Open your first-use flight board, available creative desks, local organ inventory and separately gated STATIC OS experiments.'));
   launch.addEventListener('click', () => renderLaunchpad().catch(showError));
   workspaceBody.appendChild(launch);
 
