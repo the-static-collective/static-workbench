@@ -36,6 +36,16 @@ shared world, project-native execution, or an automatic source of project author
 Normal Workbench works without entering the game. See
 [STATIC-ARG-001 scope and first-use guide](docs/static-arg-first-door-001.md).
 
+## STATIC ARG / World Entry 001 (experimental)
+
+A composed World now has an **Enter World** doorway on its ARG collection card.
+It opens a four-location, source-linked fictional world: Threshold, Workshop,
+Seed Garden, and a Return Archive that unlocks after examining the first three
+objects. Room visits and source-linked discoveries survive Workbench restart
+in the existing local ARG SQLite database. This is manual, local-only game
+navigation, not project execution, shared multiplayer, or Full Measure
+admission. See [World Entry play guide](docs/static-arg-world-entry-002.md).
+
 ## HumanTerminal / APERTURE v0.1
 
 > **Status: ACTIVE / EXPERIMENTAL.** This is a live Workbench development surface and the current HumanTerminal intake frontier. It is intentionally non-canonical: active means we are using and testing it, not that APERTURE/TRIAD has been promoted into ecosystem-wide law.
