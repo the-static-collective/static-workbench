@@ -1,0 +1,32 @@
+/* CREATOR-CONTEXT-DOOR-001: optional local draft composition controls. */
+.creator-context-door {
+  display: grid;
+  gap: .7rem;
+  margin: 1rem 0;
+  padding: 1rem;
+  border: 1px solid var(--line, rgba(160, 177, 190, .35));
+  border-radius: .7rem;
+}
+.creator-context-door h3 { margin: .15rem 0; }
+.creator-context-door p { margin: 0; }
+.creator-context-source {
+  display: flex;
+  align-items: flex-start;
+  gap: .7rem;
+  cursor: pointer;
+  padding: .55rem .65rem;
+  border: 1px solid var(--line, rgba(160, 177, 190, .25));
+  border-radius: .45rem;
+  overflow-wrap: anywhere;
+}
+.creator-context-source input { margin-top: .15rem; flex: none; width: 1.1rem; height: 1.1rem; }
+.creator-context-source span { min-width: 0; font-size: .86rem; }
+.creator-context-door .creator-actions { display: flex; gap: .5rem; flex-wrap: wrap; }
+.creator-context-door button { min-height: 2.75rem; }
+.creator-context-preview { display: grid; gap: .45rem; }
+.creator-context-preview:empty { display: none; }
+.creator-context-preview .notice { margin: .3rem 0; }
+@media (max-width: 430px) {
+  .creator-context-door { padding: .7rem; }
+  .creator-context-door .creator-actions button { width: 100%; }
+}

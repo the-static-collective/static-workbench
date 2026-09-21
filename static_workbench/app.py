@@ -37,6 +37,7 @@ from .living_main import CompositionError, preview_composition
 from .relation_chamber import RelationError, preview_relation
 from .house import build_house_status
 from .launchpad import launchpad_router
+from .arrival import diagnose as diagnose_arrival
 from .mirror import mirror_router
 from .groundkeeper import make_receipt as groundkeeper_first_ignition
 from .machine import sample_machine
@@ -322,6 +323,11 @@ def create_app(config: WorkbenchConfig | None = None) -> FastAPI:
             "gaps": observed["gaps"],
         })
         return observed
+
+    @app.get("/api/arrival")
+    def arrival_inventory():
+        """Read-only observed checkouts; does not install, select or authorize organs."""
+        return diagnose_arrival(config, repos=discover_repositories(config.roots, config.max_repo_depth))
 
     @app.get("/api/house")
     def house():
