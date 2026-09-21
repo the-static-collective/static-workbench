@@ -10,6 +10,7 @@ from typing import Literal
 from pydantic import BaseModel, Field
 from .maddloop import MaddloopStore, LoopConflict, LoopMissing
 from .machine_book import MachineBook, BookMissing, BookConflict
+from .first_door import FirstDoor, ArgConflict, ArgMissing
 
 import uvicorn
 from fastapi import FastAPI, HTTPException, Query, Request
@@ -59,6 +60,29 @@ from .schemas import (
     LivingMomentImportRequest,
     LivingMomentDraftRequest,
 )
+
+
+class ArgSeedInput(BaseModel):
+    title: str = Field(min_length=1, max_length=100)
+    text: str = Field(min_length=1, max_length=1200)
+
+
+class ArgMachineInput(BaseModel):
+    title: str = Field(min_length=1, max_length=100)
+    first_id: str = Field(min_length=32, max_length=32)
+    second_id: str = Field(min_length=32, max_length=32)
+
+
+class ArgWorldInput(BaseModel):
+    title: str = Field(min_length=1, max_length=100)
+    machine_id: str = Field(min_length=32, max_length=32)
+    seed_id: str = Field(min_length=32, max_length=32)
+    rule: str = Field(min_length=1, max_length=1200)
+
+
+class ArgDoorInput(BaseModel):
+    world_id: str = Field(min_length=32, max_length=32)
+    door: Literal["house", "maddloop", "machines"]
 
 
 class FolioCreateInput(BaseModel):
@@ -193,6 +217,7 @@ def create_app(config: WorkbenchConfig | None = None) -> FastAPI:
     moment_inbox = MomentInbox(config.state_dir / "lifestream.sqlite3", config)
     maddloop = MaddloopStore(config.state_dir / "maddloop.sqlite3")
     machine_book = MachineBook(config.state_dir / "machine_book.sqlite3", config.state_dir / "maddloop.sqlite3")
+    first_door = FirstDoor(config.state_dir / "static_arg.sqlite3")
     session_token = secrets.token_urlsafe(32)
 
     @asynccontextmanager
@@ -222,6 +247,10 @@ def create_app(config: WorkbenchConfig | None = None) -> FastAPI:
     @app.get("/", include_in_schema=False)
     def index():
         return FileResponse(web_dir / "index.html")
+
+    @app.get("/arg", include_in_schema=False)
+    def static_arg_page():
+        return FileResponse(web_dir / "arg.html")
 
     @app.get("/lifestream", include_in_schema=False)
     def lifestream_page():
@@ -342,6 +371,59 @@ def create_app(config: WorkbenchConfig | None = None) -> FastAPI:
         _creator_write_guard(request)
         result = _madd_call(lambda: maddloop.encounter(loop_id, payload.expected_revision_id))
         journal.append("maddloop.preview_encounter", {"loop_id": loop_id, "encounter_id": result["id"], "status": result["status"]})
+        return result
+
+    # STATIC-ARG-001: opt-in Workbench-local fiction; no external project effects.
+    def _arg_call(action):
+        try:
+            return action()
+        except ArgMissing as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+        except ArgConflict as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+    @app.get("/api/arg/state")
+    def arg_state():
+        return first_door.state()
+
+    @app.post("/api/arg/enter")
+    def arg_enter(request: Request):
+        _creator_write_guard(request)
+        return first_door.enter()
+
+    @app.post("/api/arg/seeds")
+    def arg_seed(payload: ArgSeedInput, request: Request):
+        _creator_write_guard(request)
+        result = _arg_call(lambda: first_door.seed(payload.title, payload.text))
+        journal.append("arg.seed.created", {"artifact_id": result["id"]})
+        return result
+
+    @app.post("/api/arg/machines")
+    def arg_machine(payload: ArgMachineInput, request: Request):
+        _creator_write_guard(request)
+        result = _arg_call(lambda: first_door.machine(
+            payload.title, payload.first_id, payload.second_id
+        ))
+        journal.append("arg.machine.composed", {"artifact_id": result["id"]})
+        return result
+
+    @app.post("/api/arg/worlds")
+    def arg_world(payload: ArgWorldInput, request: Request):
+        _creator_write_guard(request)
+        result = _arg_call(lambda: first_door.world(
+            payload.title, payload.machine_id, payload.seed_id, payload.rule
+        ))
+        journal.append("arg.world.composed", {"artifact_id": result["id"]})
+        return result
+
+    @app.post("/api/arg/cross")
+    def arg_cross(payload: ArgDoorInput, request: Request):
+        _creator_write_guard(request)
+        result = _arg_call(lambda: first_door.cross(payload.world_id, payload.door))
+        journal.append("arg.door.visited", {
+            "encounter_id": result["id"], "source_id": result["source_id"],
+            "door": result["door"],
+        })
         return result
 
     @app.get("/api/bootstrap", response_model=BootstrapResponse)
