@@ -89,6 +89,18 @@ def test_arg_ui_is_linked_and_local_api_requires_explicit_session(tmp_path):
         assert page.status_code == 200 and "THE FIRST DOOR" in page.text
         assert "optional, openly fictional" in page.text
         assert script.status_code == 200 and "/api/arg/cross" in script.text
+        theme = client.get("/assets/arg-theme.css")
+        assert theme.status_code == 200
+        assert "@media (max-width:650px)" in theme.text
+        assert "prefers-reduced-motion" in theme.text
+        assert 'href="/assets/arg-theme.css"' in page.text
+        assert 'aria-label="Your creative journey"' in page.text
+        assert 'id="arg-next-button"' in page.text
+        assert 'id="arg-collection"' in page.text
+        assert 'aria-label="Filter artifacts"' in page.text
+        assert "updateJourney" in script.text and "renderArtifacts" in script.text
+        assert "focusStage" in script.text
+
         assert "textContent" in script.text and "innerHTML" not in script.text
         assert client.get("/api/arg/state").json()["enrolled"] is False
         seed_data = {"title": "First", "text": "One small actual sketch"}
