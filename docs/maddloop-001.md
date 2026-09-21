@@ -10,7 +10,8 @@ Workbench-owned playable local slice, accessible from the Workbench navigator th
 2. Name a loop and record its first human-entered layer (REC).
 3. OVERDUB another layer. Every overdub creates a new immutable revision; earlier snapshots remain in state_dir/maddloop.sqlite3.
 4. PLAY creates a new read-only preview encounter, with a fresh identity referring to the exact revision digest and unchanged source ids. It does not re-execute or dispatch the text, actions, historical voices, or media references.
-5. BRANCH preserves source identities, links the child to its parent loop/revision, and allows the child to diverge without rewriting the parent.
+5. LOOP explicitly arms an immediate preview pass followed by further passes at a selected 2–60 second interval, capped at eight distinct encounters per arming. STOP ends future scheduling; an in-flight local preview can still complete. Switching loops, hiding the page, or leaving it stops the timer. No background daemon or unattended project execution is involved.
+6. BRANCH preserves source identities, links the child to its parent loop/revision, and allows the child to diverge without rewriting the parent.
 
 The optional input/output class and concrete port fields are explicit synthetic witness data entered by the human; default note:note permits a simple text arrangement. Between consecutive layers, matching abstract classes with different concrete ports produces concrete_lift_gap, rather than executable status. A class mismatch produces abstract_class_gap. Both appear between exact offending layer indexes, with available and required ports retained.
 
