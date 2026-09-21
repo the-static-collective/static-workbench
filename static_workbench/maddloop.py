@@ -9,6 +9,7 @@ import hashlib
 import json
 import sqlite3
 from datetime import datetime, timezone
+from contextlib import contextmanager
 from pathlib import Path
 from uuid import uuid4
 
@@ -120,10 +121,18 @@ class MaddloopStore:
                 );
             """)
 
+    @contextmanager
     def _db(self):
         db = sqlite3.connect(self.path, timeout=5)
         db.row_factory = sqlite3.Row
-        return db
+        try:
+            yield db
+            db.commit()
+        except BaseException:
+            db.rollback()
+            raise
+        finally:
+            db.close()
 
     @staticmethod
     def _revision(db, revision_id):
