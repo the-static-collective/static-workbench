@@ -144,3 +144,97 @@ def test_protected_api_and_book_page_are_live_and_persist(tmp_path):
         saved = c.get("/api/machines/boards/" + board_id).json()
         assert saved["kind"] == "frozen_domino_arrangement"
         assert saved["result"]["status"] == "synthetic_route_matched"
+
+
+def test_gap_workshop_records_human_selected_paths_without_repair(tmp_path):
+    loops, book = stores(tmp_path)
+    p = inscribe(book, loops.create(
+        "producer", layer("producer", "P", "p", "Q", "q_in"),
+    ), "Producer")
+    q = inscribe(book, loops.create(
+        "consumer", layer("consumer", "Q", "q_out", "R", "r"),
+    ), "Consumer")
+    blocked = book.compose("Broken train", [p["id"], q["id"]])
+    options = ["invent_adapter", "find_existing", "replace_domino", "branch_route", "leave_open"]
+    for option in options:
+        plan = book.plan_gap(
+            blocked["id"], 0, option, "Chosen " + option, "Human design note",
+        )
+        assert plan["strategy"] == option
+        assert plan["gap"]["reason"] == "concrete_lift_gap"
+        assert plan["gap"]["available"]["port"] == "q_in"
+        assert plan["gap"]["required"]["port"] == "q_out"
+        assert plan["status"] == "human_chosen_design_only"
+        assert plan["board_digest"]
+    reopened = MachineBook(tmp_path / "machine_book.sqlite3", tmp_path / "maddloop.sqlite3")
+    assert len(reopened.gap_plans(blocked["id"])) == 5
+    assert reopened.board(blocked["id"])["result"]["status"] == "candidate_with_gaps"
+    assert not reopened.board(blocked["id"])["result"]["status"] == "synthetic_route_matched"
+
+
+def test_gap_workshop_rejects_fake_gaps_and_invalid_options(tmp_path):
+    import pytest
+
+    loops, book = stores(tmp_path)
+    a = inscribe(book, loops.create("a", layer("a")), "A")
+    clean = book.compose("No gap", [a["id"], a["id"]])
+    with pytest.raises(BookConflict):
+        book.plan_gap(clean["id"], 0, "invent_adapter", "No hole", "Cannot invent one")
+    with pytest.raises(ValueError):
+        book.plan_gap(clean["id"], 0, "auto_execute", "Unsafe", "No")
+    with pytest.raises(ValueError):
+        book.plan_gap(clean["id"], True, "invent_adapter", "Boolean", "No")
+    with pytest.raises(ValueError):
+        book.plan_gap(clean["id"], 0, "invent_adapter", "", "No")
+
+
+def test_gap_workshop_api_respects_guard_and_persists_exact_obstruction(tmp_path):
+    cfg = config_for(tmp_path)
+    with TestClient(create_app(cfg), base_url="http://127.0.0.1") as c:
+        token = c.get("/api/bootstrap").json()["session_token"]
+        headers = {"x-workbench-session": token}
+        first = c.post("/api/maddloop/loops", headers=headers, json={
+            "title": "Producer",
+            "layer": layer("P to Q_in", "P", "p", "Q", "q_in"),
+        }).json()
+        second = c.post("/api/maddloop/loops", headers=headers, json={
+            "title": "Consumer",
+            "layer": layer("Q_out to R", "Q", "q_out", "R", "r"),
+        }).json()
+        a = c.post("/api/machines/folios", headers=headers, json={
+            "title": "Producer", "purpose": "first",
+            "loop_id": first["id"], "expected_revision_id": first["head_revision_id"],
+        }).json()
+        b = c.post("/api/machines/folios", headers=headers, json={
+            "title": "Consumer", "purpose": "second",
+            "loop_id": second["id"], "expected_revision_id": second["head_revision_id"],
+        }).json()
+        board = c.post("/api/machines/boards", headers=headers, json={
+            "title": "Gap", "folio_ids": [a["id"], b["id"]],
+        }).json()
+        url = "/api/machines/boards/" + board["id"] + "/gap-plans"
+        payload = {
+            "gap_index": 0, "strategy": "invent_adapter",
+            "title": "The missing hinge", "notes": "Human design only",
+        }
+        assert c.post(url, json=payload).status_code == 403
+        assert c.post(url, headers={**headers, "origin": "http://evil.example"},
+                      json=payload).status_code == 403
+        result = c.post(url, headers=headers, json=payload)
+        assert result.status_code == 200
+        assert result.json()["gap"]["reason"] == "concrete_lift_gap"
+        assert c.post(url, headers=headers, json={**payload, "gap_index": 11}).status_code == 409
+        assert c.post(url, headers=headers, json={**payload, "strategy": "execute"}).status_code == 422
+        assert len(c.get(url).json()["plans"]) == 1
+        assert any(event["kind"] == "machines.gap_plan_recorded" for event in
+                   c.get("/api/events").json()["events"])
+        page = c.get("/machines")
+        assert 'id="gap-plan-form"' in page.text
+        assert 'id="gap-select"' in page.text
+        script = c.get("/assets/machines.js")
+        assert "openGapWorkshop" in script.text
+        assert "/gap-plans" in script.text
+    with TestClient(create_app(cfg), base_url="http://127.0.0.1") as c:
+        plans = c.get(url).json()["plans"]
+        assert len(plans) == 1
+        assert plans[0]["gap"]["required"]["port"] == "q_out"
