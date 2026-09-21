@@ -1,0 +1,123 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="color-scheme" content="dark">
+  <title>First Door · STATIC ARG</title>
+  <link rel="stylesheet" href="/assets/styles.css">
+  <style>
+    .arg-wrap{max-width:1100px;margin:0 auto;padding:24px 18px 70px}
+    .arg-header{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:16px;margin-bottom:24px}
+    .arg-header a,.arg-link{color:var(--green)}
+    .arg-kicker{letter-spacing:.15em;font-size:11px;color:var(--green);font-weight:800}
+    .arg-hero{padding:clamp(22px,5vw,50px);border:1px solid var(--line);border-radius:20px;
+      background:radial-gradient(circle at 90% 10%,#355140 0,transparent 45%),var(--panel)}
+    .arg-hero h1{font-size:clamp(36px,6vw,70px);margin:12px 0;line-height:1.02}
+    .arg-hero p{max-width:64ch;color:var(--muted)}
+    .arg-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),1fr));gap:16px;margin-top:18px}
+    .arg-panel{background:var(--panel);border:1px solid var(--line);border-radius:13px;padding:20px;min-width:0}
+    .arg-panel h2{margin:8px 0 12px}
+    .arg-panel p{color:var(--muted)}
+    .arg-panel label{display:block;margin:13px 0 5px;font-weight:600}
+    .arg-panel input,.arg-panel textarea,.arg-panel select{width:100%;min-width:0;padding:10px 12px;
+      color:var(--ink);background:#0e1611;border:1px solid var(--line);border-radius:7px;font:inherit}
+    .arg-panel textarea{min-height:94px;resize:vertical}
+    .arg-panel button,.arg-hero button{margin-top:14px;background:#283d2c;border:1px solid var(--green-dim);
+      color:var(--ink);padding:10px 14px;border-radius:8px;cursor:pointer;font:inherit}
+    .arg-panel button:disabled{cursor:not-allowed;opacity:.43}
+    .arg-panel button:focus-visible,.arg-hero button:focus-visible{outline:2px solid var(--green);outline-offset:3px}
+    .arg-number{color:var(--green);font-size:12px;font-weight:800}
+    .arg-stack{display:grid;gap:12px;margin-top:18px}
+    .arg-item{border:1px solid var(--line);border-radius:9px;padding:13px;overflow-wrap:anywhere}
+    .arg-item strong{display:block}
+    .arg-item small{color:var(--muted)}
+    .arg-item code{display:block;color:var(--muted);font-size:11px;margin-top:4px}
+    .arg-item pre{white-space:pre-wrap;overflow-wrap:anywhere;font:inherit;font-size:13px;margin:8px 0}
+    .arg-note{margin-top:18px;color:var(--muted);font-size:12px}
+    .arg-hidden{display:none!important}
+    .arg-error{color:var(--danger);margin:14px 0}
+    .arg-success{color:var(--green);margin:14px 0}
+    .arg-door{margin:7px 7px 0 0!important}
+  </style>
+</head>
+<body>
+  <div class="arg-wrap">
+    <header class="arg-header">
+      <div class="arg-kicker">STATIC ARG / EXPERIMENT 001 / LOCAL HOUSE</div>
+      <a href="/">← Back to Workbench</a>
+    </header>
+    <section class="arg-hero">
+      <div class="arg-kicker">THE FIRST DOOR</div>
+      <h1>The house is open.</h1>
+      <p>Make one Seed. Compose two Seeds into a Machine. Give the Machine a third Seed and a rule to sketch a World. Bring your work back through another door.</p>
+      <p>This is an optional, openly fictional, single-user local game. Every object is a Workbench-owned creative sketch, not a project-native receipt, a real execution capability, or a claim about the world.</p>
+      <div id="arg-loading" role="status">Reading the local House…</div>
+      <div id="arg-entry" class="arg-hidden">
+        <button type="button" id="arg-enter">Enter the House · opt in</button>
+        <p class="arg-note">Entering creates a local persistence record on this machine. You can return to ordinary Workbench at any time.</p>
+      </div>
+      <div id="arg-status" role="status" aria-live="polite"></div>
+    </section>
+    <main id="arg-game" class="arg-hidden">
+      <div class="arg-grid">
+        <section class="arg-panel">
+          <div class="arg-number">01 / MAKE</div>
+          <h2>Plant a Seed</h2>
+          <p>A source of your own: a line, mechanic, story premise, or creative idea. Nothing is imported or published automatically.</p>
+          <form id="arg-seed-form">
+            <label for="arg-seed-title">Name</label>
+            <input id="arg-seed-title" maxlength="100" required placeholder="The open corner">
+            <label for="arg-seed-text">What did you make?</label>
+            <textarea id="arg-seed-text" maxlength="1200" required placeholder="A door can remain open on either side."></textarea>
+            <button type="submit">Create Seed</button>
+          </form>
+        </section>
+        <section class="arg-panel">
+          <div class="arg-number">02 / COMPOSE</div>
+          <h2>Build a Machine</h2>
+          <p>Choose two distinct Seeds. The Machine preserves both exact source digests and their composed prompt. It does not execute instructions.</p>
+          <form id="arg-machine-form">
+            <label for="arg-machine-title">Machine name</label>
+            <input id="arg-machine-title" maxlength="100" required placeholder="Open-corner engine">
+            <label for="arg-first">First Seed</label>
+            <select id="arg-first" required></select>
+            <label for="arg-second">Second Seed</label>
+            <select id="arg-second" required></select>
+            <button id="arg-make-machine" type="submit" disabled>Compose Machine</button>
+          </form>
+        </section>
+        <section class="arg-panel">
+          <div class="arg-number">03 / INHABIT</div>
+          <h2>Sketch a World</h2>
+          <p>Combine one Machine with a fresh Seed not used by that Machine. Declare one actual rule for playing in your new fictional World.</p>
+          <form id="arg-world-form">
+            <label for="arg-world-title">World name</label>
+            <input id="arg-world-title" maxlength="100" required placeholder="The Doorway Orchard">
+            <label for="arg-world-machine">Machine</label>
+            <select id="arg-world-machine" required></select>
+            <label for="arg-world-seed">Fresh Seed</label>
+            <select id="arg-world-seed" required></select>
+            <label for="arg-world-rule">One playable rule</label>
+            <textarea id="arg-world-rule" maxlength="1200" required placeholder="At each turn, choose one nearby door, or rest and leave it unresolved."></textarea>
+            <button id="arg-make-world" type="submit" disabled>Compose World</button>
+          </form>
+        </section>
+      </div>
+      <section class="arg-panel" style="margin-top:18px">
+        <div class="arg-number">04 / REDISCOVER</div>
+        <h2>Your local artifacts and doors</h2>
+        <p>Each creation is an immutable artifact. Composing something new never overwrites its inputs. Choose a doorway on a World to leave an encounter trace and visit another local Workbench instrument.</p>
+        <div id="arg-artifacts" class="arg-stack"></div>
+      </section>
+      <section class="arg-panel" style="margin-top:18px">
+        <div class="arg-number">05 / RETURN</div>
+        <h2>Doorway journal</h2>
+        <div id="arg-encounters" class="arg-stack"></div>
+      </section>
+    </main>
+    <footer class="arg-note">STATIC-ARG-001 · The opt-in game shelf cannot run code, award real-world deeds, publish work, or grant authority in a destination project.</footer>
+  </div>
+  <script src="/assets/arg.js" defer></script>
+</body>
+</html>
