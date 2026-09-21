@@ -29,7 +29,10 @@ def test_pedal_has_nav_and_serves_ui_assets(tmp_path):
     assert 'href="/maddloop"' in home.text
     assert pedal.status_code == 200 and "MADDLOOP / 001" in pedal.text
     assert "PLAY · New preview encounter" in pedal.text
+    assert 'id="loop-start"' in pedal.text and 'id="loop-stop"' in pedal.text
+    assert "8 preview passes max" in pedal.text
     assert js.status_code == 200 and "/api/maddloop/loops" in js.text
+    assert "setInterval(tickLoop" in js.text and "clearInterval(loopTimer)" in js.text
 
 
 def test_two_replays_are_distinct_encounters_of_unchanged_source(tmp_path):
