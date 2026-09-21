@@ -22,6 +22,20 @@ The browser is the desk. The supervisor is the local process boundary. Project-n
 - keeps T5/FLAN-T5 outside v0.1: APERTURE/TRIAD is the protocol grammar; a model is only a future replaceable provider
 - keeps the future project-adapter contract descriptor-only in v0.1
 
+## STATIC ARG / First Door (experimental)
+
+Open **STATIC ARG · First Door** in the navigator, or visit `/arg`, to opt into a
+local-only seed → machine → world → door → return composition game. Human-entered
+Seeds are immutable and source-linked; Machines preserve two distinct Seed digests;
+Worlds need a fresh third Seed and one human-authored rule. A World offers explicit
+navigation to the existing House, MADDLOOP, and Book of Machines surfaces, preserving
+a local encounter trail across restarts in `state_dir/static_arg.sqlite3`.
+
+This is an optional creative/game sketch, not integration with the Full Measure
+shared world, project-native execution, or an automatic source of project authority.
+Normal Workbench works without entering the game. See
+[STATIC-ARG-001 scope and first-use guide](docs/static-arg-first-door-001.md).
+
 ## HumanTerminal / APERTURE v0.1
 
 > **Status: ACTIVE / EXPERIMENTAL.** This is a live Workbench development surface and the current HumanTerminal intake frontier. It is intentionally non-canonical: active means we are using and testing it, not that APERTURE/TRIAD has been promoted into ecosystem-wide law.
