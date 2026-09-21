@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="color-scheme" content="dark">
+  <title>World Entry · STATIC ARG</title>
+  <link rel="stylesheet" href="/assets/styles.css">
+  <link rel="stylesheet" href="/assets/arg-theme.css">
+  <link rel="stylesheet" href="/assets/arg-world.css">
+</head>
+<body class="world-body">
+  <main class="world-shell">
+    <header class="world-header">
+      <a class="world-return" href="/arg">← Back to the House</a>
+      <span class="world-mark">STATIC ARG / WORLD ENTRY 001 / LOCAL FICTION</span>
+    </header>
+    <section class="world-top">
+      <div class="world-small">AN INHABITED SKETCH / A REAL LOCAL TRACE</div>
+      <h1 id="world-title">Opening this World…</h1>
+      <p id="world-subtitle">Your World is composed from the original rule, Machine, and fresh Seed.</p>
+      <p id="world-status" role="status" aria-live="polite"></p>
+    </section>
+    <div id="world-play" class="world-hidden">
+      <div class="world-layout">
+        <aside class="world-sidebar" aria-label="World map and discoveries">
+          <section class="world-panel">
+            <div class="world-small">YOUR MAP</div>
+            <h2>Nearby places</h2>
+            <div class="world-map" id="world-map" aria-label="World locations"></div>
+            <p class="world-footnote">Choose a connected room. No travel is automatic.</p>
+          </section>
+          <section class="world-panel">
+            <div class="world-small">YOUR FIELD NOTES</div>
+            <h2>Discoveries <span id="world-discovery-count">0 / 3</span></h2>
+            <div id="world-discoveries" class="world-discoveries"></div>
+            <p class="world-footnote">Inspect the first three source-linked objects to open the Return Archive.</p>
+          </section>
+        </aside>
+        <section class="world-stage" aria-label="Current room">
+          <div id="world-scene" class="world-scene" data-room="threshold">
+            <div class="world-scene-stars" aria-hidden="true"></div>
+            <div class="world-sun" aria-hidden="true"></div>
+            <div class="world-land" aria-hidden="true"></div>
+            <div class="world-door" aria-hidden="true"><span></span></div>
+            <div class="world-scene-copy">
+              <div class="world-small" id="world-room-label">01 / THRESHOLD</div>
+              <h2 id="world-room-title">The Threshold</h2>
+              <p id="world-room-description"></p>
+            </div>
+          </div>
+          <div class="world-action-area">
+            <div class="world-small">INTERACT WITH THE ROOM</div>
+            <h3 id="world-object-title">The Entry Inscription</h3>
+            <p id="world-object-hint"></p>
+            <button type="button" id="world-examine">Examine object ↗</button>
+            <div id="world-revelation" class="world-revelation world-hidden">
+              <div class="world-small">DISCOVERY / SOURCE-LINKED</div>
+              <p id="world-revelation-text"></p>
+              <details>
+                <summary>Inspect exact source reference</summary>
+                <code id="world-source-reference"></code>
+              </details>
+            </div>
+          </div>
+          <section class="world-panel world-history">
+            <div class="world-small">THE ROOM REMEMBERS</div>
+            <h2>Encounter history</h2>
+            <div id="world-history"></div>
+          </section>
+        </section>
+      </div>
+      <footer class="world-footer">
+        Local fiction only. Examining an object records a Workbench-owned trace, not a project-native receipt or a real-world claim.
+        <a href="/arg">Return to the House</a>
+      </footer>
+    </div>
+  </main>
+  <script src="/assets/arg-world.js" defer></script>
+</body>
+</html>
