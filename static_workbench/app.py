@@ -5,6 +5,11 @@ from contextlib import asynccontextmanager
 from dataclasses import asdict
 from pathlib import Path
 
+from typing import Literal
+
+from pydantic import BaseModel, Field
+from .maddloop import MaddloopStore, LoopConflict, LoopMissing
+
 import uvicorn
 from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.responses import FileResponse, JSONResponse
@@ -53,6 +58,35 @@ from .schemas import (
     LivingMomentImportRequest,
     LivingMomentDraftRequest,
 )
+
+
+class MaddLayerInput(BaseModel):
+    kind: Literal["text", "action_sketch", "historical_message", "media_reference"] = "text"
+    label: str = Field(min_length=1, max_length=100)
+    body: str = Field(min_length=1, max_length=2000)
+    input_class: str = Field(default="note", min_length=1, max_length=80)
+    input_port: str = Field(default="note", min_length=1, max_length=80)
+    output_class: str = Field(default="note", min_length=1, max_length=80)
+    output_port: str = Field(default="note", min_length=1, max_length=80)
+
+
+class MaddCreateInput(BaseModel):
+    title: str = Field(min_length=1, max_length=100)
+    layer: MaddLayerInput
+
+
+class MaddOverdubInput(BaseModel):
+    expected_revision_id: str = Field(min_length=32, max_length=32)
+    layer: MaddLayerInput
+
+
+class MaddBranchInput(BaseModel):
+    expected_revision_id: str = Field(min_length=32, max_length=32)
+    title: str = Field(min_length=1, max_length=100)
+
+
+class MaddEncounterInput(BaseModel):
+    expected_revision_id: str = Field(min_length=32, max_length=32)
 
 
 def _host_name(value: str) -> str:
@@ -134,6 +168,7 @@ def create_app(config: WorkbenchConfig | None = None) -> FastAPI:
     journal = Journal(config.state_dir / "workbench.sqlite3")
     creator_shelf = CreatorShelf(config.state_dir / "creator.sqlite3")
     moment_inbox = MomentInbox(config.state_dir / "lifestream.sqlite3", config)
+    maddloop = MaddloopStore(config.state_dir / "maddloop.sqlite3")
     session_token = secrets.token_urlsafe(32)
 
     @asynccontextmanager
@@ -167,6 +202,56 @@ def create_app(config: WorkbenchConfig | None = None) -> FastAPI:
     @app.get("/lifestream", include_in_schema=False)
     def lifestream_page():
         return FileResponse(web_dir / "lifestream.html")
+
+    @app.get("/maddloop", include_in_schema=False)
+    def maddloop_page():
+        return FileResponse(web_dir / "maddloop.html")
+
+    def _madd_call(action):
+        try:
+            return action()
+        except LoopMissing as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+        except LoopConflict as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    @app.get("/api/maddloop/loops")
+    def maddloop_list():
+        return {"loops": maddloop.list()}
+
+    @app.get("/api/maddloop/loops/{loop_id}")
+    def maddloop_get(loop_id: str):
+        return _madd_call(lambda: maddloop.get(loop_id))
+
+    @app.post("/api/maddloop/loops")
+    def maddloop_create(payload: MaddCreateInput, request: Request):
+        _creator_write_guard(request)
+        result = _madd_call(lambda: maddloop.create(payload.title, payload.layer.model_dump()))
+        journal.append("maddloop.recorded", {"loop_id": result["id"], "revision_id": result["head_revision_id"]})
+        return result
+
+    @app.post("/api/maddloop/loops/{loop_id}/overdub")
+    def maddloop_overdub(loop_id: str, payload: MaddOverdubInput, request: Request):
+        _creator_write_guard(request)
+        result = _madd_call(lambda: maddloop.overdub(loop_id, payload.expected_revision_id, payload.layer.model_dump()))
+        journal.append("maddloop.overdubbed", {"loop_id": loop_id, "revision_id": result["head_revision_id"]})
+        return result
+
+    @app.post("/api/maddloop/loops/{loop_id}/branch")
+    def maddloop_branch(loop_id: str, payload: MaddBranchInput, request: Request):
+        _creator_write_guard(request)
+        result = _madd_call(lambda: maddloop.branch(loop_id, payload.expected_revision_id, payload.title))
+        journal.append("maddloop.branched", {"parent_loop_id": loop_id, "loop_id": result["id"]})
+        return result
+
+    @app.post("/api/maddloop/loops/{loop_id}/encounters")
+    def maddloop_encounter(loop_id: str, payload: MaddEncounterInput, request: Request):
+        _creator_write_guard(request)
+        result = _madd_call(lambda: maddloop.encounter(loop_id, payload.expected_revision_id))
+        journal.append("maddloop.preview_encounter", {"loop_id": loop_id, "encounter_id": result["id"], "status": result["status"]})
+        return result
 
     @app.get("/api/bootstrap", response_model=BootstrapResponse)
     def bootstrap() -> BootstrapResponse:
