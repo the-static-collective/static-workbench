@@ -189,6 +189,17 @@ The workflow registry borrows routing patterns, **not the Creator Workspace plug
 
 A source handoff is an invitation to inspect, **not** an authoritative interpretation of the source.
 
+## Branch Deck 001 — discover the branches hiding behind a checkout
+
+The `Branch Deck` navigator entry and HOUSE landing card now expose every locally
+known branch in configured-root checkouts, rather than only the branch currently
+checked out. Search by repository, branch or exact commit; distinguish locally
+checked-out branches, branches in other worktrees, and **cached (potentially
+stale)** remote-tracking refs. The deck includes a manual isolated-test route
+for each observed ref. It does **not** fetch new GitHub branches, switch
+checkouts, run tests, assert readiness or merge code. See
+[Branch Deck scope and next crossing](docs/branch-deck-001.md).
+
 ## HOUSE ↔ Static Broadcast v0.1 — an operator door, not an operator proxy
 
 To enable the **Open Static Broadcast** action in HOUSE, first install/checkout
