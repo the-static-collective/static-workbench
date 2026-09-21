@@ -81,6 +81,8 @@ def test_abstract_edges_exist_without_concrete_lift_then_explicit_repair(tmp_pat
         "P to Q_in", "Synthetic P -> Q_in",
         input_class="P", input_port="p", output_class="Q", output_port="q_in",
     ))
+    # Fork the first revision while it is still the reviewed head.
+    repair = store.branch(start["id"], start["head_revision_id"], "Compatible alternative")
     blocked = store.overdub(start["id"], start["head_revision_id"], layer(
         "Q_out to R", "Synthetic Q_out -> R",
         input_class="Q", input_port="q_out", output_class="R", output_port="r",
@@ -93,7 +95,6 @@ def test_abstract_edges_exist_without_concrete_lift_then_explicit_repair(tmp_pat
     encounter = store.encounter(blocked["id"], blocked["head_revision_id"])
     assert encounter["status"] == "blocked_route_preview"
     # Repairs are an explicit new arrangement, not a retroactive rewrite of the gap.
-    repair = store.branch(start["id"], start["head_revision_id"], "Compatible alternative")
     solved = store.overdub(repair["id"], repair["head_revision_id"], layer(
         "Q_in to R", "Explicit compatible alternative",
         input_class="Q", input_port="q_in", output_class="R", output_port="r",
