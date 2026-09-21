@@ -9,6 +9,7 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 from .maddloop import MaddloopStore, LoopConflict, LoopMissing
+from .machine_book import MachineBook, BookMissing, BookConflict
 
 import uvicorn
 from fastapi import FastAPI, HTTPException, Query, Request
@@ -58,6 +59,18 @@ from .schemas import (
     LivingMomentImportRequest,
     LivingMomentDraftRequest,
 )
+
+
+class FolioCreateInput(BaseModel):
+    title: str = Field(min_length=1, max_length=100)
+    purpose: str = Field(min_length=1, max_length=1200)
+    loop_id: str = Field(min_length=32, max_length=32)
+    expected_revision_id: str = Field(min_length=32, max_length=32)
+
+
+class DominoBoardInput(BaseModel):
+    title: str = Field(min_length=1, max_length=100)
+    folio_ids: list[str] = Field(min_length=2, max_length=8)
 
 
 class MaddLayerInput(BaseModel):
@@ -169,6 +182,7 @@ def create_app(config: WorkbenchConfig | None = None) -> FastAPI:
     creator_shelf = CreatorShelf(config.state_dir / "creator.sqlite3")
     moment_inbox = MomentInbox(config.state_dir / "lifestream.sqlite3", config)
     maddloop = MaddloopStore(config.state_dir / "maddloop.sqlite3")
+    machine_book = MachineBook(config.state_dir / "machine_book.sqlite3", config.state_dir / "maddloop.sqlite3")
     session_token = secrets.token_urlsafe(32)
 
     @asynccontextmanager
@@ -202,6 +216,57 @@ def create_app(config: WorkbenchConfig | None = None) -> FastAPI:
     @app.get("/lifestream", include_in_schema=False)
     def lifestream_page():
         return FileResponse(web_dir / "lifestream.html")
+
+    @app.get("/machines", include_in_schema=False)
+    def machine_book_page():
+        return FileResponse(web_dir / "machines.html")
+
+    def _book_call(action):
+        try:
+            return action()
+        except (BookMissing, LoopMissing) as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+        except (BookConflict, LoopConflict) as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    @app.get("/api/machines/folios")
+    def machine_folios():
+        return {"folios": machine_book.folios()}
+
+    @app.get("/api/machines/folios/{folio_id}")
+    def machine_folio(folio_id: str):
+        return _book_call(lambda: machine_book.folio(folio_id))
+
+    @app.post("/api/machines/folios")
+    def machine_folio_record(payload: FolioCreateInput, request: Request):
+        _creator_write_guard(request)
+        result = _book_call(lambda: machine_book.record_folio(
+            payload.title, payload.purpose, payload.loop_id, payload.expected_revision_id
+        ))
+        journal.append("machines.folio_recorded", {
+            "folio_id": result["id"], "source_loop_id": result["loop_id"],
+            "revision_id": result["revision_id"],
+        })
+        return result
+
+    @app.get("/api/machines/boards")
+    def machine_boards():
+        return {"boards": machine_book.boards()}
+
+    @app.get("/api/machines/boards/{board_id}")
+    def machine_board(board_id: str):
+        return _book_call(lambda: machine_book.board(board_id))
+
+    @app.post("/api/machines/boards")
+    def machine_board_record(payload: DominoBoardInput, request: Request):
+        _creator_write_guard(request)
+        result = _book_call(lambda: machine_book.compose(payload.title, payload.folio_ids))
+        journal.append("machines.board_recorded", {
+            "board_id": result["id"], "status": result["result"]["status"],
+        })
+        return result
 
     @app.get("/maddloop", include_in_schema=False)
     def maddloop_page():
