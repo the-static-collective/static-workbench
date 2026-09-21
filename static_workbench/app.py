@@ -73,6 +73,16 @@ class DominoBoardInput(BaseModel):
     folio_ids: list[str] = Field(min_length=2, max_length=8)
 
 
+class GapPlanInput(BaseModel):
+    gap_index: int = Field(ge=0, le=64)
+    strategy: Literal[
+        "invent_adapter", "find_existing", "replace_domino",
+        "branch_route", "leave_open",
+    ]
+    title: str = Field(min_length=1, max_length=100)
+    notes: str = Field(min_length=1, max_length=1200)
+
+
 class MaddLayerInput(BaseModel):
     kind: Literal["text", "action_sketch", "historical_message", "media_reference"] = "text"
     label: str = Field(min_length=1, max_length=100)
@@ -265,6 +275,22 @@ def create_app(config: WorkbenchConfig | None = None) -> FastAPI:
         result = _book_call(lambda: machine_book.compose(payload.title, payload.folio_ids))
         journal.append("machines.board_recorded", {
             "board_id": result["id"], "status": result["result"]["status"],
+        })
+        return result
+
+    @app.get("/api/machines/boards/{board_id}/gap-plans")
+    def machine_gap_plans(board_id: str):
+        return {"plans": _book_call(lambda: machine_book.gap_plans(board_id))}
+
+    @app.post("/api/machines/boards/{board_id}/gap-plans")
+    def machine_gap_plan_record(board_id: str, payload: GapPlanInput, request: Request):
+        _creator_write_guard(request)
+        result = _book_call(lambda: machine_book.plan_gap(
+            board_id, payload.gap_index, payload.strategy, payload.title, payload.notes
+        ))
+        journal.append("machines.gap_plan_recorded", {
+            "board_id": board_id, "gap_plan_id": result["id"],
+            "strategy": result["strategy"],
         })
         return result
 
