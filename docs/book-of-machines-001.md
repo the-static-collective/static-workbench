@@ -38,3 +38,31 @@ A board with no declared port obstructions reports synthetic_route_matched. This
 - Carry concrete source references and project-native receipts if real execution is later authorized and actually performed.
 - A future machine that proposes new pages must present drafts for human review; it must not generate self-authorizing capabilities or alter the prior book.
 - Drawings and temporal mechanisms can be added as separately versioned instruments; this first prototype uses static mechanical plates.
+
+
+## GAP-WORKSHOP-001 — Choose how to build through a hole
+
+Preserve a domino board with one or more exact obstructions. The Gap Workshop
+opens a specific **recorded** obstruction, including within-folio gaps, and
+offers five human-selectable non-effectful construction strategies:
+
+- invent_adapter: specify the missing bridging mechanism;
+- find_existing: look for an already documented compatible domino;
+- replace_domino: propose a different incompatible page;
+- branch_route: choose a different mechanical sequence;
+- leave_open: retain the gap without making up a solution.
+
+Each human choice is recorded as an immutable *design-only* plan with its own ID,
+board ID, digest of the frozen source board and result, exact gap index and frozen
+obstruction, strategy, title, and human notes. Plans do not revise the original
+board, synthesize new source capabilities, execute tools, or claim that a gap is
+repaired. Multiple contradictory proposals for one hole may coexist.
+
+Local routes: GET/POST /api/machines/boards/{board_id}/gap-plans.
+Writes use Workbench's pre-existing same-origin and local-session guard.
+The UI opens the workshop for a saved arrangement, then disables old workshop
+selection when its unsaved working domino sequence is changed. The source board
+and its gaps remain immutable and available for comparison.
+
+A later verified repair would require a separate explicit new folio/board,
+with an independently checked join; a plan itself is not the repair.

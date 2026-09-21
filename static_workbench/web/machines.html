@@ -63,7 +63,28 @@
     <label>Name this arrangement<input name="title" maxlength="100" required placeholder="The first mechanical sentence"></label>
     <button type="submit" id="save-board" class="action-button" disabled>Preserve this arrangement</button>
   </form>
-  <div class="eyebrow">04 / FROZEN ARRANGEMENTS</div>
+  <section class="book-section" id="gap-workshop">
+   <div class="eyebrow">04 / GAP WORKSHOP</div>
+   <h2>Choose how to build through a gap</h2>
+   <div id="gap-status" class="muted tiny">Preserve an arrangement with a gap, then open its workshop.</div>
+   <form id="gap-plan-form" class="book-form">
+    <label>Exact recorded obstruction<select name="gap_index" id="gap-select" required disabled>
+      <option value="">Choose a saved board first</option></select></label>
+    <label>Build choice<select name="strategy" id="gap-strategy" required>
+      <option value="invent_adapter">Invent a new adapter</option>
+      <option value="find_existing">Find an existing domino</option>
+      <option value="replace_domino">Replace an incompatible domino</option>
+      <option value="branch_route">Branch into a different route</option>
+      <option value="leave_open">Leave the gap open</option>
+    </select></label>
+    <label>Design name<input name="title" maxlength="100" required placeholder="The missing hinge"></label>
+    <label>Human construction notes<textarea name="notes" maxlength="1200" required
+      placeholder="What should be built, searched for, or left unresolved? Which evidence would demonstrate the join?"></textarea></label>
+    <button type="submit" id="save-gap-plan" class="action-button" disabled>Preserve my chosen path</button>
+   </form>
+   <div id="gap-plans" class="book-section muted tiny">No gap plans selected.</div>
+  </section>
+  <div class="eyebrow">05 / FROZEN ARRANGEMENTS</div>
   <div id="boards" class="book-section"><div class="muted">No arrangements yet.</div></div>
  </section>
  </div>

@@ -77,6 +77,12 @@ def inspect_board(folios):
     }
 
 
+
+GAP_STRATEGIES = frozenset({
+    "invent_adapter", "find_existing", "replace_domino",
+    "branch_route", "leave_open",
+})
+
 class MachineBook:
     def __init__(self, path: Path, loops_path: Path):
         self.path, self.loops_path = Path(path), Path(loops_path)
@@ -87,6 +93,13 @@ class MachineBook:
                     id TEXT PRIMARY KEY, title TEXT NOT NULL, purpose TEXT NOT NULL,
                     loop_id TEXT NOT NULL, revision_id TEXT NOT NULL,
                     snapshot_sha256 TEXT NOT NULL, layers_json TEXT NOT NULL,
+                    created_at TEXT NOT NULL
+                );
+                CREATE TABLE IF NOT EXISTS gap_plans(
+                    id TEXT PRIMARY KEY, board_id TEXT NOT NULL,
+                    board_digest TEXT NOT NULL, gap_index INTEGER NOT NULL,
+                    gap_json TEXT NOT NULL, strategy TEXT NOT NULL,
+                    title TEXT NOT NULL, notes TEXT NOT NULL,
                     created_at TEXT NOT NULL
                 );
                 CREATE TABLE IF NOT EXISTS boards(
@@ -206,3 +219,64 @@ class MachineBook:
              "created_at": row["created_at"]}
             for row in rows
         ]
+
+    def plan_gap(self, board_id, gap_index, strategy, title, notes):
+        """A human choice about one *recorded* gap; no adapter is synthesized."""
+        title = _text(title, "plan title", 100)
+        notes = _text(notes, "plan notes", 1200)
+        if strategy not in GAP_STRATEGIES:
+            raise ValueError("choose a supported gap strategy")
+        if type(gap_index) is not int or gap_index < 0:
+            raise ValueError("gap index must be a nonnegative integer")
+        with self._db() as db:
+            db.execute("BEGIN IMMEDIATE")
+            row = db.execute("SELECT * FROM boards WHERE id=?", (board_id,)).fetchone()
+            if row is None:
+                raise BookMissing("board not found")
+            result = json.loads(row["result_json"])
+            gaps = result["gaps"]
+            if gap_index >= len(gaps):
+                raise BookConflict("this board has no gap at the selected index")
+            gap = gaps[gap_index]
+            # The original board and all of its gaps remain frozen.
+            digest = _hash({
+                "folios": json.loads(row["folios_json"]),
+                "result": result,
+            })
+            plan_id, created_at = uuid4().hex, _now()
+            db.execute(
+                "INSERT INTO gap_plans VALUES (?,?,?,?,?,?,?,?,?)",
+                (plan_id, board_id, digest, gap_index, _canonical(gap),
+                 strategy, title, notes, created_at),
+            )
+        return self.gap_plan(plan_id)
+
+    @staticmethod
+    def _plan_from_row(row):
+        result = dict(row)
+        result["gap"] = json.loads(result.pop("gap_json"))
+        result["status"] = "human_chosen_design_only"
+        result["nonclaim"] = (
+            "This is a proposed way through a recorded gap, not a repaired "
+            "route, executable adapter, or evidence that a machine exists."
+        )
+        return result
+
+    def gap_plan(self, plan_id):
+        with self._db() as db:
+            row = db.execute("SELECT * FROM gap_plans WHERE id=?", (plan_id,)).fetchone()
+        if row is None:
+            raise BookMissing("gap plan not found")
+        return self._plan_from_row(row)
+
+    def gap_plans(self, board_id):
+        with self._db() as db:
+            row = db.execute("SELECT id FROM boards WHERE id=?", (board_id,)).fetchone()
+            if row is None:
+                raise BookMissing("board not found")
+            plans = db.execute(
+                "SELECT * FROM gap_plans WHERE board_id=? "
+                "ORDER BY created_at DESC, rowid DESC LIMIT 100",
+                (board_id,),
+            ).fetchall()
+        return [self._plan_from_row(row) for row in plans]

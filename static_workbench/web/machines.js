@@ -6,6 +6,7 @@ let loops = [];
 let folios = [];
 let board = [];
 let sourceRevision = '';
+let savedBoard = null;
 const el = (tag, cls = '', label = null) => {
   const node = document.createElement(tag);
   if (cls) node.className = cls;
@@ -126,6 +127,7 @@ function renderFolios() {
     add.addEventListener('click', () => {
       if (board.length >= 8) return;
       board.push(f);
+      clearGapSelection();
       renderBoard();
       renderFolios();
       say('Folio laid as domino ' + board.length + '. No action was executed.');
@@ -152,6 +154,58 @@ async function loadSource() {
     + '. Later edits to the loop will not change this folio.';
   $('inscribe').disabled = false;
 }
+
+function clearGapSelection() {
+  savedBoard = null;
+  $('gap-select').replaceChildren(el('option', '', 'Preserve a gapped arrangement first'));
+  $('gap-select').disabled = true;
+  $('save-gap-plan').disabled = true;
+  $('gap-status').textContent = 'Preserve an arrangement with a gap, then open its workshop.';
+  $('gap-plans').textContent = 'No gap plans selected.';
+}
+async function openGapWorkshop(saved) {
+  savedBoard = saved;
+  const gaps = saved.result.gaps;
+  const picker = $('gap-select');
+  picker.replaceChildren();
+  gaps.forEach((gap, index) => {
+    const label = gap.kind + ' · ' + gap.reason + ' · '
+      + gap.available.class + ':' + gap.available.port + ' → '
+      + gap.required.class + ':' + gap.required.port;
+    const option = el('option', '', label);
+    option.value = String(index);
+    picker.append(option);
+  });
+  picker.disabled = !gaps.length;
+  $('save-gap-plan').disabled = !gaps.length;
+  $('gap-status').textContent = gaps.length
+    ? 'Board ' + saved.id + ' · ' + gaps.length + ' exact recorded gap(s). Choose a path; none is an automatic repair.'
+    : 'This preserved board has no recorded gaps. Open a gapped board to propose a missing machine.';
+  await loadGapPlans();
+}
+async function loadGapPlans() {
+  const host = $('gap-plans');
+  host.replaceChildren();
+  if (!savedBoard) {host.textContent = 'No gap plans selected.';return;}
+  const plans = (await api('/api/machines/boards/' + savedBoard.id + '/gap-plans')).plans;
+  if (!plans.length) {host.textContent = 'No design choices preserved for this board.';return;}
+  for (const plan of plans) {
+    const item = el('article', 'book-line');
+    const labels = {
+      invent_adapter: 'Invent adapter', find_existing: 'Find existing domino',
+      replace_domino: 'Replace domino', branch_route: 'Branch route',
+      leave_open: 'Preserve unresolved gap',
+    };
+    item.append(el('strong', '', plan.title), el('span', '',
+      labels[plan.strategy] + ' · gap ' + (plan.gap_index + 1)));
+    item.append(el('div', 'book-compact', plan.notes));
+    item.append(el('div', 'book-compact',
+      'Design only · immutable board ' + plan.board_id.slice(0, 10)
+      + ' · snapshot ' + plan.board_digest.slice(0, 12)));
+    host.append(item);
+  }
+}
+
 async function loadBoards() {
   const rows = (await api('/api/machines/boards')).boards;
   const host = $('boards');
@@ -166,6 +220,7 @@ async function loadBoards() {
       const saved = await api('/api/machines/boards/' + row.id);
       board = saved.folios;
       renderBoard();
+      await openGapWorkshop(saved);
       renderFolios();
       say('Opened a frozen arrangement · ' + row.id
         + '. Editing this desk will not rewrite its preserved receipt.');
@@ -192,8 +247,8 @@ $('folio-form').addEventListener('submit', event => {
     say('Inscribe complete · folio ' + result.id + ' / frozen revision ' + result.revision_id);
   });
 });
-$('clear').addEventListener('click', () => {board=[];renderBoard();renderFolios();say('Draft board cleared; preserved folios and arrangements remain.');});
-$('remove').addEventListener('click', () => {board.pop();renderBoard();renderFolios();say('Last domino removed from the unsaved board.');});
+$('clear').addEventListener('click', () => {board=[];clearGapSelection();renderBoard();renderFolios();say('Draft board cleared; preserved folios and arrangements remain.');});
+$('remove').addEventListener('click', () => {board.pop();clearGapSelection();renderBoard();renderFolios();say('Last domino removed from the unsaved board.');});
 $('board-form').addEventListener('submit', event => {
   event.preventDefault();
   safe(async () => {
@@ -201,11 +256,32 @@ $('board-form').addEventListener('submit', event => {
     const title = new FormData(event.target).get('title');
     const result = await api('/api/machines/boards', {title, folio_ids: board.map(f => f.id)});
     await loadBoards();
+    await openGapWorkshop(result);
     say('Frozen arrangement ' + result.id + ' saved with status ' + result.result.status
       + '. No physical or project execution occurred.');
     event.target.reset();
   });
 });
+
+$('gap-plan-form').addEventListener('submit', event => {
+  event.preventDefault();
+  safe(async () => {
+    if (!savedBoard) throw Error('Save and open a board before choosing a path.');
+    const data = new FormData(event.target);
+    const gapIndex = Number(data.get('gap_index'));
+    if (!Number.isInteger(gapIndex) || gapIndex < 0) throw Error('Select a recorded gap.');
+    const plan = await api('/api/machines/boards/' + savedBoard.id + '/gap-plans', {
+      gap_index: gapIndex,
+      strategy: data.get('strategy'),
+      title: data.get('title'),
+      notes: data.get('notes'),
+    });
+    await loadGapPlans();
+    say('Chosen construction path preserved as design ' + plan.id
+      + '. The original board remains unresolved; no adapter was synthesized.');
+  });
+});
+
 safe(async () => {
   const bootstrap = await api('/api/bootstrap');
   token = bootstrap.session_token;
