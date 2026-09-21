@@ -139,9 +139,11 @@ function updateJourney() {
     ? ["Explore your World", "Cross a doorway, or return to make another composition.", "arg-collection"]
     : machines > 0 && seeds >= 3
       ? ["Shape your first World", "Give your Machine a fresh Seed and a playable rule.", "arg-world-form"]
-      : seeds >= 2
-        ? ["Compose your first Machine", "Pair two Seeds to create a reusable creative prompt.", "arg-machine-form"]
-        : ["Plant your next Seed", "Start with one small idea. Nothing needs to be perfect.", "arg-seed-form"];
+      : machines > 0
+        ? ["Plant a fresh Seed", "Your Machine needs one more Seed to become a World.", "arg-seed-form"]
+        : seeds >= 2
+          ? ["Compose your first Machine", "Pair two Seeds to create a reusable creative prompt.", "arg-machine-form"]
+          : ["Plant your next Seed", "Start with one small idea. Nothing needs to be perfect.", "arg-seed-form"];
   byId("arg-next-title").textContent = "Your next move: " + next[0];
   byId("arg-next-detail").textContent = next[1];
   byId("arg-next-button").dataset.target = next[2];
