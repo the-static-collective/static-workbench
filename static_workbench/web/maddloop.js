@@ -2,6 +2,11 @@
 
 let token = null;
 let current = null;
+let loopTimer = null;
+let loopPasses = 0;
+let loopBusy = false;
+let cycleLoopId = null;
+let cycleRevisionId = null;
 
 const $ = id => document.getElementById(id);
 const show = (message, error = false) => {
@@ -46,7 +51,10 @@ async function loadList(selectId) {
 }
 function render() {
   const active = Boolean(current);
-  for (const id of ['play', 'branch', 'overdub']) $(id).disabled = !active;
+  for (const id of ['play', 'branch', 'overdub']) $(id).disabled = !active || Boolean(loopTimer);
+  $('loop-start').disabled = !active || Boolean(loopTimer);
+  $('loop-stop').disabled = !loopTimer;
+  $('loop-seconds').disabled = Boolean(loopTimer);
   $('loop-title').textContent = active ? current.title : 'Choose or record a loop';
   $('loop-meta').textContent = active
     ? 'Loop ' + current.id + ' · revision ' + current.head_revision_id
@@ -103,6 +111,7 @@ function render() {
   }
 }
 async function select(id) {
+  stopLoop();
   current = id ? await api('/api/maddloop/loops/' + encodeURIComponent(id)) : null;
   $('loop-select').value = id || '';
   render();
@@ -113,6 +122,71 @@ async function safe(fn) {
     if (/changed since review/.test(error.message || '') && current) await select(current.id);
   }
 }
+function stopLoop() {
+  if (loopTimer !== null) clearInterval(loopTimer);
+  loopTimer = null;
+  cycleLoopId = null;
+  cycleRevisionId = null;
+  render();
+}
+async function tickLoop() {
+  if (!loopTimer || loopBusy) return;
+  if (!current || current.id !== cycleLoopId || current.head_revision_id !== cycleRevisionId) {
+    stopLoop();
+    show('Loop stopped: arrangement changed. Review the new revision before re-arming.', true);
+    return;
+  }
+  loopBusy = true;
+  try {
+    const id = cycleLoopId;
+    const result = await api('/api/maddloop/loops/' + id + '/encounters', {
+      expected_revision_id: cycleRevisionId,
+    });
+    loopPasses += 1;
+    // A STOP cannot undo a request already in flight, but it prevents future passes.
+    if (current && current.id === id) {
+      current = await api('/api/maddloop/loops/' + id);
+      render();
+    }
+    if (!loopTimer) return;
+    show('LOOP · preview pass ' + loopPasses + '/8 · ' + result.status
+      + ' · encounter ' + result.id + '. No project action was executed.');
+    if (loopPasses >= 8) {
+      stopLoop();
+      show('LOOP · 8 distinct read-only preview encounters recorded. Re-arm for another set.');
+    }
+  } catch (error) {
+    stopLoop();
+    show('Loop stopped: ' + (error.message || 'preview failed'), true);
+  } finally {
+    loopBusy = false;
+  }
+}
+$('loop-start').addEventListener('click', () => safe(async () => {
+  if (!current || loopTimer) return;
+  const seconds = Number($('loop-seconds').value);
+  if (!Number.isInteger(seconds) || seconds < 2 || seconds > 60) {
+    throw Error('Choose a cycle interval from 2 to 60 seconds.');
+  }
+  loopPasses = 0;
+  cycleLoopId = current.id;
+  cycleRevisionId = current.head_revision_id;
+  loopTimer = setInterval(tickLoop, seconds * 1000);
+  render();
+  show('LOOP armed. Each pass is a separate local preview; STOP ends future passes.');
+  await tickLoop();
+}));
+$('loop-stop').addEventListener('click', () => {
+  stopLoop();
+  show('STOP · No further preview passes scheduled. An in-flight pass may finish.');
+});
+window.addEventListener('pagehide', stopLoop);
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden && loopTimer) {
+    stopLoop();
+    show('LOOP stopped when the page became hidden.');
+  }
+});
 $('loop-select').addEventListener('change', e => safe(async () => {
   await select(e.target.value);
   show(current ? 'Selected ' + current.title : 'No loop selected');
