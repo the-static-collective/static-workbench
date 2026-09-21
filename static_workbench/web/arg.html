@@ -40,6 +40,7 @@
     .arg-success{color:var(--green);margin:14px 0}
     .arg-door{margin:7px 7px 0 0!important}
   </style>
+  <link rel="stylesheet" href="/assets/arg-theme.css">
 </head>
 <body>
   <div class="arg-wrap">
@@ -47,21 +48,42 @@
       <div class="arg-kicker">STATIC ARG / EXPERIMENT 001 / LOCAL HOUSE</div>
       <a href="/">← Back to Workbench</a>
     </header>
-    <section class="arg-hero">
-      <div class="arg-kicker">THE FIRST DOOR</div>
-      <h1>The house is open.</h1>
-      <p>Make one Seed. Compose two Seeds into a Machine. Give the Machine a third Seed and a rule to sketch a World. Bring your work back through another door.</p>
-      <p>This is an optional, openly fictional, single-user local game. Every object is a Workbench-owned creative sketch, not a project-native receipt, a real execution capability, or a claim about the world.</p>
+    <section class="arg-hero" aria-labelledby="arg-heading">
+      <div class="arg-hero-copy">
+        <div class="arg-kicker">THE FIRST DOOR / LOCAL EXPEDITION 001</div>
+        <h1 id="arg-heading">The house is open.</h1>
+        <p class="arg-lead">Start with a Seed. Build a Machine. Shape a World. Every creation can become another door.</p>
+        <p class="arg-disclosure">An optional, openly fictional local game. Your creations stay on this machine and never become project-native receipts or execution authority.</p>
       <div id="arg-loading" role="status">Reading the local House…</div>
       <div id="arg-entry" class="arg-hidden">
         <button type="button" id="arg-enter">Enter the House · opt in</button>
         <p class="arg-note">Entering creates a local persistence record on this machine. You can return to ordinary Workbench at any time.</p>
       </div>
-      <div id="arg-status" role="status" aria-live="polite"></div>
+      <div id="arg-status" class="arg-statusline" role="status" aria-live="polite"></div>
+      </div>
+      <div class="arg-glyph" aria-hidden="true"><div class="arg-stars"></div><div class="arg-door-shape"></div></div>
     </section>
     <main id="arg-game" class="arg-hidden">
+      <nav class="arg-journey" aria-label="Your creative journey">
+        <button type="button" class="arg-milestone" data-target="arg-seed-form" id="arg-step-seed" data-state="ready">
+          <span class="arg-step-no">I · Plant</span><strong>Seed</strong><small id="arg-count-seeds">0 collected</small>
+        </button>
+        <button type="button" class="arg-milestone" data-target="arg-machine-form" id="arg-step-machine" data-state="locked">
+          <span class="arg-step-no">II · Assemble</span><strong>Machine</strong><small id="arg-count-machines">0 composed</small>
+        </button>
+        <button type="button" class="arg-milestone" data-target="arg-world-form" id="arg-step-world" data-state="locked">
+          <span class="arg-step-no">III · Imagine</span><strong>World</strong><small id="arg-count-worlds">0 inhabited</small>
+        </button>
+        <button type="button" class="arg-milestone" data-target="arg-collection" id="arg-step-return" data-state="locked">
+          <span class="arg-step-no">IV · Rediscover</span><strong>Return</strong><small id="arg-count-returns">0 crossings</small>
+        </button>
+      </nav>
+      <div class="arg-guide" id="arg-guide">
+        <div><strong id="arg-next-title">Your next move: Plant a Seed</strong><br><span id="arg-next-detail">Give an idea a name and a place to live.</span></div>
+        <button type="button" id="arg-next-button">Go to next move ↗</button>
+      </div>
       <div class="arg-grid">
-        <section class="arg-panel">
+        <section class="arg-panel" id="arg-panel-seed" data-stage="ready">
           <div class="arg-number">01 / MAKE</div>
           <h2>Plant a Seed</h2>
           <p>A source of your own: a line, mechanic, story premise, or creative idea. Nothing is imported or published automatically.</p>
@@ -70,10 +92,11 @@
             <input id="arg-seed-title" maxlength="100" required placeholder="The open corner">
             <label for="arg-seed-text">What did you make?</label>
             <textarea id="arg-seed-text" maxlength="1200" required placeholder="A door can remain open on either side."></textarea>
-            <button type="submit">Create Seed</button>
+            <button type="submit">Create Seed ↗</button>
           </form>
+          <p class="arg-hint" id="arg-seed-hint">A single idea is enough to begin.</p>
         </section>
-        <section class="arg-panel">
+        <section class="arg-panel" id="arg-panel-machine" data-stage="locked">
           <div class="arg-number">02 / COMPOSE</div>
           <h2>Build a Machine</h2>
           <p>Choose two distinct Seeds. The Machine preserves both exact source digests and their composed prompt. It does not execute instructions.</p>
@@ -84,10 +107,11 @@
             <select id="arg-first" required></select>
             <label for="arg-second">Second Seed</label>
             <select id="arg-second" required></select>
-            <button id="arg-make-machine" type="submit" disabled>Compose Machine</button>
+            <button id="arg-make-machine" type="submit" disabled>Compose Machine ↗</button>
           </form>
+          <p class="arg-hint" id="arg-machine-hint">Plant two distinct Seeds to unlock this stage.</p>
         </section>
-        <section class="arg-panel">
+        <section class="arg-panel" id="arg-panel-world" data-stage="locked">
           <div class="arg-number">03 / INHABIT</div>
           <h2>Sketch a World</h2>
           <p>Combine one Machine with a fresh Seed not used by that Machine. Declare one actual rule for playing in your new fictional World.</p>
@@ -100,14 +124,21 @@
             <select id="arg-world-seed" required></select>
             <label for="arg-world-rule">One playable rule</label>
             <textarea id="arg-world-rule" maxlength="1200" required placeholder="At each turn, choose one nearby door, or rest and leave it unresolved."></textarea>
-            <button id="arg-make-world" type="submit" disabled>Compose World</button>
+            <button id="arg-make-world" type="submit" disabled>Compose World ↗</button>
           </form>
+          <p class="arg-hint" id="arg-world-hint">Compose a Machine and keep one fresh Seed for the World.</p>
         </section>
       </div>
-      <section class="arg-panel" style="margin-top:18px">
+      <section class="arg-panel arg-collection" id="arg-collection">
         <div class="arg-number">04 / REDISCOVER</div>
-        <h2>Your local artifacts and doors</h2>
+        <div class="arg-collection-head"><h2>Your local artifacts and doors</h2><span class="arg-counter" id="arg-artifact-total">0 artifacts</span></div>
         <p>Each creation is an immutable artifact. Composing something new never overwrites its inputs. Choose a doorway on a World to leave an encounter trace and visit another local Workbench instrument.</p>
+        <div class="arg-filter" role="group" aria-label="Filter artifacts">
+          <button type="button" data-filter="all" aria-pressed="true">All</button>
+          <button type="button" data-filter="seed" aria-pressed="false">Seeds</button>
+          <button type="button" data-filter="machine" aria-pressed="false">Machines</button>
+          <button type="button" data-filter="world" aria-pressed="false">Worlds</button>
+        </div>
         <div id="arg-artifacts" class="arg-stack"></div>
       </section>
       <section class="arg-panel" style="margin-top:18px">

@@ -2,6 +2,7 @@
 // STATIC-ARG-001: client UI for a bounded local, opt-in fictional composition shelf.
 let sessionToken = "";
 let current = { enrolled: false, artifacts: [], encounters: [] };
+let artifactFilter = "all";
 const byId = (id) => document.getElementById(id);
 
 async function request(path, payload) {
@@ -66,19 +67,23 @@ function updateOptions() {
 
 function artifactCard(artifact) {
   const card = element("article", undefined, "arg-item");
-  card.appendChild(element("small", artifact.kind.toUpperCase() + " · " + artifact.created_at));
+  card.dataset.kind = artifact.kind;
+  card.appendChild(element("small", artifact.kind.toUpperCase() + " · " + new Date(artifact.created_at).toLocaleString()));
   card.appendChild(element("strong", artifact.snapshot.title));
   const copy = artifact.kind === "seed" ? artifact.snapshot.text
     : artifact.kind === "machine" ? artifact.snapshot.prompt
       : artifact.snapshot.play_rule;
   card.appendChild(element("pre", copy));
   const lineage = artifact.snapshot.inputs;
+  const provenance = element("details");
+  provenance.appendChild(element("summary", "Inspect source lineage"));
   if (lineage) {
-    card.appendChild(element("small", "Inputs: " + lineage.map((x) => x.id.slice(0, 8) + "@" + x.sha256.slice(0, 12)).join(" + ")));
+    provenance.appendChild(element("small", "Inputs: " + lineage.map((x) => x.id.slice(0, 8) + "@" + x.sha256.slice(0, 12)).join(" + ")));
   } else {
-    card.appendChild(element("small", "Human-entered local source"));
+    provenance.appendChild(element("small", "Human-entered local source"));
   }
-  card.appendChild(element("code", "ID " + artifact.id + " · SHA-256 " + artifact.sha256));
+  provenance.appendChild(element("code", "ID " + artifact.id + " · SHA-256 " + artifact.sha256));
+  card.appendChild(provenance);
   if (artifact.kind === "world") {
     const tip = element("p", "This World is a fictional sketch; its doors are manual navigation only.");
     card.appendChild(tip);
@@ -103,16 +108,67 @@ function artifactCard(artifact) {
   return card;
 }
 
+function focusStage(targetId) {
+  const target = byId(targetId);
+  if (!target) return;
+  target.scrollIntoView({ behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth", block: "center" });
+  const focusable = target.matches("form") ? target.querySelector("input,select,textarea") : target.querySelector("button, a, input");
+  if (focusable) focusable.focus({ preventScroll: true });
+}
+
+function updateJourney() {
+  const seeds = current.artifacts.filter((a) => a.kind === "seed").length;
+  const machines = current.artifacts.filter((a) => a.kind === "machine").length;
+  const worlds = current.artifacts.filter((a) => a.kind === "world").length;
+  const visits = current.encounters.length;
+  const steps = [
+    ["seed", seeds > 0 ? "done" : "ready", seeds + " collected"],
+    ["machine", machines > 0 ? "done" : seeds >= 2 ? "ready" : "locked", machines + " composed"],
+    ["world", worlds > 0 ? "done" : machines > 0 && seeds >= 3 ? "ready" : "locked", worlds + " created"],
+    ["return", visits > 0 ? "done" : worlds > 0 ? "ready" : "locked", visits + " crossings"],
+  ];
+  for (const [id, status, count] of steps) {
+    byId("arg-step-" + id).dataset.state = status;
+    byId("arg-count-" + (id === "seed" ? "seeds" : id === "machine" ? "machines" : id === "world" ? "worlds" : "returns")).textContent = count;
+    if (id !== "return") byId("arg-panel-" + id).dataset.stage = status;
+  }
+  byId("arg-seed-hint").textContent = seeds < 2 ? "Plant " + (2 - seeds) + " more Seed" + (2 - seeds === 1 ? "" : "s") + " to compose a Machine." : "Seeds ready. Compose two or keep planting.";
+  byId("arg-machine-hint").textContent = seeds < 2 ? "Two distinct Seeds are needed to compose." : "Choose any two distinct Seeds. The originals remain intact.";
+  byId("arg-world-hint").textContent = machines === 0 ? "Compose a Machine first." : "Choose a Machine and a fresh Seed not used by it.";
+  const next = worlds > 0
+    ? ["Explore your World", "Cross a doorway, or return to make another composition.", "arg-collection"]
+    : machines > 0 && seeds >= 3
+      ? ["Shape your first World", "Give your Machine a fresh Seed and a playable rule.", "arg-world-form"]
+      : machines > 0
+        ? ["Plant a fresh Seed", "Your Machine needs one more Seed to become a World.", "arg-seed-form"]
+        : seeds >= 2
+          ? ["Compose your first Machine", "Pair two Seeds to create a reusable creative prompt.", "arg-machine-form"]
+          : ["Plant your next Seed", "Start with one small idea. Nothing needs to be perfect.", "arg-seed-form"];
+  byId("arg-next-title").textContent = "Your next move: " + next[0];
+  byId("arg-next-detail").textContent = next[1];
+  byId("arg-next-button").dataset.target = next[2];
+  byId("arg-artifact-total").textContent = current.artifacts.length + " artifacts";
+}
+
+function renderArtifacts() {
+  const artifacts = byId("arg-artifacts");
+  artifacts.replaceChildren();
+  const visible = current.artifacts.filter((item) => artifactFilter === "all" || item.kind === artifactFilter);
+  if (!visible.length) artifacts.appendChild(element("p", current.artifacts.length ? "No artifacts of this kind yet." : "No Seeds yet. Make one above."));
+  visible.forEach((item) => artifacts.appendChild(artifactCard(item)));
+  document.querySelectorAll(".arg-filter button").forEach((button) => {
+    button.setAttribute("aria-pressed", String(button.dataset.filter === artifactFilter));
+  });
+}
+
 function render() {
   byId("arg-loading").classList.add("arg-hidden");
   byId("arg-entry").classList.toggle("arg-hidden", current.enrolled);
   byId("arg-game").classList.toggle("arg-hidden", !current.enrolled);
   if (!current.enrolled) return;
   updateOptions();
-  const artifacts = byId("arg-artifacts");
-  artifacts.replaceChildren();
-  if (!current.artifacts.length) artifacts.appendChild(element("p", "No Seeds yet. Make one above."));
-  current.artifacts.forEach((item) => artifacts.appendChild(artifactCard(item)));
+  updateJourney();
+  renderArtifacts();
   const journal = byId("arg-encounters");
   journal.replaceChildren();
   if (!current.encounters.length) journal.appendChild(element("p", "No crossings yet. Your first World will open the next door."));
@@ -166,6 +222,27 @@ async function start() {
       }
     });
     byId("arg-world-machine").addEventListener("change", updateWorldOptions);
+    document.querySelectorAll(".arg-milestone").forEach((button) => {
+      button.addEventListener("click", () => focusStage(button.dataset.target));
+    });
+    byId("arg-next-button").addEventListener("click", () => focusStage(byId("arg-next-button").dataset.target));
+    document.querySelectorAll(".arg-filter button").forEach((button) => {
+      button.addEventListener("click", () => {
+        artifactFilter = button.dataset.filter;
+        renderArtifacts();
+      });
+    });
+    byId("arg-first").addEventListener("change", () => {
+      if (byId("arg-first").value && byId("arg-first").value === byId("arg-second").value) {
+        byId("arg-second").value = "";
+      }
+    });
+    byId("arg-second").addEventListener("change", () => {
+      if (byId("arg-second").value && byId("arg-second").value === byId("arg-first").value) {
+        byId("arg-second").value = "";
+        notice("Choose a second, different Seed.", true);
+      }
+    });
     bindForm("arg-seed-form", "/api/arg/seeds", () => ({
       title: byId("arg-seed-title").value, text: byId("arg-seed-text").value
     }), "Seed preserved. Its source can be used in another composition.");
