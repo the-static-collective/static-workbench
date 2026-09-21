@@ -11,6 +11,7 @@ from pydantic import BaseModel, Field
 from .maddloop import MaddloopStore, LoopConflict, LoopMissing
 from .machine_book import MachineBook, BookMissing, BookConflict
 from .first_door import FirstDoor, ArgConflict, ArgMissing
+from .world_entry import WorldEntry
 
 import uvicorn
 from fastapi import FastAPI, HTTPException, Query, Request
@@ -83,6 +84,13 @@ class ArgWorldInput(BaseModel):
 class ArgDoorInput(BaseModel):
     world_id: str = Field(min_length=32, max_length=32)
     door: Literal["house", "maddloop", "machines"]
+
+
+class WorldPlayInput(BaseModel):
+    action: Literal["travel", "examine"]
+    expected_room: Literal["threshold", "workshop", "garden", "archive"]
+    target: Literal["threshold", "workshop", "garden", "archive",
+                    "rule", "machine", "seed", "chronicle"]
 
 
 class FolioCreateInput(BaseModel):
@@ -218,6 +226,7 @@ def create_app(config: WorkbenchConfig | None = None) -> FastAPI:
     maddloop = MaddloopStore(config.state_dir / "maddloop.sqlite3")
     machine_book = MachineBook(config.state_dir / "machine_book.sqlite3", config.state_dir / "maddloop.sqlite3")
     first_door = FirstDoor(config.state_dir / "static_arg.sqlite3")
+    world_entry = WorldEntry(config.state_dir / "static_arg.sqlite3")
     session_token = secrets.token_urlsafe(32)
 
     @asynccontextmanager
@@ -251,6 +260,10 @@ def create_app(config: WorkbenchConfig | None = None) -> FastAPI:
     @app.get("/arg", include_in_schema=False)
     def static_arg_page():
         return FileResponse(web_dir / "arg.html")
+
+    @app.get("/arg/world", include_in_schema=False)
+    def static_arg_world_page():
+        return FileResponse(web_dir / "arg-world.html")
 
     @app.get("/lifestream", include_in_schema=False)
     def lifestream_page():
@@ -425,6 +438,22 @@ def create_app(config: WorkbenchConfig | None = None) -> FastAPI:
             "door": result["door"],
         })
         return result
+
+    @app.get("/api/arg/worlds/{world_id}/play")
+    def arg_world_play(world_id: str):
+        return _arg_call(lambda: world_entry.play(world_id))
+
+    @app.post("/api/arg/worlds/{world_id}/play")
+    def arg_world_act(world_id: str, payload: WorldPlayInput, request: Request):
+        _creator_write_guard(request)
+        state = _arg_call(lambda: world_entry.act(
+            world_id, payload.action, payload.expected_room, payload.target
+        ))
+        journal.append("arg.world.explored", {
+            "world_id": world_id, "action": payload.action,
+            "room_id": state["room_id"],
+        })
+        return state
 
     @app.get("/api/bootstrap", response_model=BootstrapResponse)
     def bootstrap() -> BootstrapResponse:

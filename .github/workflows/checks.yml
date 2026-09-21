@@ -64,3 +64,4 @@ jobs:
           node --check static_workbench/web/maddloop.js
           node --check static_workbench/web/machines.js
           node --check static_workbench/web/arg.js
+          node --check static_workbench/web/arg-world.js

@@ -85,7 +85,10 @@ function artifactCard(artifact) {
   provenance.appendChild(element("code", "ID " + artifact.id + " · SHA-256 " + artifact.sha256));
   card.appendChild(provenance);
   if (artifact.kind === "world") {
-    const tip = element("p", "This World is a fictional sketch; its doors are manual navigation only.");
+    const enter = element("a", "Enter World ↗", "arg-world-link");
+    enter.href = "/arg/world?world=" + encodeURIComponent(artifact.id);
+    card.appendChild(enter);
+    const tip = element("p", "Explore source-linked rooms or use an ordinary local Workbench doorway below.");
     card.appendChild(tip);
     for (const door of artifact.snapshot.doors) {
       const button = element("button", "Cross: " + door.id, "arg-door");
