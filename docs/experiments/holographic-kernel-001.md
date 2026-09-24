@@ -111,7 +111,7 @@ Current bats prove that:
 12. mutating a projection object does not mutate the kernel;
 13. unknown projection kinds refuse instead of guessing;
 14. unknown operations refuse instead of inventing affordances;
-15. return addresses preserve current unresolved questions and residue.
+15. return addresses preserve current unresolved questions and residue;\n16. a deterministic 100-crossing projection-hopping swarm preserves lineage, immutable witnessed meaning, return-address continuity, and one shared constitutional envelope.
 
 Run:
 
