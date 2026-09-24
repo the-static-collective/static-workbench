@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="color-scheme" content="light"><title>Orchard Bridge | Adoption Support Workbench · experimental</title>
+<style>
+:root{font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:#182b31;background:#f2f3ee}
+*{box-sizing:border-box}body{margin:0}button,input,select{font:inherit}button{cursor:pointer}
+a{color:#195c56}.shell{max-width:1250px;margin:auto;padding:26px 22px 60px}
+header{border-radius:23px;background:#173b38;color:#f6fcf5;padding:28px;display:flex;justify-content:space-between;gap:30px;align-items:center}
+header h1{font-size:clamp(28px,4vw,48px);letter-spacing:-.035em;margin:8px 0}header p{max-width:620px;line-height:1.6;color:#d8e9e0;margin:8px 0}
+.kicker{text-transform:uppercase;letter-spacing:.14em;font-size:11px;font-weight:800;color:#aaddb8}
+.pill{border:1px solid #80ad9e;border-radius:999px;padding:8px 12px;font-size:12px;white-space:nowrap}
+.safety{margin:16px 0;padding:13px 18px;background:#fff5e3;border-left:4px solid #c18a31;border-radius:9px;line-height:1.5;font-size:13px}
+nav{display:flex;gap:9px;flex-wrap:wrap;margin:20px 0}nav button{border:1px solid #d5e0d9;padding:11px 16px;background:#fff;border-radius:11px;color:#345650}nav button[aria-selected=true]{background:#20514b;color:white;border-color:#20514b}
+.layout{display:grid;grid-template-columns:1.15fr .85fr;gap:17px}section.panel{background:#fff;border:1px solid #e0e7e0;border-radius:18px;padding:22px;min-width:0}
+h2{font-size:22px;letter-spacing:-.025em;margin:0 0 9px}h3{font-size:16px;margin:0 0 7px}p{line-height:1.5}.muted{color:#59726e;font-size:13px}
+#directory-controls{display:flex;gap:8px;flex-wrap:wrap;margin:18px 0}input,select{border:1px solid #c9d7d1;border-radius:9px;padding:11px;background:white;min-width:0}input{flex:2;min-width:185px}select{flex:1;min-width:140px}
+.org{border:1px solid #e0e9e3;border-radius:12px;padding:16px;margin-bottom:10px;background:#fbfdfb}.org-top{display:flex;justify-content:space-between;gap:12px}.org p{font-size:13px;color:#4e6661;margin:7px 0}.tag{font-size:11px;background:#eaf2ea;color:#315d51;border-radius:6px;padding:5px 8px;display:inline-block;margin:0 5px 5px 0}.tag.warn{background:#fff1d7;color:#875522}.org footer{margin-top:7px;font-size:12px;color:#637870}.org a{font-size:12px}
+.info{background:#edf4ef;border-radius:12px;padding:16px;margin:12px 0;font-size:13px;line-height:1.55}
+.steps{padding:0;list-style:none}.steps li{display:flex;gap:10px;align-items:flex-start;margin:11px 0;font-size:13px}.num{width:24px;height:24px;display:grid;place-items:center;background:#dcece4;border-radius:50%;flex:none;font-size:11px;font-weight:700}
+.action{padding:10px 13px;border:1px solid #b8d1c3;border-radius:9px;background:#eaf4ec;color:#22493b;font-weight:700;margin:5px 6px 5px 0}
+.action:disabled{opacity:.35;cursor:not-allowed}.action.dark{background:#20514b;color:white;border-color:#20514b}.action.secondary{background:white;color:#43655c}.case-state{font-size:13px;font-weight:800;letter-spacing:.07em;text-transform:uppercase;color:#2f685b;background:#e2f0e7;padding:8px 11px;border-radius:8px;display:inline-block}
+.timeline{max-height:320px;overflow:auto;padding-left:18px}.timeline li{font-size:13px;padding:8px 0;border-bottom:1px solid #eef1ed}.timeline strong{display:block}.timeline small{display:block;color:#647a74;margin-top:3px}
+.hide{display:none!important}.footnote{font-size:12px;color:#63756f;padding:18px 2px;line-height:1.6}
+@media(max-width:820px){.layout{grid-template-columns:1fr}header{display:block}.pill{display:inline-block;margin-top:12px}.shell{padding:12px}}
+</style></head><body><main class="shell">
+<header><div><div class="kicker">STATIC COLLECTIVE / PK LAB 001</div><h1>Orchard Bridge</h1>
+<p>A small workbench for discovering existing adoption-support organizations and testing a human-authorized referral handoff—without moving private case records into a shared directory.</p></div><div class="pill">EXPERIMENT · NO LIVE REFERRALS</div></header>
+<div class="safety"><strong>Public information + fictional encounters only.</strong> Do not enter names, addresses, adoption records, case information, or any other personal data. This standalone page has no account, backend, messaging, live referral transmission, identity check, or legal-consent verification. The organizations below are public directory leads, <em>not</em> confirmed partners or a statement of service availability.</div>
+<nav role="tablist" aria-label="Workbench views"><button id="tab-atlas" role="tab" aria-controls="atlas" aria-selected="true">01 / Capability atlas</button><button id="tab-desk" role="tab" aria-controls="desk" aria-selected="false">02 / Referral simulation</button><button id="tab-boundary" role="tab" aria-controls="boundary" aria-selected="false">03 / Boundaries</button></nav>
+<div id="atlas" role="tabpanel" aria-labelledby="tab-atlas" class="layout"><section class="panel">
+<div class="kicker" style="color:#497969">PUBLIC DISCOVERY</div><h2>Who could help with what?</h2>
+<p class="muted">Search documented capabilities. An appearance in the atlas is not participation in this project. Confirm current service rules directly with the listed organization.</p>
+<div id="directory-controls"><input id="search" aria-label="Search organizations and service descriptions" placeholder="Search service, organization, or scope"><select id="capability" aria-label="Filter capability"><option value="">All capabilities</option><option value="adult-identity">Adult identity & records</option><option value="family-support">Family preservation</option><option value="cross-border">Cross-border support</option><option value="post-adoption">Post-adoption support</option><option value="peer">Adoptee-led peer support</option><option value="professional">Professional resources</option></select></div>
+<div id="directory" aria-live="polite"></div></section><section class="panel"><div class="kicker" style="color:#497969">THE CONNECTION</div><h2>Capabilities, not case files</h2>
+<p>A public directory can show that an organization provides a particular service. It does not show that the organization can accept a particular referral today.</p>
+<div class="info"><strong>Discovery → inquiry → authorized handoff → confirmation.</strong><br>Each crossing requires its own verification. The atlas never triggers a referral or creates an account with any listed organization.</div>
+<h3>First research questions</h3><ol class="steps"><li><span class="num">1</span><span>Which organizations have accurate public service descriptions and referral instructions?</span></li><li><span class="num">2</span><span>Where do adult adoptees and families repeatedly need to navigate separate service directories?</span></li><li><span class="num">3</span><span>What is the smallest handoff two willing organizations can jointly validate?</span></li></ol>
+<button class="action dark" id="to-desk">Explore synthetic handoff →</button></section></div>
+<div id="desk" role="tabpanel" aria-labelledby="tab-desk" class="layout hide"><section class="panel">
+<div class="kicker" style="color:#497969">SYNTHETIC / OFFLINE</div><h2>One referral, no personal records</h2><p class="muted">This is a local demonstration. Every actor, act, authorization, and outcome below is fictional. No real human signature is collected.</p>
+<div class="info"><strong>Fictional adult:</strong> seeks guidance navigating adult adoption-record access.<br><strong>Fictional sender:</strong> Harbor Support Desk.<br><strong>Fictional receiver:</strong> Maple Resource Desk.<br><strong>Disclosure scope:</strong> service topic only. No identity, birth details, case records, or contact information.<br><strong>Subject binding:</strong> synthetic-referral-v1.</div>
+<p>Current state: <span id="status" class="case-state" aria-live="polite">DRAFT</span></p><div id="actions"></div>
+<p class="muted" id="instruction">Authorize only the narrow fictional service-topic disclosure to begin.</p>
+<button id="reset" class="action secondary">Reset fictional scenario</button><button id="download" class="action secondary">Export synthetic receipt JSON</button>
+</section><section class="panel"><div class="kicker" style="color:#497969">WITNESS / HISTORY</div><h2>What actually happened in the simulation?</h2><p class="muted">A simulated action is evidence of the demo's state transition only—not authentication, real consent, service provision, or legal validity.</p><ol id="timeline" class="timeline" aria-live="polite"></ol><div class="info"><strong>Human Witness boundary:</strong> an encounter records what was presented and the act taken. A separate authorized system decides what disclosure, referral, and service consequence is permitted.</div></section></div>
+<div id="boundary" role="tabpanel" aria-labelledby="tab-boundary" class="layout hide"><section class="panel">
+<div class="kicker" style="color:#497969">INVARIANTS</div><h2>What this build refuses</h2>
+<ol class="steps"><li><span class="num">×</span><span>It does not match children with adults, approve placements, or assess adoption eligibility.</span></li>
+<li><span class="num">×</span><span>It does not share case records, transfer consent, or contact an organization.</span></li>
+<li><span class="num">×</span><span>It does not infer that a signature proves identity, capacity, or comprehension.</span></li>
+<li><span class="num">×</span><span>It does not equate referral sent, accepted, reported, and confirmed.</span></li>
+<li><span class="num">×</span><span>It does not treat revocation as retroactively erasing an earlier occurrence or already-disclosed data.</span></li></ol></section>
+<section class="panel"><div class="kicker" style="color:#497969">PROJECT ROADS</div><h2>Independent organs</h2>
+<p><strong>Human Witness:</strong> proposed encounter evidence adapter; no live integration.</p><p><strong>Garden / Band Runtime:</strong> future scoped help-slip and state-machine adapters; no live integration.</p><p><strong>Jubilee:</strong> a later bounded receipt consumer; not automatic authority.</p><p><strong>Orchard Bridge:</strong> owns this directory and demonstration. It never becomes an adoption agency or child-welfare decision-maker.</p>
+<div class="info">Before any real data: get adoptee-led and family-preservation review, verify legal basis for each sharing purpose and jurisdiction, build security and audit controls, prove access isolation and data deletion rules, and obtain the participating organizations' express agreement.</div></section></div>
+<p class="footnote">Research seed: publicly documented service descriptions on the linked organizations' own websites, reviewed September 23, 2026. This is a manually curated research aid, not a provider endorsement, a clinical directory, legal advice, or a continuously updated availability service. Source documentation is included in the repository README.</p>
+</main><script>
+"use strict";
+const organizations=[
+ {name:"International Social Service – USA",scope:"United States / cross-border",types:["cross-border","adult-identity"],description:"International social-service coordination, family connections, records assistance and cross-border support. Case acceptance must be checked directly.",audience:"Individual or agency; verify procedure",url:"https://www.iss-usa.org/"},
+ {name:"Adoptees United",scope:"United States",types:["adult-identity","peer"],description:"Adoptee-led work on records, identity and citizenship; resources and projects are not a guarantee of individual case assistance.",audience:"Adopted people / community",url:"https://adopteesunited.org/"},
+ {name:"InterCountry Adoptee Voices",scope:"International / Australia-based",types:["peer","adult-identity"],description:"Intercountry adoptee-led education, lived-experience perspectives and resources relating to identity and origins.",audience:"Adult intercountry adoptees / community",url:"https://intercountryadopteevoices.com/"},
+ {name:"National Family Preservation Network",scope:"United States / professional reach",types:["family-support","professional"],description:"Assessment tools, training and technical assistance for family-serving agencies. NFPN says it cannot provide direct assistance to individual families.",audience:"Professional organizations; not direct family intake",url:"https://www.nfpn.org/"},
+ {name:"Center for Adoption Support and Education (C.A.S.E.)",scope:"United States / regional direct services",types:["post-adoption","professional"],description:"Adoption-competent counseling in its stated service region, plus education and a national directory of trained professionals.",audience:"Families, adult adoptees and professionals; verify geography",url:"https://adoptionsupport.org/"}
+];
+function showTab(tab){for(const t of ["atlas","desk","boundary"]){document.getElementById(t).classList.toggle("hide",t!==tab);document.getElementById("tab-"+t).setAttribute("aria-selected",String(t===tab));}}
+for(const t of ["atlas","desk","boundary"])document.getElementById("tab-"+t).addEventListener("click",()=>showTab(t));
+document.getElementById("to-desk").addEventListener("click",()=>showTab("desk"));
+const labels={"adult-identity":"Adult identity & records","family-support":"Family preservation","cross-border":"Cross-border","post-adoption":"Post-adoption","peer":"Adoptee-led","professional":"Professional resources"};
+function renderDirectory(){const q=document.getElementById("search").value.trim().toLowerCase(),cap=document.getElementById("capability").value;
+ const matches=organizations.filter(o=>(!cap||o.types.includes(cap))&&(!q||[o.name,o.scope,o.description,o.audience,...o.types.map(x=>labels[x])].join(" ").toLowerCase().includes(q)));
+ const root=document.getElementById("directory");root.replaceChildren();
+ if(!matches.length){const p=document.createElement("p");p.className="muted";p.textContent="No matching public leads. Try a different service category.";root.append(p);return;}
+ for(const o of matches){const el=document.createElement("article");el.className="org";
+ const head=document.createElement("div");head.className="org-top";const title=document.createElement("h3");title.textContent=o.name;head.append(title);el.append(head);
+ const scope=document.createElement("div");scope.className="muted";scope.textContent=o.scope;el.append(scope);
+ const desc=document.createElement("p");desc.textContent=o.description;el.append(desc);
+ for(const type of o.types){const tag=document.createElement("span");tag.className="tag";tag.textContent=labels[type];el.append(tag);}
+ const tag=document.createElement("span");tag.className="tag warn";tag.textContent="Not a participating partner";el.append(tag);
+ const foot=document.createElement("footer");foot.textContent="Intended audience: "+o.audience+" · ";const a=document.createElement("a");a.textContent="Official site ↗";a.href=o.url;a.target="_blank";a.rel="noopener noreferrer";foot.append(a);el.append(foot);root.append(el);}
+}
+document.getElementById("search").addEventListener("input",renderDirectory);document.getElementById("capability").addEventListener("change",renderDirectory);renderDirectory();
+function advanceCase(c, kind) {
+  const next = {
+    authorize: {draft:"authorized"},
+    send: {authorized:"sent"},
+    accept: {sent:"accepted"},
+    decline: {sent:"declined",accepted:"declined"},
+    report: {accepted:"reported"},
+    confirm: {reported:"confirmed"},
+    revoke: {authorized:"revoked",sent:"revoked",accepted:"revoked",reported:"revoked"}
+  };
+  const destination = next[kind]?.[c.status];
+  if (!destination) throw new Error("Refused: " + kind + " is not allowed from " + c.status);
+  if (kind === "authorize" && (c.subjectDigest !== "synthetic-referral-v1" || c.scope !== "service-topic-only")) {
+    throw new Error("Refused: exact synthetic subject and narrow disclosure scope required");
+  }
+  return {
+    ...c, status:destination, history:[...c.history,{sequence:c.history.length+1,kind,from:c.status,to:destination,actor:kind==="authorize"||kind==="revoke"||kind==="confirm"?"Fictional adult":kind==="send"?"Fictional sending desk":"Fictional receiving desk",evidence:"SIMULATED ACTION; not verified identity, consent, delivery, or legal validity"}]
+  };
+}
+const initial=()=>({id:"SYN-001",subjectDigest:"synthetic-referral-v1",scope:"service-topic-only",status:"draft",history:[]});let demo=initial();
+const actionNames={authorize:"Authorize scope",send:"Send fictional referral",accept:"Receiving desk accepts",decline:"Receiving desk declines",report:"Report assistance offered",confirm:"Adult confirms assistance",revoke:"Withdraw future authorization"};
+const available={draft:["authorize"],authorized:["send","revoke"],sent:["accept","decline","revoke"],accepted:["report","decline","revoke"],reported:["confirm","revoke"],confirmed:[],declined:[],revoked:[]};
+function renderCase(){document.getElementById("status").textContent=demo.status;const controls=document.getElementById("actions");controls.replaceChildren();
+ for(const kind of available[demo.status]){const b=document.createElement("button");b.className="action"+(kind==="authorize"||kind==="confirm"?" dark":"");b.textContent=actionNames[kind];b.addEventListener("click",()=>{try{demo=advanceCase(demo,kind);renderCase();}catch(err){document.getElementById("instruction").textContent=err.message;}});controls.append(b);}
+ document.getElementById("instruction").textContent=demo.status==="confirmed"?"Fictional confirmation recorded. No service was delivered.":demo.status==="revoked"?"Future sharing in this simulation is blocked. Earlier actions remain visible.":demo.status==="declined"?"The referral was declined; no fulfillment may be claimed.":"Each click simulates an attributed act; no real consent, contact, or service occurs.";
+ const timeline=document.getElementById("timeline");timeline.replaceChildren();
+ if(!demo.history.length){const li=document.createElement("li");li.textContent="No encounters recorded in this fictional scenario.";timeline.append(li);}
+ for(const e of demo.history){const li=document.createElement("li");const strong=document.createElement("strong");strong.textContent=e.sequence+". "+actionNames[e.kind]+" · "+e.from+" → "+e.to;li.append(strong);const small=document.createElement("small");small.textContent=e.actor+" · "+e.evidence;li.append(small);timeline.append(li);}
+}
+document.getElementById("reset").addEventListener("click",()=>{demo=initial();renderCase();});
+document.getElementById("download").addEventListener("click",()=>{const data=JSON.stringify({mode:"SYNTHETIC_ONLY",case:demo,nonClaims:["no authentication","no real consent","no real service","no legal validity","no organizational partnership"]},null,2);
+ const url=URL.createObjectURL(new Blob([data],{type:"application/json"}));const a=document.createElement("a");a.href=url;a.download="orchard-bridge-synthetic-receipt.json";a.click();URL.revokeObjectURL(url);});
+renderCase();
+</script></body></html>
