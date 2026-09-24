@@ -47,7 +47,7 @@ test("event evidence is explicitly synthetic",()=>{
  assert.ok(!Object.keys(c).some(k=>["legalValidity","authenticatedIdentity","childPlacement"].includes(k)));
 });
 test("public directory does not submit requests and displays no fields for private cases",()=>{
- assert.ok(html.includes("No real referrals"));
+ assert.ok(html.includes("NO LIVE REFERRALS"));
  assert.equal((html.match(/fetch\s*\(/g)||[]).length,0);
  assert.equal((html.match(/localStorage|sessionStorage/g)||[]).length,0);
 });
