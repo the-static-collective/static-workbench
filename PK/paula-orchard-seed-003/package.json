@@ -1,0 +1,20 @@
+{
+  "name": "paula-story-workbench",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "start": "node app/server.mjs",
+    "check": "node scripts/check.mjs",
+    "flow": "node scripts/build-flow-batch.mjs",
+    "assemble": "node scripts/assemble.mjs",
+    "orchard": "node orchard-kernel.mjs",
+    "test:orchard": "node --test tests/orchard-kernel.test.mjs",
+    "worldbody": "node worldbody-kernel.mjs",
+    "test:worldbody": "node --test tests/worldbody-kernel.test.mjs",
+    "test:all": "node --test tests/*.test.mjs"
+  }
+}
