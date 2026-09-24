@@ -219,3 +219,52 @@ def test_bat_15_return_address_tracks_current_unresolved_and_residue():
     ret = receipt.return_address
     assert ret.unresolved == ("Invitation from whom?",)
     assert ret.residue == ("danger interpretation preserved in lineage",)
+
+
+def test_bat_16_deterministic_projection_hopping_swarm_preserves_invariants():
+    import random
+
+    rng = random.Random(61709)
+    k = kernel()
+    witnessed = {k.head.state_id: k.head.content}
+    projection_kinds = ("chat", "html", "cli", "world")
+    operations = ("after", "before", "instead", "reinterpret")
+
+    for step in range(100):
+        before = k.head
+        projections_before = [k.project(kind) for kind in projection_kinds]
+        assert prove_projection_equivalence(projections_before)
+
+        operation = rng.choice(operations)
+        content = f"step-{step}:{operation}:{rng.randrange(1_000_000)}"
+        preview = k.preview(
+            operation,
+            content,
+            rationale=f"bat-swarm-{step}",
+        )
+        receipt = k.execute(
+            preview,
+            actor="human",
+            executor=k.AUTHORITY,
+            unresolved=(f"open-{step}",),
+            residue=(f"residue-{step}",),
+        )
+
+        for state_id, old_content in witnessed.items():
+            assert k.witnessed_state(state_id).content == old_content
+
+        witnessed[k.head.state_id] = k.head.content
+        assert receipt.before_state_id == before.state_id
+        assert receipt.after_state_id == k.head.state_id
+        assert receipt.return_address.state_id == k.head.state_id
+
+        arbitrary = k.project(rng.choice(projection_kinds))
+        assert arbitrary.state_id == k.head.state_id
+        assert arbitrary.return_address == receipt.return_address
+
+        projections_after = [k.project(kind) for kind in projection_kinds]
+        assert prove_projection_equivalence(projections_after)
+        assert len(k.history()) == step + 2
+
+    assert len(k.receipts) == 100
+    assert len(k.relations) == 100
