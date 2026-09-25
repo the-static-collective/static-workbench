@@ -1,0 +1,110 @@
+{
+  "version": "house.ark-manifest/v0.1",
+  "scope": "descriptive_local_inventory_only",
+  "source": "Workbench-owned explicit starter inventory; does not authenticate GitHub repositories or pin deployed versions",
+  "core": "static-workbench",
+  "organs": [
+    {
+      "id": "toaster",
+      "role": "Local media rendering / selected creative artifact",
+      "aliases": [
+        "the-haunted-toaster",
+        "haunted-toaster"
+      ],
+      "optional": true
+    },
+    {
+      "id": "dogram",
+      "role": "Mathematical comparison and bounded delta research",
+      "aliases": [
+        "Dogram"
+      ],
+      "optional": true
+    },
+    {
+      "id": "alex",
+      "role": "Provenance-first research substrate",
+      "aliases": [
+        "ALEX.2",
+        "ALEX"
+      ],
+      "optional": true
+    },
+    {
+      "id": "3rdi",
+      "role": "Observer-local projection",
+      "aliases": [
+        "3rdi"
+      ],
+      "optional": true
+    },
+    {
+      "id": "loadout",
+      "role": "Bounded capability and handoff compilation",
+      "aliases": [
+        "LOADOUT",
+        "TranchNode"
+      ],
+      "optional": true
+    },
+    {
+      "id": "static-live",
+      "role": "Local performance and broadcast operator console",
+      "aliases": [
+        "static-live"
+      ],
+      "optional": true
+    },
+    {
+      "id": "goatnote",
+      "role": "Personal note and identity-carrying writing surface",
+      "aliases": [
+        "GOATnote"
+      ],
+      "optional": true
+    },
+    {
+      "id": "band-runtime",
+      "role": "Event hold and replay runtime",
+      "aliases": [
+        "band-runtime"
+      ],
+      "optional": true
+    },
+    {
+      "id": "garden",
+      "role": "Community help and Campfire desk",
+      "aliases": [
+        "BananaSpork",
+        "Garden",
+        "NanaSpork"
+      ],
+      "optional": true
+    },
+    {
+      "id": "jubilee",
+      "role": "Act-first preservation",
+      "aliases": [
+        "Jubilee-Engine-VM",
+        "Book-of-Acts"
+      ],
+      "optional": true
+    },
+    {
+      "id": "full-measure",
+      "role": "World and narrative continuity",
+      "aliases": [
+        "full-measure-world-layer",
+        "Full-Measure"
+      ],
+      "optional": true
+    }
+  ],
+  "laws": [
+    "checkout != installed",
+    "installed != ready",
+    "manifest role != project authority",
+    "a branch must be selected explicitly",
+    "re-entry identity != source freshness"
+  ]
+}
