@@ -1,4 +1,4 @@
-const state = { bootstrap: null, machine: null, repos: [], house: null, view: 'house', creator: null, broadcast: null, apertureHistory: [], apertureCurrent: null, apertureParentId: null };
+const state = { bootstrap: null, machine: null, repos: [], house: null, roadkit: null, view: 'house', creator: null, broadcast: null, apertureHistory: [], apertureCurrent: null, apertureParentId: null };
 const APERTURE_BOUNDARY = 'possible meaning != intended meaning';
 
 const $ = (selector) => document.querySelector(selector);
@@ -299,6 +299,101 @@ function renderCreatorDesk() {
   creatorV2Render();
 }
 
+
+function renderRoadDesk() {
+  state.view = 'roadkit'; syncNav('roadkit');
+  setWorkspace('Road Desk', 'Crossings at the threshold');
+  clear(workspaceBody);
+  const road = state.roadkit;
+  if (!road) {
+    workspaceBody.appendChild(el('div', 'empty-state', 'RoadKit observation unavailable.'));
+    return;
+  }
+
+  const hero = el('section', 'house-hero card');
+  const copy = el('div');
+  copy.append(
+    el('div', 'eyebrow', 'READ ONLY / LOCAL / ATTRIBUTABLE'),
+    el('h2', 'house-title', road.present ? 'The road has a threshold.' : 'RoadKit is not present.')
+  );
+  copy.appendChild(el('p', 'muted',
+    road.operator_note || 'Road Desk observes one configured House and never performs RoadKit actions.'));
+  const law = el('div', 'law-strip');
+  for (const item of road.laws || []) law.appendChild(el('span', 'law-chip', item));
+  copy.appendChild(law);
+  hero.appendChild(copy);
+  workspaceBody.appendChild(hero);
+
+  if (!road.configured) {
+    workspaceBody.appendChild(el('div', 'notice',
+      'No roadkit_house_root is configured. Add one local House root to Workbench configuration to observe it.'));
+    return;
+  }
+  if (!road.present) {
+    workspaceBody.appendChild(el('div', 'notice',
+      'The configured RoadKit root is not initialized. Road Desk will not initialize it.'));
+    return;
+  }
+
+  const summary = el('div', 'metric-grid');
+  summary.append(
+    metricCard('Inbox', String(road.summary.inbox)),
+    metricCard('Foreign HOLDs', String(road.summary.foreign_holds)),
+    metricCard('ADMIT receipts', String(road.summary.admits)),
+    metricCard('Identity address', road.identity?.address_verified ? 'verified' : 'mismatch')
+  );
+  workspaceBody.appendChild(summary);
+
+  const identity = el('article', 'card wide');
+  identity.append(
+    el('div', 'eyebrow', 'HOUSE IDENTITY / SELF-ASSERTED LOCAL'),
+    el('h2', '', road.house.label || road.house.house_id)
+  );
+  const dl = el('dl', 'definition-grid');
+  [
+    ['House', road.house.house_id],
+    ['World', road.house.world_id],
+    ['Identity ref', road.house.identity_ref],
+    ['Identity content address', road.identity.address_verified ? 'verified' : 'NOT VERIFIED'],
+    ['Identity matches House', road.identity.matches_house ? 'yes' : 'no'],
+    ['Signing public key present', road.identity.signing_public_key_present ? 'yes' : 'no'],
+    ['Observation verification', road.verification],
+  ].forEach(([key, value]) => dl.append(el('dt', '', key), el('dd', '', String(value))));
+  identity.appendChild(dl);
+  workspaceBody.appendChild(identity);
+
+  const crossings = el('section', 'house-section');
+  crossings.appendChild(el('div', 'section-heading', 'FOREIGN CROSSINGS'));
+  if (!road.foreign_crossings.length) {
+    crossings.appendChild(el('div', 'empty-state', 'No foreign crossing files are visible in this House inbox.'));
+  } else {
+    const list = el('div', 'repo-list');
+    for (const crossing of road.foreign_crossings) {
+      const card = el('article', 'card');
+      card.append(
+        el('div', 'eyebrow', 'FOREIGN / OBSERVED'),
+        el('h2', '', crossing.declared_kind || 'unknown crossing kind'),
+        el('div', 'muted tiny', crossing.crossing_id || 'crossing id unavailable'),
+        el('div', '', `${crossing.source_particular || 'unknown source'} · ${crossing.source_world || 'unknown world'}`),
+        el('div', 'muted', `${crossing.payload_count} addressed payload(s) · requested effect: ${crossing.requested_effect || 'none declared'}`)
+      );
+      list.appendChild(card);
+    }
+    crossings.appendChild(list);
+  }
+  workspaceBody.appendChild(crossings);
+
+  const boundary = el('article', 'card wide');
+  boundary.append(
+    el('div', 'eyebrow', 'OPERATOR BOUNDARY'),
+    el('h2', '', 'Moving the crossing is not making the decision.'),
+    el('p', 'muted',
+      'Road Desk intentionally provides no pull, accept, send, or peer-start controls. Those remain explicit RoadKit operator actions outside Workbench.'),
+    el('div', 'notice', 'RECEIPT PARSED != SIGNATURE VERIFIED · UI != ROADKIT EXECUTION')
+  );
+  workspaceBody.appendChild(boundary);
+}
+
 function renderMachine() {
   state.view = 'machine'; syncNav('machine');
   setWorkspace('Machine', 'Static node');
@@ -557,6 +652,7 @@ async function loadCreatorDesk() { state.creator = await api('/api/creator/desk'
 async function loadMachine() { state.machine = await api('/api/machine'); if (state.view === 'machine') renderMachine(); }
 async function loadRepos() { const body = await api('/api/repos'); state.repos = body.repos; $('#repo-count').textContent = String(state.repos.length); if (state.view === 'repos') renderRepos(); }
 async function loadHouse() { state.house = await api('/api/house'); $('#house-count').textContent = `${state.house.summary.core_organs_present}/${state.house.summary.core_organs_total}`; if (state.view === 'house') renderHouse(); }
+async function loadRoadKit() { state.roadkit = await api('/api/roadkit'); $('#road-count').textContent = state.roadkit?.configured ? String(state.roadkit.summary.foreign_holds) : '—'; if (state.view === 'roadkit') renderRoadDesk(); }
 async function loadEvents() {
   const body = await api('/api/events?limit=80');
   const list = $('#event-list'); clear(list);
@@ -578,6 +674,7 @@ function renderRoots() {
 async function refreshCurrent() {
   try {
     if (state.view === 'house') await Promise.all([loadHouse(), loadRepos(), loadMachine(), loadBroadcastDoor()]);
+    else if (state.view === 'roadkit') await loadRoadKit();
     else if (state.view === 'machine') await loadMachine();
     else if (state.view === 'repos') await loadRepos();
     else if (state.view === 'objects') renderObjects();
@@ -595,7 +692,7 @@ async function start() {
     state.bootstrap = await api('/api/bootstrap');
     $('#node-dot').classList.add('online'); $('#node-label').textContent = 'local supervisor online';
     renderRoots();
-    await Promise.all([loadMachine(), loadRepos(), loadHouse(), loadCreatorDesk(), loadApertureHistory(), loadBroadcastDoor()]);
+    await Promise.all([loadMachine(), loadRepos(), loadHouse(), loadRoadKit(), loadCreatorDesk(), loadApertureHistory(), loadBroadcastDoor()]);
     await creatorV2Load();
     await nativeMaxhinalLoad();
     renderHouse();
@@ -609,7 +706,7 @@ async function start() {
 
 document.querySelectorAll('.nav-button').forEach(button => button.addEventListener('click', () => {
   const view = button.dataset.view;
-  if (view === 'house') renderHouse(); else if (view === 'machine') renderMachine(); else if (view === 'repos') renderRepos(); else if (view === 'objects') renderObjects(); else if (view === 'creator') { renderCreatorDesk(); creatorV2Load().catch(showError); } else if (view === 'maxhinal') { renderNativeMaxhinal(); nativeMaxhinalLoad().catch(showError); } else if (view === 'dogram-impact') renderDogramImpactDesk(); else if (view === 'groundkeeper') groundkeeperView(); else renderHumanTerminal();
+  if (view === 'house') renderHouse(); else if (view === 'roadkit') renderRoadDesk(); else if (view === 'machine') renderMachine(); else if (view === 'repos') renderRepos(); else if (view === 'objects') renderObjects(); else if (view === 'creator') { renderCreatorDesk(); creatorV2Load().catch(showError); } else if (view === 'maxhinal') { renderNativeMaxhinal(); nativeMaxhinalLoad().catch(showError); } else if (view === 'dogram-impact') renderDogramImpactDesk(); else if (view === 'groundkeeper') groundkeeperView(); else renderHumanTerminal();
 }));
 $('#refresh-view').addEventListener('click', refreshCurrent);
 $('#refresh-events').addEventListener('click', () => loadEvents().catch(showError));
