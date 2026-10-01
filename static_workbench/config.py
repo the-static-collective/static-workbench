@@ -38,6 +38,7 @@ class WorkbenchConfig:
     github_remote_discovery: bool = False
     branch_worktrees_enabled: bool = False
     branch_radar_enabled: bool = False
+    roadkit_house_root: Path | None = None
     branch_test_suites: tuple[BranchTestSuite, ...] = ()
 
 
@@ -114,6 +115,16 @@ def load_config(path: Path | None = None) -> WorkbenchConfig:
         branch_radar_enabled = raw.get("branch_radar_enabled", False)
         if type(branch_radar_enabled) is not bool:
             raise ValueError("branch_radar_enabled must be a boolean")
+        roadkit_house_root_value = raw.get("roadkit_house_root")
+        if roadkit_house_root_value is not None and (
+            not isinstance(roadkit_house_root_value, str) or not roadkit_house_root_value.strip()
+        ):
+            raise ValueError("roadkit_house_root must be a non-empty path string")
+        roadkit_house_root = (
+            _expand_path(roadkit_house_root_value)
+            if roadkit_house_root_value is not None
+            else None
+        )
         branch_test_suites = _read_branch_test_suites(raw.get("branch_test_suites", []))
         if broadcast_port is not None and (type(broadcast_port) is not int):
             raise ValueError("broadcast_port must be an integer")
@@ -129,6 +140,7 @@ def load_config(path: Path | None = None) -> WorkbenchConfig:
         github_remote_discovery = False
         branch_worktrees_enabled = False
         branch_radar_enabled = False
+        roadkit_house_root = None
         branch_test_suites = ()
 
     if bind_host not in {"127.0.0.1", "::1", "localhost"}:
@@ -158,5 +170,6 @@ def load_config(path: Path | None = None) -> WorkbenchConfig:
         github_remote_discovery=github_remote_discovery,
         branch_worktrees_enabled=branch_worktrees_enabled,
         branch_radar_enabled=branch_radar_enabled,
+        roadkit_house_root=roadkit_house_root,
         branch_test_suites=branch_test_suites,
     )
