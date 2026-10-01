@@ -5,6 +5,10 @@ state_dir = "~/.local/state/static-workbench"
 max_repo_depth = 4
 preview_bytes = 131072
 
+# Optional read-only ROADKIT-001 House observation.
+# Workbench never runs pull, accept, send, or peer-start actions.
+# roadkit_house_root = "~/.local/state/static-roadkit/my-house"
+
 # Optional bounded public GitHub branch/PR lookup from the Branch Deck.
 # Uses no token, only an explicitly selected public Collective origin.
 # github_remote_discovery = true
