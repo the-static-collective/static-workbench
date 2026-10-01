@@ -33,6 +33,7 @@ from .broadcast import broadcast_door
 from .lifestream_inbox import MomentInbox
 from .journal import Journal, SenseFieldRecord
 from .house import build_house_status
+from .road_desk import RoadDeskError, road_desk_status
 from .groundkeeper import make_receipt as groundkeeper_first_ignition
 from .machine import sample_machine
 from .paths import PathOutsideRoot, resolve_under_root
@@ -478,6 +479,20 @@ def create_app(config: WorkbenchConfig | None = None) -> FastAPI:
         result = discover_repositories(config.roots, config.max_repo_depth)
         status = build_house_status(result)
         journal.append("house.scanned", status["summary"])
+        return status
+
+    @app.get("/api/roadkit")
+    def roadkit():
+        try:
+            status = road_desk_status(config.roadkit_house_root)
+        except RoadDeskError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+        journal.append("roadkit.observed", {
+            "configured": status["configured"],
+            "present": status["present"],
+            "foreign_holds": status["summary"]["foreign_holds"],
+            "admits": status["summary"]["admits"],
+        })
         return status
 
     @app.get("/api/creator/desk")

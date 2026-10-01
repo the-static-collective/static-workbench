@@ -24,6 +24,7 @@ class WorkbenchConfig:
     max_repo_depth: int = 4
     preview_bytes: int = 131072
     broadcast_port: int | None = None
+    roadkit_house_root: Path | None = None
 
 
 def _expand_path(value: str | os.PathLike[str]) -> Path:
@@ -62,6 +63,16 @@ def load_config(path: Path | None = None) -> WorkbenchConfig:
         broadcast_port = raw.get("broadcast_port")
         if broadcast_port is not None and (type(broadcast_port) is not int):
             raise ValueError("broadcast_port must be an integer")
+        roadkit_house_root_value = raw.get("roadkit_house_root")
+        if roadkit_house_root_value is not None and (
+            not isinstance(roadkit_house_root_value, str) or not roadkit_house_root_value.strip()
+        ):
+            raise ValueError("roadkit_house_root must be a non-empty path string")
+        roadkit_house_root = (
+            _expand_path(roadkit_house_root_value)
+            if roadkit_house_root_value is not None
+            else None
+        )
     else:
         home = Path.home()
         roots = (RootConfig("static", (home / "static").resolve(strict=False)),)
@@ -71,6 +82,7 @@ def load_config(path: Path | None = None) -> WorkbenchConfig:
         max_repo_depth = 4
         preview_bytes = 131072
         broadcast_port = None
+        roadkit_house_root = None
 
     if bind_host not in {"127.0.0.1", "::1", "localhost"}:
         raise ValueError("v0.1 only supports loopback bind hosts")
@@ -96,4 +108,5 @@ def load_config(path: Path | None = None) -> WorkbenchConfig:
         max_repo_depth=max_repo_depth,
         preview_bytes=preview_bytes,
         broadcast_port=broadcast_port,
+        roadkit_house_root=roadkit_house_root,
     )
