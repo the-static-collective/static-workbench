@@ -54,13 +54,24 @@ def test_humanterminal_surface_and_aperture_endpoints_are_wired(tmp_path: Path):
     assert "possible meaning != intended meaning" in js
 
 
-def test_house_is_default_habitat_surface(tmp_path: Path):
+def test_ghot_is_default_control_shell(tmp_path: Path):
+    with TestClient(create_app(make_config(tmp_path)), base_url="http://127.0.0.1") as client:
+        html = client.get("/").text
+        js = client.get("/assets/app.js").text
+
+    assert 'data-view="ghot"' in html
+    assert "idle operator / provenance habitat" in html
+    assert "/api/ghot" in js
+    assert "Run one idle tick" in js
+    assert "Authority absent" in js
+
+
+def test_house_is_available_as_habitat_surface(tmp_path: Path):
     with TestClient(create_app(make_config(tmp_path)), base_url="http://127.0.0.1") as client:
         html = client.get("/").text
         js = client.get("/assets/app.js").text
 
     assert 'data-view="house"' in html
-    assert "local habitat / provenance desk" in html
     assert "/api/house" in js
     assert "house.laws" in js
     assert "The house is awake." in js

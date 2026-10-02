@@ -366,3 +366,24 @@ input:focus, select:focus { border-color: var(--green-dim); outline: 2px solid r
 .mirror-inspector button:disabled { opacity:.45; cursor:not-allowed }
 .mirror-inspector label { font-weight:600 }
 @media(max-width:900px) { .mirror-layout { grid-template-columns:minmax(0, 1fr) } }
+
+
+/* GHoT-001: idle-clicker projection of actual Workbench state. */
+.ghot-hero { display:grid; grid-template-columns:minmax(0,1fr) auto; gap:24px; align-items:center; margin-bottom:14px; background:radial-gradient(circle at 88% 18%, #303522 0, transparent 36%),linear-gradient(135deg,#1b2820,#181f1c 58%,#27251d); }
+.ghot-xp { min-width:108px; text-align:center; padding:14px 12px; border:1px solid var(--line); border-radius:12px; background:rgba(10,14,12,.3); }
+.ghot-resources { margin-bottom:18px; }
+.ghot-tick { display:grid; gap:10px; margin-bottom:24px; border-color:#4d665a; }
+.ghot-tick > button { justify-self:start; }
+.ghot-party { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:9px; }
+.ghot-party-member { display:flex; justify-content:space-between; align-items:center; gap:10px; }
+.ghot-quests { display:grid; grid-template-columns:repeat(auto-fit,minmax(250px,1fr)); gap:11px; }
+.ghot-quest { display:grid; align-content:start; gap:10px; min-width:0; }
+.ghot-quest h2 { margin:0; font-size:18px; }
+.ghot-quest-top { display:flex; justify-content:space-between; gap:10px; align-items:start; }
+.ghot-evidence { display:grid; gap:5px; margin:0; padding-left:18px; color:var(--muted); font:11px/1.45 ui-monospace,monospace; }
+.ghot-quest > button { justify-self:start; margin-top:auto; }
+.ghot-held:disabled { opacity:.55; cursor:not-allowed; }
+@media (max-width:720px) {
+  .ghot-hero { grid-template-columns:1fr; }
+  .ghot-xp { text-align:left; }
+}

@@ -1,4 +1,4 @@
-const state = { bootstrap: null, machine: null, repos: [], house: null, roadkit: null, view: 'house', creator: null, broadcast: null, apertureHistory: [], apertureCurrent: null, apertureParentId: null };
+const state = { bootstrap: null, machine: null, repos: [], house: null, roadkit: null, ghot: null, view: 'ghot', creator: null, broadcast: null, apertureHistory: [], apertureCurrent: null, apertureParentId: null };
 const APERTURE_BOUNDARY = 'possible meaning != intended meaning';
 
 const $ = (selector) => document.querySelector(selector);
@@ -77,6 +77,115 @@ function isSafeBroadcastUrl(value) {
       && url.username === '' && url.password === ''
       && value === `http://127.0.0.1:${url.port}/`;
   } catch (_) { return false; }
+}
+
+function openGhotTarget(target) {
+  if (target === 'house') renderHouse();
+  else if (target === 'roadkit') renderRoadDesk();
+  else if (target === 'branches') branchDeckOpen().catch(showError);
+  else if (target === 'creator') { renderCreatorDesk(); creatorV2Load().catch(showError); }
+  else if (target === 'return') returnDeskLoad().catch(showError);
+  else if (target === 'rocket') { state.view = 'rocket'; rocketLoad().catch(showError); }
+}
+
+async function ghotIdleTick(output, button) {
+  button.disabled = true;
+  button.textContent = 'Observing…';
+  output.textContent = 'Refreshing bounded local projections. No project command is being executed.';
+  try {
+    await Promise.all([loadRepos(), loadHouse(), loadRoadKit(), loadGhot()]);
+    await loadEvents();
+    output.textContent = 'Idle tick complete. Witness state refreshed; no external or project execution was authorized.';
+  } catch (error) {
+    output.textContent = error.message || String(error);
+  } finally {
+    button.disabled = false;
+    button.textContent = 'Run one idle tick';
+  }
+}
+
+function renderGhot() {
+  state.view = 'ghot'; syncNav('ghot');
+  setWorkspace('GHoT', 'Idle operator / living control shell');
+  clear(workspaceBody);
+  const ghot = state.ghot;
+  if (!ghot) {
+    workspaceBody.appendChild(el('div', 'empty-state', 'GHoT projection unavailable.'));
+    return;
+  }
+
+  const hero = el('section', 'ghot-hero card');
+  const copy = el('div');
+  copy.append(
+    el('div', 'eyebrow', 'GIANT HEAP OF THINGS / REAL STATE ONLY'),
+    el('h2', 'house-title', 'The heap is alive.')
+  );
+  copy.appendChild(el('p', 'muted',
+    'An idle-clicker RPG projection of the actual Workbench. Resources are observed facts; quests open real desks; held gates stay held.'));
+  const laws = el('div', 'law-strip');
+  for (const law of ghot.laws || []) laws.appendChild(el('span', 'law-chip', law));
+  copy.appendChild(laws);
+  const xp = el('div', 'ghot-xp');
+  xp.append(el('div', 'pulse-number', String(ghot.resources.witness_xp)), el('div', 'muted tiny', 'witness XP'));
+  hero.append(copy, xp);
+  workspaceBody.appendChild(hero);
+
+  const resourceGrid = el('div', 'metric-grid ghot-resources');
+  resourceGrid.append(
+    metricCard('Visible repos', String(ghot.resources.visible_repos)),
+    metricCard('Core organs', `${ghot.resources.core_organs_present}/${ghot.resources.core_organs_total}`),
+    metricCard('Foreign HOLDs', String(ghot.resources.foreign_holds)),
+    metricCard('Local ADMITs', String(ghot.resources.local_admits)),
+    metricCard('Dirty trees', String(ghot.resources.dirty_trees)),
+    metricCard('Diverged trees', String(ghot.resources.diverged_trees))
+  );
+  workspaceBody.appendChild(resourceGrid);
+
+  const tick = el('section', 'card ghot-tick');
+  tick.append(
+    el('div', 'eyebrow', 'IDLE LOOP / OBSERVATION ONLY'),
+    el('h2', '', 'Let the world move one witnessed tick.'),
+    el('p', 'muted', ghot.idle_tick.description)
+  );
+  const tickButton = el('button', 'action-button', 'Run one idle tick');
+  tickButton.type = 'button';
+  const tickOutput = el('div', 'muted tiny', 'Nothing moves without a bounded crossing.');
+  tickButton.addEventListener('click', () => ghotIdleTick(tickOutput, tickButton));
+  tick.append(tickButton, tickOutput);
+  workspaceBody.appendChild(tick);
+
+  const partySection = el('section', 'house-section');
+  partySection.appendChild(el('div', 'section-heading', 'PARTY'));
+  const party = el('div', 'ghot-party');
+  for (const member of ghot.party || []) {
+    const row = el('article', 'card ghot-party-member');
+    row.append(el('strong', '', member.label), el('span', `state-pill ${member.state === 'ready' || member.state === 'recording' ? 'good' : member.state === 'held' ? 'warn' : ''}`, member.state));
+    party.appendChild(row);
+  }
+  partySection.appendChild(party);
+  workspaceBody.appendChild(partySection);
+
+  const questSection = el('section', 'house-section');
+  questSection.appendChild(el('div', 'section-heading', 'QUEST BOARD'));
+  const quests = el('div', 'ghot-quests');
+  for (const quest of ghot.quests || []) {
+    const card = el('article', 'card ghot-quest');
+    const top = el('div', 'ghot-quest-top');
+    top.append(el('div', 'eyebrow', quest.id), el('span', `state-pill ${quest.status === 'ready' ? 'good' : quest.status === 'human_gate' || quest.status === 'held' ? 'warn' : ''}`, quest.status));
+    card.append(top, el('h2', '', quest.title), el('p', 'muted', quest.description));
+    const evidence = el('ul', 'ghot-evidence');
+    for (const item of quest.evidence || []) evidence.appendChild(el('li', '', item));
+    card.appendChild(evidence);
+    card.appendChild(el('div', 'muted tiny', `Authority: ${quest.authority}`));
+    const action = el('button', quest.target_view ? 'quiet-button' : 'quiet-button ghot-held', quest.target_view ? 'Open quest' : 'Authority absent');
+    action.type = 'button';
+    if (!quest.target_view) action.disabled = true;
+    else action.addEventListener('click', () => openGhotTarget(quest.target_view));
+    card.appendChild(action);
+    quests.appendChild(card);
+  }
+  questSection.appendChild(quests);
+  workspaceBody.appendChild(questSection);
 }
 
 function renderHouse() {
@@ -675,6 +784,7 @@ function renderHumanTerminal() {
   renderApertureHistory();
 }
 
+async function loadGhot() { state.ghot = await api('/api/ghot'); if (state.view === 'ghot') renderGhot(); }
 async function loadBroadcastDoor() { state.broadcast = await api('/api/broadcast/door'); if (state.view === 'house') renderHouse(); }
 async function loadCreatorDesk() { state.creator = await api('/api/creator/desk'); if (state.view === 'creator') renderCreatorDesk(); }
 async function loadMachine() { state.machine = await api('/api/machine'); if (state.view === 'machine') renderMachine(); }
@@ -701,7 +811,8 @@ function renderRoots() {
 
 async function refreshCurrent() {
   try {
-    if (state.view === 'house') await Promise.all([loadHouse(), loadRepos(), loadMachine(), loadBroadcastDoor()]);
+    if (state.view === 'ghot') await Promise.all([loadGhot(), loadHouse(), loadRepos(), loadRoadKit()]);
+    else if (state.view === 'house') await Promise.all([loadHouse(), loadRepos(), loadMachine(), loadBroadcastDoor()]);
     else if (state.view === 'roadkit') await loadRoadKit();
     else if (state.view === 'launchpad') await renderLaunchpad();
     else if (state.view === 'machine') await loadMachine();
@@ -729,12 +840,12 @@ async function start() {
     state.bootstrap = await api('/api/bootstrap');
     $('#node-dot').classList.add('online'); $('#node-label').textContent = 'local supervisor online';
     renderRoots();
-    await Promise.all([loadMachine(), loadRepos(), loadHouse(), loadRoadKit(), loadCreatorDesk(), loadApertureHistory(), loadBroadcastDoor()]);
+    await Promise.all([loadMachine(), loadRepos(), loadHouse(), loadRoadKit(), loadGhot(), loadCreatorDesk(), loadApertureHistory(), loadBroadcastDoor()]);
     await loadBranchDeck().catch(() => { $('#branch-count').textContent = '!'; });
     await loadBranchRadar().catch(() => {});
     await creatorV2Load();
     await nativeMaxhinalLoad();
-    renderHouse();
+    renderGhot();
     await loadEvents();
     window.setInterval(() => loadEvents().catch(() => {}), 5000);
     window.setInterval(() => {
@@ -751,7 +862,7 @@ async function start() {
 
 document.querySelectorAll('.nav-button').forEach(button => button.addEventListener('click', () => {
   const view = button.dataset.view;
-  if (view === 'house') renderHouse(); else if (view === 'roadkit') renderRoadDesk(); else if (view === 'launchpad') renderLaunchpad().catch(showError); else if (view === 'machine') renderMachine(); else if (view === 'repos') renderRepos(); else if (view === 'branches') { branchDeckOpen().catch(showError); } else if (view === 'objects') renderObjects(); else if (view === 'returns') renderReturnShelf(); else if (view === 'attention') { state.view = 'attention'; window.HumanValueBar.openShelf(); } else if (view === 'creator') { renderCreatorDesk(); creatorV2Load().catch(showError); } else if (view === 'maxhinal') { renderNativeMaxhinal(); nativeMaxhinalLoad().catch(showError); } else if (view === 'dogram-impact') renderDogramImpactDesk(); else if (view === 'return') returnDeskLoad().catch(showError); else if (view === 'rocket') { state.view = 'rocket'; rocketLoad().catch(showError); } else if (view === 'mirror') renderMirror().catch(showError); else if (view === 'composition') renderCompositionInspection(); else if (view === 'living-main') renderLivingMain(); else if (view === 'groundkeeper') groundkeeperView(); else renderHumanTerminal();
+  if (view === 'ghot') renderGhot(); else if (view === 'house') renderHouse(); else if (view === 'roadkit') renderRoadDesk(); else if (view === 'launchpad') renderLaunchpad().catch(showError); else if (view === 'machine') renderMachine(); else if (view === 'repos') renderRepos(); else if (view === 'branches') { branchDeckOpen().catch(showError); } else if (view === 'objects') renderObjects(); else if (view === 'returns') renderReturnShelf(); else if (view === 'attention') { state.view = 'attention'; window.HumanValueBar.openShelf(); } else if (view === 'creator') { renderCreatorDesk(); creatorV2Load().catch(showError); } else if (view === 'maxhinal') { renderNativeMaxhinal(); nativeMaxhinalLoad().catch(showError); } else if (view === 'dogram-impact') renderDogramImpactDesk(); else if (view === 'return') returnDeskLoad().catch(showError); else if (view === 'rocket') { state.view = 'rocket'; rocketLoad().catch(showError); } else if (view === 'mirror') renderMirror().catch(showError); else if (view === 'composition') renderCompositionInspection(); else if (view === 'living-main') renderLivingMain(); else if (view === 'groundkeeper') groundkeeperView(); else renderHumanTerminal();
 }));
 $('#refresh-view').addEventListener('click', refreshCurrent);
 $('#refresh-events').addEventListener('click', () => loadEvents().catch(showError));

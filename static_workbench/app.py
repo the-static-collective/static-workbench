@@ -37,6 +37,7 @@ from .living_main import CompositionError, preview_composition
 from .relation_chamber import RelationError, preview_relation
 from .house import build_house_status
 from .road_desk import RoadDeskError, road_desk_status
+from .ghot_shell import build_ghot_status
 from .launchpad import launchpad_router
 from .arrival import diagnose as diagnose_arrival
 from .mirror import mirror_router
@@ -329,6 +330,29 @@ def create_app(config: WorkbenchConfig | None = None) -> FastAPI:
     def arrival_inventory():
         """Read-only observed checkouts; does not install, select or authorize organs."""
         return diagnose_arrival(config, repos=discover_repositories(config.roots, config.max_repo_depth))
+
+    @app.get("/api/ghot")
+    def ghot():
+        repos = discover_repositories(config.roots, config.max_repo_depth)
+        house_status = build_house_status(repos)
+        try:
+            road_status = road_desk_status(config.roadkit_house_root)
+        except RoadDeskError as exc:
+            road_status = {
+                "configured": config.roadkit_house_root is not None,
+                "present": False,
+                "verification": "error",
+                "summary": {"inbox": 0, "outbox": 0, "foreign_holds": 0, "admits": 0},
+                "operator_note": str(exc),
+            }
+        status = build_ghot_status(house_status, road_status, journal.latest(1000))
+        journal.append("ghot.observed", {
+            "visible_repos": status["resources"]["visible_repos"],
+            "foreign_holds": status["resources"]["foreign_holds"],
+            "local_admits": status["resources"]["local_admits"],
+            "quests": len(status["quests"]),
+        })
+        return status
 
     @app.get("/api/house")
     def house():
