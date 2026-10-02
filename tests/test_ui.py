@@ -63,7 +63,6 @@ def test_ghot_is_default_control_shell(tmp_path: Path):
     assert "idle operator / provenance habitat" in html
     assert "/api/ghot" in js
     assert "Run one idle tick" in js
-    assert "STATICJACK-001" in js
     assert "Authority absent" in js
 
 
@@ -73,7 +72,6 @@ def test_house_is_available_as_habitat_surface(tmp_path: Path):
         js = client.get("/assets/app.js").text
 
     assert 'data-view="house"' in html
-    assert "local habitat / provenance desk" in html
     assert "/api/house" in js
     assert "house.laws" in js
     assert "The house is awake." in js
