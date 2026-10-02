@@ -368,3 +368,16 @@ See [Dogram Impact Desk setup and boundaries](docs/dogram-impact-desk-001.md).
 HOUSE now exposes an experimental **GROUNDKEEPER** door. Run a reproducible simulated ground signal through a coupled sound/visual feedback network; inspect a derived note phrase, visual frame, three bounded graph-change comparisons, and an exact-replay receipt. It does **not** access live sensors, mutate project state, admit generated capabilities, or implement a TranchNOSE optical field.
 
 Use the **GROUNDKEEPER** navigator view or run `python -m static_workbench.groundkeeper --seed static-first-ignition --output ~/groundkeeper-first.json`, followed by `python -m static_workbench.groundkeeper --replay ~/groundkeeper-first.json`. The output file must not already exist. Read [first-flight setup, controls, and next stages](docs/groundkeeper-001.md).
+
+
+## GHoT idle operator
+
+[GHoT IDLE OPERATOR 001](docs/GHOT-IDLE-OPERATOR-001.md) makes the Workbench default surface an idle-clicker/RPG projection of actual local state.
+
+Quests route into existing authority-owning desks; resource counters are observed facts; witness XP is the bounded journal-event count and is explicitly **not** capability or authority. The Polsia STATICJACK quest remains HELD until a separate external-system crossing defines credentials, budget, exposure and receipts.
+
+```text
+GAME STATE != CLAIMED REALITY
+QUEST READY != AUTHORIZED
+XP == WITNESS COUNT, NOT CAPABILITY
+```
