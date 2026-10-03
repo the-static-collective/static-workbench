@@ -169,6 +169,15 @@ class FieldReturnStore:
                 )
                 """
             )
+            db.execute(
+                """
+                CREATE TABLE IF NOT EXISTS field_return_receivers (
+                    receipt_id TEXT PRIMARY KEY,
+                    crossing_json TEXT,
+                    admission_json TEXT
+                )
+                """
+            )
 
     def save(self, receipt: dict) -> dict:
         if receipt.get("schema") != "workbench.field-return/v0":
@@ -210,22 +219,195 @@ class FieldReturnStore:
             **json.loads(str(row["receipt_json"])),
         }
 
+    def get(self, receipt_id: str) -> dict:
+        with self._connect() as db:
+            row = db.execute(
+                """
+                SELECT stored_at, receipt_json
+                FROM field_returns
+                WHERE receipt_id = ?
+                """,
+                (str(receipt_id),),
+            ).fetchone()
+        if row is None:
+            raise ValueError("field return not found")
+        return {
+            "stored_at": str(row["stored_at"]),
+            **json.loads(str(row["receipt_json"])),
+        }
+
+    def receiver(self, receipt_id: str) -> dict | None:
+        with self._connect() as db:
+            row = db.execute(
+                """
+                SELECT crossing_json, admission_json
+                FROM field_return_receivers
+                WHERE receipt_id = ?
+                """,
+                (str(receipt_id),),
+            ).fetchone()
+        if row is None:
+            return None
+        crossing = (
+            json.loads(str(row["crossing_json"]))
+            if row["crossing_json"] is not None
+            else None
+        )
+        admission = (
+            json.loads(str(row["admission_json"]))
+            if row["admission_json"] is not None
+            else None
+        )
+        return {
+            "crossing": crossing,
+            "admission": admission,
+            "status": (
+                "ADMITTED_NOT_ASSIGNED"
+                if admission is not None
+                else "RECEIVED_THEN_HELD"
+                if crossing is not None
+                else None
+            ),
+        }
+
+    def save_crossing(self, receipt_id: str, crossing: dict) -> dict:
+        existing = self.get(receipt_id)
+        if existing.get("disposition") != "take" or not isinstance(existing.get("reseed"), dict):
+            raise ValueError("only TAKE returns can cross a reseed")
+        if crossing.get("schema") != "workbench.field-reseed-crossing/v0":
+            raise ValueError("unsupported field reseed crossing schema")
+        if crossing.get("field_return_id") != receipt_id:
+            raise ValueError("field reseed crossing is bound to another return")
+        if crossing.get("reseed_id") != existing["reseed"].get("reseed_id"):
+            raise ValueError("field reseed crossing changed reseed identity")
+        payload = _canonical(crossing)
+        with self._connect() as db:
+            row = db.execute(
+                "SELECT crossing_json FROM field_return_receivers WHERE receipt_id = ?",
+                (receipt_id,),
+            ).fetchone()
+            if row is not None and row["crossing_json"] is not None:
+                if str(row["crossing_json"]) != payload:
+                    raise ValueError("a different crossing is already stored for this return")
+            else:
+                db.execute(
+                    """
+                    INSERT INTO field_return_receivers(receipt_id, crossing_json, admission_json)
+                    VALUES (?, ?, NULL)
+                    ON CONFLICT(receipt_id) DO UPDATE SET crossing_json=excluded.crossing_json
+                    """,
+                    (receipt_id, payload),
+                )
+        result = self.receiver(receipt_id)
+        if result is None or result["crossing"] is None:
+            raise RuntimeError("field reseed crossing did not persist")
+        return result
+
+    def save_admission(self, receipt_id: str, admission: dict) -> dict:
+        receiver = self.receiver(receipt_id)
+        if receiver is None or not isinstance(receiver.get("crossing"), dict):
+            raise ValueError("field reseed crossing HOLD is required before admission")
+        if admission.get("schema") != "workbench.field-reseed-admission/v0":
+            raise ValueError("unsupported field reseed admission schema")
+        if admission.get("field_return_id") != receipt_id:
+            raise ValueError("field reseed admission is bound to another return")
+        if admission.get("reseed_id") != receiver["crossing"].get("reseed_id"):
+            raise ValueError("field reseed admission changed reseed identity")
+        payload = _canonical(admission)
+        with self._connect() as db:
+            row = db.execute(
+                "SELECT admission_json FROM field_return_receivers WHERE receipt_id = ?",
+                (receipt_id,),
+            ).fetchone()
+            if row is not None and row["admission_json"] is not None:
+                if str(row["admission_json"]) != payload:
+                    raise ValueError("a different admission is already stored for this return")
+            else:
+                db.execute(
+                    """
+                    UPDATE field_return_receivers
+                    SET admission_json = ?
+                    WHERE receipt_id = ?
+                    """,
+                    (payload, receipt_id),
+                )
+        result = self.receiver(receipt_id)
+        if result is None or result["admission"] is None:
+            raise RuntimeError("field reseed admission did not persist")
+        return result
+
     def latest(self, limit: int = 50) -> list[dict]:
         bounded = max(1, min(int(limit), 200))
         with self._connect() as db:
             rows = db.execute(
                 """
-                SELECT stored_at, receipt_json
-                FROM field_returns
-                ORDER BY stored_at DESC, receipt_id DESC
+                SELECT r.stored_at, r.receipt_json, x.crossing_json, x.admission_json
+                FROM field_returns r
+                LEFT JOIN field_return_receivers x ON x.receipt_id = r.receipt_id
+                ORDER BY r.stored_at DESC, r.receipt_id DESC
                 LIMIT ?
                 """,
                 (bounded,),
             ).fetchall()
-        return [
-            {
+        result = []
+        for row in rows:
+            item = {
                 "stored_at": str(row["stored_at"]),
                 **json.loads(str(row["receipt_json"])),
             }
-            for row in rows
-        ]
+            crossing = (
+                json.loads(str(row["crossing_json"]))
+                if row["crossing_json"] is not None
+                else None
+            )
+            admission = (
+                json.loads(str(row["admission_json"]))
+                if row["admission_json"] is not None
+                else None
+            )
+            if crossing is not None or admission is not None:
+                item["receiver"] = {
+                    "status": (
+                        "ADMITTED_NOT_ASSIGNED"
+                        if admission is not None
+                        else "RECEIVED_THEN_HELD"
+                    ),
+                    "crossing": crossing,
+                    "admission": admission,
+                }
+            result.append(item)
+        return result
+
+    def receiver_field_state(self) -> list[dict]:
+        summaries = []
+        for item in self.latest(200):
+            receiver = item.get("receiver")
+            if not isinstance(receiver, dict):
+                continue
+            crossing = receiver.get("crossing")
+            admission = receiver.get("admission")
+            if not isinstance(crossing, dict):
+                continue
+            hold = crossing.get("ghot_hold")
+            admit = (
+                admission.get("ghot_admission")
+                if isinstance(admission, dict)
+                else None
+            )
+            summaries.append({
+                "field_return_id": item.get("receipt_id"),
+                "reseed_id": crossing.get("reseed_id"),
+                "status": receiver.get("status"),
+                "hold_id": hold.get("hold_id") if isinstance(hold, dict) else None,
+                "admission_id": (
+                    admit.get("admission_id")
+                    if isinstance(admit, dict)
+                    else None
+                ),
+                "intent_id": (
+                    admit.get("intent", {}).get("intent_id")
+                    if isinstance(admit, dict)
+                    else None
+                ),
+            })
+        return summaries
