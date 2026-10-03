@@ -173,6 +173,11 @@ function renderReceipts(){
         && w.kind.startsWith("audio_look_twice_dialogue:")
         && w.snapshot.pair_id===audioPairId
     );
+    const broadcastEpisodes=state.external_witnesses
+      .filter(w=>w.receipt_id===receipt.id&&w.kind.startsWith("broadcast_episode:"))
+      .filter(w=>!audioPairId||w.snapshot.pair_id===audioPairId)
+      .sort((a,b)=>String(b.created_at).localeCompare(String(a.created_at)));
+    const broadcastEpisode=broadcastEpisodes[0]||null;
     const ghotOffers=state.external_witnesses
       .filter(w=>w.receipt_id===receipt.id&&w.kind.startsWith("ghot_offer:"))
       .sort((a,b)=>String(b.created_at).localeCompare(String(a.created_at)));
@@ -401,6 +406,50 @@ function renderReceipts(){
         if(dialogue.door_seed){
           card.append(el("div","radio door seed · "+dialogue.door_seed,"adapter-line"));
         }
+
+        if(!broadcastEpisode){
+          const assemble=el("button","ASSEMBLE FIRST RADIO EPISODE");
+          assemble.type="button";
+          assemble.addEventListener("click",()=>mutate(
+            "/api/doorhouse/receipts/"+receipt.id+"/radio/assemble",
+            {},
+            "The station assembled one portable episode from the exact sealed radio evidence."
+          ));
+          card.append(assemble);
+        } else {
+          const ep=broadcastEpisode.snapshot;
+          card.append(el(
+            "div",
+            "BROADCAST ASSEMBLY · "+ep.title+" · "+ep.episode_digest.slice(0,16)+"…",
+            "adapter-line"
+          ));
+          const actions=el("div",undefined,"door-actions");
+          const play=document.createElement("a");
+          play.href="/api/doorhouse/receipts/"+receipt.id+"/radio/"+encodeURIComponent(ep.episode_id)+"/";
+          play.target="_blank";
+          play.rel="noopener";
+          play.textContent="PLAY EPISODE";
+          play.className="radio-link";
+          const manifest=document.createElement("a");
+          manifest.href="/api/doorhouse/receipts/"+receipt.id+"/radio/"+encodeURIComponent(ep.episode_id)+"/episode.json";
+          manifest.target="_blank";
+          manifest.rel="noopener";
+          manifest.textContent="episode.json";
+          manifest.className="radio-link";
+          const wav=document.createElement("a");
+          wav.href="/api/doorhouse/receipts/"+receipt.id+"/radio/"+encodeURIComponent(ep.episode_id)+"/window.wav";
+          wav.target="_blank";
+          wav.rel="noopener";
+          wav.textContent="window.wav";
+          wav.className="radio-link";
+          actions.append(play,manifest,wav);
+          card.append(actions);
+          card.append(el(
+            "div",
+            "browser voice is a playback projection · episode != broadcast occurrence",
+            "adapter-line"
+          ));
+        }
       }
     }
 
@@ -426,6 +475,7 @@ function renderReceipts(){
     if(audioFirsts.length) evidence.audio_first_listens=audioFirsts.map(w=>w.snapshot);
     if(audioDialoguePacket) evidence.audio_dialogue_packet=audioDialoguePacket.snapshot;
     if(audioDialogue) evidence.audio_dialogue=audioDialogue.snapshot;
+    if(broadcastEpisode) evidence.broadcast_episode=broadcastEpisode.snapshot;
     details.append(el("code",JSON.stringify(evidence,null,2)));
     card.append(details); root.append(card);
   }
