@@ -408,6 +408,147 @@ def test_receiver_assignment_offer_and_assignment_survive_restart(tmp_path):
     assert summary["capability"] == "system.hash"
     assert summary["receiver_at"] == "2026-10-03T16:43:00+00:00"
 
+    dispatch = {
+        "schema": "workbench.field-reseed-dispatch/v0",
+        "field_return_id": stored["receipt_id"],
+        "reseed_id": stored["reseed"]["reseed_id"],
+        "intent_id": intent_id,
+        "assignment_id": assignment["ghot_assignment"]["assignment_id"],
+        "status": "EXECUTED",
+        "semantic_effect": "receiver-local-consequence",
+        "ghot_dispatch": {
+            "schema": "ghot.carried-intent-dispatch-result/v0",
+            "intent_id": intent_id,
+            "assignment_id": assignment["ghot_assignment"]["assignment_id"],
+            "dispatch_crossing_id": "relatte-crossing-v0:" + "8" * 64,
+            "selected_node_id": "node-local",
+            "capability": "system.hash",
+            "status": "EXECUTED",
+            "semantic_effect": "receiver-local-consequence",
+            "completed_at": "2026-10-03T16:44:00+00:00",
+            "execution": {
+                "task": {
+                    "task_id": "task-123",
+                    "capability": "system.hash",
+                },
+                "receipt": {
+                    "receipt_id": "receipt-123",
+                    "task_id": "task-123",
+                    "capability": "system.hash",
+                    "status": "ok",
+                    "output_sha256": "a" * 64,
+                },
+            },
+            "signed_receipt": {
+                "receipt_id": "relatte-receipt-v0:" + "9" * 64,
+            },
+        },
+    }
+    executed = reopened.save_dispatch(stored["receipt_id"], dispatch)
+    assert executed["status"] == "EXECUTED"
+
+    final = FieldReturnStore(store.db_path)
+    item = final.latest()[0]
+    assert item["receiver"]["status"] == "EXECUTED"
+    assert item["receiver"]["dispatch"]["status"] == "EXECUTED"
+    summary = final.receiver_field_state()[0]
+    assert summary["status"] == "EXECUTED"
+    assert summary["dispatch_crossing_id"] == dispatch["ghot_dispatch"]["dispatch_crossing_id"]
+    assert summary["task_id"] == "task-123"
+    assert summary["execution_receipt_id"] == "receipt-123"
+    assert summary["signed_receipt_id"] == dispatch["ghot_dispatch"]["signed_receipt"]["receipt_id"]
+    assert summary["execution_status"] == "ok"
+    assert summary["output_sha256"] == "a" * 64
+    assert summary["receiver_at"] == "2026-10-03T16:44:00+00:00"
+
+
+def test_receiver_store_persists_ambiguous_dispatch_without_retry_semantics(tmp_path):
+    state = field()
+    receipt = compose_field_return(
+        state,
+        state["nearby_doors"][0]["door_id"],
+        "take",
+        "ambiguous dispatch witness",
+    )
+    store = FieldReturnStore(tmp_path / "ambiguous.sqlite3")
+    stored = store.save(receipt)
+
+    crossing = {
+        "schema": "workbench.field-reseed-crossing/v0",
+        "field_return_id": stored["receipt_id"],
+        "reseed_id": stored["reseed"]["reseed_id"],
+        "status": "RECEIVED_THEN_HELD",
+        "semantic_effect": "none",
+        "ghot_hold": {
+            "hold_id": "ghot-field-reseed-hold-v0:" + "3" * 64,
+            "received_at": "2026-10-03T16:40:00+00:00",
+        },
+    }
+    store.save_crossing(stored["receipt_id"], crossing)
+    intent_id = "ghot-carried-intent-v0:" + "5" * 64
+    store.save_admission(stored["receipt_id"], {
+        "schema": "workbench.field-reseed-admission/v0",
+        "field_return_id": stored["receipt_id"],
+        "reseed_id": stored["reseed"]["reseed_id"],
+        "status": "ADMITTED_NOT_ASSIGNED",
+        "ghot_admission": {
+            "admission_id": "ghot-field-reseed-admission-v0:" + "4" * 64,
+            "intent": {
+                "schema": "ghot.carried-intent/v0",
+                "intent_id": intent_id,
+                "status": "admitted-not-assigned",
+            },
+        },
+    })
+    store.save_assignment_offer(stored["receipt_id"], {
+        "schema": "workbench.field-reseed-assignment-offer/v0",
+        "field_return_id": stored["receipt_id"],
+        "reseed_id": stored["reseed"]["reseed_id"],
+        "intent_id": intent_id,
+        "status": "OFFER_READY",
+        "semantic_effect": "none",
+        "ghot_offer": {
+            "offer_id": "ghot-carried-intent-offer-v0:" + "6" * 64,
+            "intent_id": intent_id,
+            "bodies": [],
+        },
+    })
+    assignment_id = "ghot-carried-intent-assignment-v0:" + "7" * 64
+    store.save_assignment(stored["receipt_id"], {
+        "schema": "workbench.field-reseed-assignment/v0",
+        "field_return_id": stored["receipt_id"],
+        "reseed_id": stored["reseed"]["reseed_id"],
+        "intent_id": intent_id,
+        "status": "ASSIGNED_NOT_EXECUTED",
+        "semantic_effect": "receiver-assignment-only",
+        "ghot_assignment": {
+            "assignment_id": assignment_id,
+            "intent_id": intent_id,
+        },
+    })
+    ambiguous = {
+        "schema": "workbench.field-reseed-dispatch/v0",
+        "field_return_id": stored["receipt_id"],
+        "reseed_id": stored["reseed"]["reseed_id"],
+        "intent_id": intent_id,
+        "assignment_id": assignment_id,
+        "status": "DISPATCH_OUTCOME_UNKNOWN",
+        "semantic_effect": "unknown",
+        "ghot_dispatch_status": {
+            "dispatch_state": {
+                "crossing_id": "relatte-crossing-v0:" + "8" * 64,
+                "prepared_at": "2026-10-03T16:44:00+00:00",
+            },
+        },
+    }
+    result = store.save_dispatch(stored["receipt_id"], ambiguous)
+    assert result["status"] == "DISPATCH_OUTCOME_UNKNOWN"
+    summary = FieldReturnStore(store.db_path).receiver_field_state()[0]
+    assert summary["status"] == "DISPATCH_OUTCOME_UNKNOWN"
+    assert summary["dispatch_crossing_id"] == ambiguous["ghot_dispatch_status"]["dispatch_state"]["crossing_id"]
+    assert summary["task_id"] is None
+    assert summary["receiver_at"] == "2026-10-03T16:44:00+00:00"
+
 
 def test_receiver_store_migrates_pre_assignment_schema(tmp_path):
     db_path = tmp_path / "legacy.sqlite3"
@@ -444,3 +585,4 @@ def test_receiver_store_migrates_pre_assignment_schema(tmp_path):
         }
     assert "assignment_offer_json" in columns
     assert "assignment_json" in columns
+    assert "dispatch_json" in columns

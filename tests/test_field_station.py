@@ -207,6 +207,8 @@ def test_mature_field_composes_multiple_organs_without_selecting_any():
         "ghot_reseed_admissions": 0,
         "ghot_assignment_offers": 0,
         "ghot_assignments": 0,
+        "ghot_dispatches": 0,
+        "ghot_dispatch_unknown": 0,
     }
     assert {
         pressure["kind"] for pressure in state["memory_pressures"]
@@ -1042,7 +1044,7 @@ def test_assignment_offer_changes_field_to_explicit_pair_choice():
     )
 
 
-def test_assignment_receipt_changes_field_to_inspection_without_execution():
+def test_assignment_receipt_changes_field_to_explicit_dispatch_crossing():
     receiver = [{
         "stored_at": "2026-10-03T16:31:00+00:00",
         "receiver_at": "2026-10-03T16:33:00+00:00",
@@ -1064,12 +1066,98 @@ def test_assignment_receipt_changes_field_to_inspection_without_execution():
         door for door in state["nearby_doors"]
         if door["lane"] == "carried"
     )
-    assert carried["kind"] == "inspect-ghot-carried-intent-assignment"
+    assert carried["kind"] == "dispatch-ghot-carried-intent-assignment"
     assert carried["effect"] == "none"
+    assert carried["target"]["control"] == "ghot-field-intent-dispatch"
     assert carried["evidence"][0]["selected_node_id"] == "node-local"
     assert carried["evidence"][0]["capability"] == "system.hash"
     assert state["counts"]["ghot_assignment_offers"] == 0
     assert state["counts"]["ghot_assignments"] == 1
+    assert state["counts"]["ghot_dispatches"] == 0
+    assert state["counts"]["ghot_dispatch_unknown"] == 0
     assert "ASSIGNMENT != TASK" in state["laws"]
     assert "DISPATCH REQUIRES A NEW EXPLICIT CROSSING" in state["laws"]
+    assert state["nearby_doors"][-1]["kind"] == "hold-silence"
+
+
+
+def test_execution_consequence_changes_field_to_signed_receipt_inspection():
+    receiver = [{
+        "stored_at": "2026-10-03T16:31:00+00:00",
+        "receiver_at": "2026-10-03T16:45:00+00:00",
+        "field_return_id": "field-return-v0:" + "1" * 64,
+        "reseed_id": "field-reseed-v0:" + "2" * 64,
+        "status": "EXECUTED",
+        "hold_id": "ghot-field-reseed-hold-v0:" + "3" * 64,
+        "admission_id": "ghot-field-reseed-admission-v0:" + "4" * 64,
+        "intent_id": "ghot-carried-intent-v0:" + "5" * 64,
+        "assignment_offer_id": "ghot-carried-intent-offer-v0:" + "6" * 64,
+        "assignment_id": "ghot-carried-intent-assignment-v0:" + "7" * 64,
+        "selected_node_id": "node-local",
+        "capability": "system.hash",
+        "dispatch_crossing_id": "relatte-crossing-v0:" + "8" * 64,
+        "task_id": "task-123",
+        "execution_receipt_id": "receipt-123",
+        "signed_receipt_id": "relatte-receipt-v0:" + "9" * 64,
+        "execution_status": "ok",
+        "output_sha256": "a" * 64,
+    }]
+    state = compose_nearby_station_doors(
+        empty_house(), broadcast(), [], [], field_receivers=receiver
+    )
+    carried = next(
+        door for door in state["nearby_doors"]
+        if door["lane"] == "carried"
+    )
+    assert carried["kind"] == "inspect-ghot-carried-intent-consequence"
+    assert carried["effect"] == "none"
+    assert carried["evidence"][0]["task_id"] == "task-123"
+    assert carried["evidence"][0]["signed_receipt_id"] == receiver[0]["signed_receipt_id"]
+    assert carried["evidence"][0]["execution_status"] == "ok"
+    assert state["counts"]["ghot_assignments"] == 0
+    assert state["counts"]["ghot_dispatches"] == 1
+    assert state["counts"]["ghot_dispatch_unknown"] == 0
+    assert "DISPATCH != SUCCESS" in state["laws"]
+    assert "EXECUTION != RECEIPT" in state["laws"]
+    assert state["nearby_doors"][-1]["kind"] == "hold-silence"
+
+
+def test_ambiguous_dispatch_changes_field_to_inspection_without_retry_control():
+    receiver = [{
+        "stored_at": "2026-10-03T16:31:00+00:00",
+        "receiver_at": "2026-10-03T16:44:00+00:00",
+        "field_return_id": "field-return-v0:" + "1" * 64,
+        "reseed_id": "field-reseed-v0:" + "2" * 64,
+        "status": "DISPATCH_OUTCOME_UNKNOWN",
+        "hold_id": "ghot-field-reseed-hold-v0:" + "3" * 64,
+        "admission_id": "ghot-field-reseed-admission-v0:" + "4" * 64,
+        "intent_id": "ghot-carried-intent-v0:" + "5" * 64,
+        "assignment_offer_id": "ghot-carried-intent-offer-v0:" + "6" * 64,
+        "assignment_id": "ghot-carried-intent-assignment-v0:" + "7" * 64,
+        "selected_node_id": "node-local",
+        "capability": "system.hash",
+        "dispatch_crossing_id": "relatte-crossing-v0:" + "8" * 64,
+        "task_id": None,
+        "execution_receipt_id": None,
+        "signed_receipt_id": None,
+        "execution_status": None,
+        "output_sha256": None,
+    }]
+    state = compose_nearby_station_doors(
+        empty_house(), broadcast(), [], [], field_receivers=receiver
+    )
+    carried = next(
+        door for door in state["nearby_doors"]
+        if door["lane"] == "carried"
+    )
+    assert carried["kind"] == "inspect-ghot-carried-intent-dispatch-unknown"
+    assert carried["effect"] == "none"
+    assert carried["target"].get("control") is None
+    assert state["counts"]["ghot_dispatches"] == 0
+    assert state["counts"]["ghot_dispatch_unknown"] == 1
+    assert any(
+        pressure["kind"] == "receiver-dispatch-unknown"
+        for pressure in state["memory_pressures"]
+    )
+    assert "AMBIGUOUS OUTCOME != SAFE RETRY" in state["laws"]
     assert state["nearby_doors"][-1]["kind"] == "hold-silence"

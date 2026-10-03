@@ -61,14 +61,14 @@ jobs:
           persist-credentials: false
       - name: Install pinned reLATTE dependencies
         run: npm install --prefix .compat/reLATTE --no-package-lock --ignore-scripts
-      - name: Checkout pinned GHoT field receiver and assignment-only seam
+      - name: Checkout pinned GHoT field receiver, assignment, and signed dispatch
         uses: actions/checkout@v4
         with:
           repository: the-static-collective/GHoT
-          ref: 0812164737fc890a813aa965f8a5cf00701def3e
+          ref: e35dd470384d864b7b0b629a68dad570875a7df0
           path: .compat/GHoT
           persist-credentials: false
-      - name: Actual Field reseed -> reLATTE -> GHoT HOLD/admit/assign smoke
+      - name: Actual Field reseed -> reLATTE -> GHoT HOLD/admit/assign/dispatch smoke
         run: python scripts/smoke_field_reseed_crossing.py
       - name: Checkout pinned Haunted Toaster creative adapter
         uses: actions/checkout@v4

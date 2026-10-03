@@ -126,6 +126,28 @@ async function assignFieldIntent(receipt, selectedNodeId, capability, offerId){
   }
 }
 
+async function dispatchFieldIntent(receipt){
+  const assigned=receipt.receiver?.assignment?.ghot_assignment;
+  if(!assigned) return;
+  const confirmed=window.confirm(
+    "Dispatch this exact GHoT assignment now?\n\n"
+      +String(assigned.capability)+" → "+String(assigned.selected_node_id)
+      +"\n\nThis creates one real bounded task. Assignment and execution remain separately receipted."
+  );
+  if(!confirmed) return;
+  try{
+    await api(
+      "/api/doorhouse/field-station/returns/"+receipt.receipt_id+"/ghot/dispatch",
+      {}
+    );
+    say("GHoT completed the explicit dispatch crossing. Inspect the signed consequence receipt.");
+    await refreshFieldStation();
+  }catch(error){
+    say(error.message,true);
+    await refreshFieldStation();
+  }
+}
+
 function latestOpenLetter() {
   const newest = state.letters[0];
   return newest && newest.opened_at ? newest : null;
@@ -258,6 +280,21 @@ function renderFieldStation(){
         target?.scrollIntoView({behavior:"smooth",block:"center"});
       });
       actions.append(choose);
+      for(const disposition of ["hold","pass"]){
+        const button=el("button",disposition.toUpperCase());
+        button.type="button";
+        button.dataset.disposition=disposition;
+        button.addEventListener("click",()=>returnFieldDoor(door,disposition,note));
+        actions.append(button);
+      }
+    } else if(receiverControl==="ghot-field-intent-dispatch"){
+      const source=fieldReturnById(door.target.field_return_id);
+      const dispatch=el("button","DISPATCH ASSIGNMENT ONCE");
+      dispatch.type="button";
+      dispatch.dataset.disposition="dispatch";
+      dispatch.disabled=!source;
+      dispatch.addEventListener("click",()=>source&&dispatchFieldIntent(source));
+      actions.append(dispatch);
       for(const disposition of ["hold","pass"]){
         const button=el("button",disposition.toUpperCase());
         button.type="button";
@@ -445,7 +482,63 @@ function renderFieldStation(){
           exactAssignment.append(el("summary","Inspect assignment-only receipt"));
           exactAssignment.append(el("code",JSON.stringify(assigned,null,2)));
           card.append(exactAssignment);
+          const dispatch=el("button","Dispatch + execute once");
+          dispatch.type="button";
+          dispatch.dataset.disposition="dispatch";
+          dispatch.addEventListener("click",()=>dispatchFieldIntent(receipt));
+          actions.append(dispatch);
         }
+      } else if(
+        receiver.status==="EXECUTED"
+        ||receiver.status==="EXECUTION_ERROR"
+      ){
+        const consequence=receiver.dispatch?.ghot_dispatch;
+        const execution=consequence?.execution;
+        const rawReceipt=execution?.receipt;
+        const signedReceipt=consequence?.signed_receipt;
+        card.append(el(
+          "div",
+          "GHoT · "+receiver.status.replaceAll("_"," ")
+            +" · signed receiver consequence",
+          "field-receiver-status"
+        ));
+        if(rawReceipt){
+          card.append(el(
+            "p",
+            String(rawReceipt.capability||"capability")
+              +" · "+String(rawReceipt.status||"unknown")
+              +(rawReceipt.output_sha256
+                ?" · output "+String(rawReceipt.output_sha256).slice(0,20)+"…"
+                :""),
+            "field-return-human-note"
+          ));
+        }
+        if(consequence){
+          const exactDispatch=document.createElement("details");
+          exactDispatch.append(el("summary","Inspect signed dispatch + execution consequence"));
+          exactDispatch.append(el("code",JSON.stringify({
+            crossing:consequence.crossing,
+            execution:consequence.execution,
+            signed_receipt:signedReceipt,
+            laws:consequence.laws
+          },null,2)));
+          card.append(exactDispatch);
+        }
+      } else if(receiver.status==="DISPATCH_OUTCOME_UNKNOWN"){
+        card.append(el(
+          "div",
+          "GHoT · DISPATCH OUTCOME UNKNOWN · automatic retry disabled",
+          "field-receiver-status"
+        ));
+        card.append(el(
+          "p",
+          "A signed dispatch reached PREPARED state, but completion cannot be proven. This interface will not run it again automatically.",
+          "muted"
+        ));
+        const unknown=document.createElement("details");
+        unknown.append(el("summary","Inspect ambiguous dispatch state"));
+        unknown.append(el("code",JSON.stringify(receiver.dispatch,null,2)));
+        card.append(unknown);
       }
 
       if(receiver){
@@ -462,7 +555,7 @@ function renderFieldStation(){
 
   root.append(el(
     "p",
-    "The Field proposes. TAKE, crossing, admission, assignment, and execution remain separate acts. An assignment-only receipt creates no task and authorizes no dispatch.",
+    "The Field proposes. TAKE, crossing, admission, assignment, dispatch, execution, and receipt remain separate acts. Ambiguous dispatch is never treated as permission to retry.",
     "field-station-law"
   ));
 }

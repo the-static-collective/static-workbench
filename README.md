@@ -245,6 +245,23 @@ The browser deliberately exposes no execute control. Assignment creates no
 dispatch must be a new explicit crossing. See
 [Carried Intent Assignment 001](docs/carried-intent-assignment-001.md).
 
+## Carried Intent Dispatch 001 — signed consequence crossing
+
+A durable `ASSIGNED_NOT_EXECUTED` carried intent can now cross one final,
+separately authorized boundary: **DISPATCH**. Workbench pins GHoT
+`e35dd47…`, which revalidates the exact assigned body/capability pair, creates
+a P-256 signed reLATTE dispatch crossing, persists PREPARED state, and performs
+one bounded capability attempt.
+
+The result includes the normal GHoT task/receipt plus a signed receiver
+consequence receipt bound to the dispatch crossing. Completed dispatch replay
+is idempotent; prepared-but-unproven dispatch becomes
+`DISPATCH_OUTCOME_UNKNOWN` and is never auto-retried.
+
+Field Station changes from **Dispatch the assigned capability once** to either
+**Inspect GHoT's signed execution consequence** or **Inspect the ambiguous GHoT
+dispatch**. See [Carried Intent Dispatch 001](docs/carried-intent-dispatch-001.md).
+
 ## Creator Desk v0.1 — local source handoff
 
 Use **Creator Desk** in the navigator or House actions to inspect the discovered local media, research, live, and community repos through Creator Workspace-inspired workflow doors. Choose **one** discovered checkout and search its bounded Markdown/text sources. Each hit carries its configured root, repository-relative path, line, working-tree HEAD, and dirty marker; **Copy source handoff** prepares one explicitly selected excerpt for pasting into a separate Creator Workspace conversation.
