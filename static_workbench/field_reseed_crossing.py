@@ -694,6 +694,12 @@ def read_field_reseed_dispatch_status(
         or status.get("assignment_id") != ghot_assignment.get("assignment_id")
     ):
         raise FieldReseedCrossingError("GHoT dispatch status is invalid")
+    dispatch_state = status.get("dispatch_state")
+    recovered_result = (
+        dispatch_state.get("result")
+        if isinstance(dispatch_state, dict)
+        else None
+    )
     return {
         "schema": "workbench.field-reseed-dispatch/v0",
         "field_return_id": assignment.get("field_return_id"),
@@ -707,6 +713,11 @@ def read_field_reseed_dispatch_status(
             else "none"
             if status.get("status") == "ASSIGNED_NOT_EXECUTED"
             else "receiver-local-consequence"
+        ),
+        "ghot_dispatch": (
+            recovered_result
+            if isinstance(recovered_result, dict)
+            else None
         ),
         "ghot_dispatch_status": status,
         "pins": {"ghot": GHOT_REVISION},
