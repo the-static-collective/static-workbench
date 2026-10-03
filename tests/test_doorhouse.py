@@ -22,6 +22,7 @@ def test_complete_loop_keeps_selection_crossing_and_adapter_truth_separate(tmp_p
     state = store.enter()
     assert state["world_version"] == 0
     letter = state["letters"][0]
+    assert letter["body"] is None
     door = next(d for d in state["doors"] if d["letter_id"] == letter["id"])
 
     try:
@@ -44,6 +45,15 @@ def test_complete_loop_keeps_selection_crossing_and_adapter_truth_separate(tmp_p
     assert receipt["snapshot"]["adapters"]["ghot"] == "LOCAL_BODY_ONLY_NOT_GHOT_ASSIGNMENT"
     assert receipt["world_before"] == 0 and receipt["world_after"] == 1
     assert any(letter["parent_crossing_id"] == receipt["id"] for letter in state["letters"])
+    sibling = next(
+        d for d in state["doors"]
+        if d["letter_id"] == letter["id"] and d["id"] != door["id"]
+    )
+    try:
+        store.select(sibling["id"], 1)
+        assert False, "unchosen sibling doors must become historical proposals"
+    except DoorHouseConflict:
+        pass
 
 
 def test_doorhouse_route_and_writes_are_session_guarded(tmp_path):
