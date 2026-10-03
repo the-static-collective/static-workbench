@@ -219,3 +219,90 @@ def test_field_return_api_refuses_stale_observation(tmp_path):
         assert client.get(
             "/api/doorhouse/field-station/returns"
         ).json()["returns"] == []
+
+
+
+def test_store_persists_receiver_hold_then_admission_across_restart(tmp_path):
+    state = field()
+    receipt = compose_field_return(
+        state,
+        state["nearby_doors"][0]["door_id"],
+        "take",
+        "cross this exact possibility",
+    )
+    db_path = tmp_path / "field_returns.sqlite3"
+    store = FieldReturnStore(db_path)
+    stored = store.save(receipt)
+
+    crossing = {
+        "schema": "workbench.field-reseed-crossing/v0",
+        "field_return_id": stored["receipt_id"],
+        "reseed_id": stored["reseed"]["reseed_id"],
+        "status": "RECEIVED_THEN_HELD",
+        "semantic_effect": "none",
+        "pins": {"relatte": "r14", "ghot": "receiver-001"},
+        "relatte": {"schema": "relatte.opaque-roundtrip-result/v0"},
+        "ghot_hold": {
+            "schema": "ghot.field-reseed-hold/v0",
+            "hold_id": "ghot-field-reseed-hold-v0:" + "3" * 64,
+            "status": "HOLD",
+            "semantic_effect": "none",
+        },
+    }
+    held = store.save_crossing(stored["receipt_id"], crossing)
+    assert held["status"] == "RECEIVED_THEN_HELD"
+
+    reopened = FieldReturnStore(db_path)
+    shelf = reopened.latest()
+    assert shelf[0]["receiver"]["status"] == "RECEIVED_THEN_HELD"
+    summary = reopened.receiver_field_state()[0]
+    assert summary["hold_id"] == crossing["ghot_hold"]["hold_id"]
+    assert summary["admission_id"] is None
+
+    admission = {
+        "schema": "workbench.field-reseed-admission/v0",
+        "field_return_id": stored["receipt_id"],
+        "reseed_id": stored["reseed"]["reseed_id"],
+        "status": "ADMITTED_NOT_ASSIGNED",
+        "semantic_effect": "local-inbox-only",
+        "pins": {"ghot": "receiver-001"},
+        "ghot_admission": {
+            "schema": "ghot.field-reseed-admission/v0",
+            "admission_id": "ghot-field-reseed-admission-v0:" + "4" * 64,
+            "status": "ADMITTED",
+            "intent": {
+                "schema": "ghot.carried-intent/v0",
+                "intent_id": "ghot-carried-intent-v0:" + "5" * 64,
+                "status": "admitted-not-assigned",
+            },
+        },
+    }
+    admitted = reopened.save_admission(stored["receipt_id"], admission)
+    assert admitted["status"] == "ADMITTED_NOT_ASSIGNED"
+
+    again = FieldReturnStore(db_path)
+    summary = again.receiver_field_state()[0]
+    assert summary["status"] == "ADMITTED_NOT_ASSIGNED"
+    assert summary["admission_id"] == admission["ghot_admission"]["admission_id"]
+    assert summary["intent_id"] == admission["ghot_admission"]["intent"]["intent_id"]
+
+
+def test_store_refuses_receiver_consequence_for_non_take_return(tmp_path):
+    state = field()
+    receipt = compose_field_return(
+        state,
+        state["nearby_doors"][-1]["door_id"],
+        "hold",
+    )
+    store = FieldReturnStore(tmp_path / "field_returns.sqlite3")
+    stored = store.save(receipt)
+
+    with pytest.raises(ValueError, match="only TAKE"):
+        store.save_crossing(
+            stored["receipt_id"],
+            {
+                "schema": "workbench.field-reseed-crossing/v0",
+                "field_return_id": stored["receipt_id"],
+                "reseed_id": "field-reseed-v0:" + "0" * 64,
+            },
+        )
