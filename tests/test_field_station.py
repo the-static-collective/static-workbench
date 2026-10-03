@@ -199,6 +199,7 @@ def test_mature_field_composes_multiple_organs_without_selecting_any():
         "broadcast_episodes": 1,
         "phonograph_answers": 0,
         "phonograph_reentries": 0,
+        "dogram_generation_deltas": 0,
         "unresolved_house_doors": 1,
         "registered_live_moments": 1,
     }
@@ -516,3 +517,218 @@ def test_phonograph_answer_changes_field_door_to_audition_without_admission():
     assert phono["effect"] == "none"
     assert phono["target"]["artifact"] == "audition.wav"
     assert state["counts"]["phonograph_answers"] == 1
+
+
+
+def _generation_house_with_both_cross_reads():
+    house = mature_house()
+    parent_window = next(
+        item for item in house["external_witnesses"]
+        if item["kind"].startswith("audio_window:")
+    )
+    parent_window_id = parent_window["snapshot"]["window_id"]
+    child_window_id = "autodisco-audio-window-v0:" + "c" * 64
+    child_pair_id = "autodisco-audio-look-twice-pair-v0:" + "d" * 64
+    proposal_receipt_hash = "sha256:" + "f" * 64
+
+    house["external_witnesses"].insert(
+        0,
+        witness(
+            "audio_window:" + child_window_id,
+            {
+                "schema": "workbench.audio-window-materialized/v0",
+                "window_id": child_window_id,
+                "audio_sha256": "e" * 64,
+                "source_lineage": {
+                    "schema": "workbench.phonograph-reentry-lineage/v0",
+                    "relation": "ADMITTED_PROPOSAL_AS_NEW_AUDIO_SPECIMEN",
+                    "human_action": "explicit-admit",
+                    "parent_window_id": parent_window_id,
+                    "proposal_receipt_hash": proposal_receipt_hash,
+                },
+            },
+            30,
+        ),
+    )
+    house["external_witnesses"].insert(
+        0,
+        witness(
+            "phonograph_reentry:" + child_window_id,
+            {
+                "schema": "workbench.phonograph-reentry/v0",
+                "status": "admitted-as-audio-specimen",
+                "parent_window_id": parent_window_id,
+                "proposal_receipt_hash": proposal_receipt_hash,
+                "child_window_id": child_window_id,
+            },
+            31,
+        ),
+    )
+    house["external_witnesses"].insert(
+        0,
+        witness(
+            "audio_look_twice_pair:" + child_pair_id,
+            {
+                "schema": "workbench.audio-look-twice-pair/v0",
+                "pair_id": child_pair_id,
+                "window_id": child_window_id,
+                "pair": {
+                    "pair_id": child_pair_id,
+                    "window_ref": {"window_id": child_window_id},
+                },
+            },
+            32,
+        ),
+    )
+    for row, listener in [(33, "static-sam"), (34, "juniper")]:
+        house["external_witnesses"].insert(
+            0,
+            witness(
+                f"audio_look_twice_first:{child_pair_id}:{listener}",
+                {
+                    "pair_id": child_pair_id,
+                    "first_response_id": f"child-first-{listener}",
+                    "listener": {"id": listener},
+                },
+                row,
+            ),
+        )
+    house["external_witnesses"].insert(
+        0,
+        witness(
+            "audio_look_twice_dialogue:" + child_pair_id,
+            {
+                "schema": "workbench.audio-look-twice-dialogue/v0",
+                "pair_id": child_pair_id,
+                "window_id": child_window_id,
+                "dialogue_id": "dialogue-child",
+                "dialogue": {
+                    "lingering_intrigue": True,
+                    "door_seed": "measure what changed",
+                },
+            },
+            35,
+        ),
+    )
+    return house, parent_window_id, child_window_id
+
+
+def test_dogram_generation_door_requires_both_cross_reads_and_real_capability():
+    house, parent_window_id, child_window_id = _generation_house_with_both_cross_reads()
+    dogram_capability = {
+        "checkout_present": True,
+        "available": True,
+        "repo_head": "f352fe5",
+        "repo_branch": "main",
+        "capability": "generation-delta-001",
+    }
+
+    measured_ready = compose_nearby_station_doors(
+        house,
+        broadcast(),
+        [],
+        [repo("Dogram")],
+        dogram=dogram_capability,
+    )
+    dogram_door = next(
+        door for door in measured_ready["nearby_doors"]
+        if door["lane"] == "dogram"
+    )
+    assert dogram_door["kind"] == "measure-generation-delta"
+    assert dogram_door["target"]["parent_window_id"] == parent_window_id
+    assert dogram_door["target"]["child_window_id"] == child_window_id
+    assert dogram_door["effect"] == "none"
+
+    no_parent_dialogue = {
+        **house,
+        "external_witnesses": [
+            item for item in house["external_witnesses"]
+            if not (
+                item["kind"].startswith("audio_look_twice_dialogue:")
+                and item["snapshot"].get("window_id") == parent_window_id
+            )
+        ],
+    }
+    blocked = compose_nearby_station_doors(
+        no_parent_dialogue,
+        broadcast(),
+        [],
+        [repo("Dogram")],
+        dogram=dogram_capability,
+    )
+    assert not any(
+        door["lane"] == "dogram" for door in blocked["nearby_doors"]
+    )
+
+    unavailable = compose_nearby_station_doors(
+        house,
+        broadcast(),
+        [],
+        [repo("Dogram")],
+        dogram={
+            "checkout_present": True,
+            "available": False,
+            "repo_head": "old",
+            "repo_branch": "main",
+            "capability": None,
+        },
+    )
+    assert not any(
+        door["lane"] == "dogram" for door in unavailable["nearby_doors"]
+    )
+
+
+def test_dogram_receipt_changes_field_to_inspection_and_silence_survives_cap():
+    house, parent_window_id, child_window_id = _generation_house_with_both_cross_reads()
+    house["external_witnesses"].insert(
+        0,
+        witness(
+            "dogram_generation_delta:" + child_window_id,
+            {
+                "schema": "workbench.dogram-generation-delta/v0",
+                "status": "measured",
+                "parent_window_id": parent_window_id,
+                "child_window_id": child_window_id,
+                "dogram_receipt_hash": "sha256:" + "9" * 64,
+                "classification": "MEASURED_CHANGE",
+                "changed_axes": ["rms_quartiles_q15", "peak_q15"],
+            },
+            40,
+        ),
+    )
+    moments = [{
+        "momentId": "moment-field",
+        "eventId": "event-field",
+        "span": {"startMs": 0, "endMs": 100},
+        "status": "registered_not_currently_reverified",
+    }]
+    state = compose_nearby_station_doors(
+        house,
+        broadcast("reachable"),
+        moments,
+        [repo("Dogram"), repo("the-haunted-phonography"), repo("static-live")],
+        phonograph={
+            "checkout_present": True,
+            "available": True,
+            "repo_head": "038b710",
+            "repo_branch": "main",
+            "capability": "field-answer-001",
+        },
+        dogram={
+            "checkout_present": True,
+            "available": True,
+            "repo_head": "f352fe5",
+            "repo_branch": "main",
+            "capability": "generation-delta-001",
+        },
+    )
+    dogram_door = next(
+        door for door in state["nearby_doors"]
+        if door["lane"] == "dogram"
+    )
+    assert dogram_door["kind"] == "inspect-generation-delta"
+    assert dogram_door["evidence"][0]["classification"] == "MEASURED_CHANGE"
+    assert state["counts"]["dogram_generation_deltas"] == 1
+    assert len(state["nearby_doors"]) == 6
+    assert state["nearby_doors"][-1]["kind"] == "hold-silence"
+    assert "DELTA != VALUE" in state["laws"]
