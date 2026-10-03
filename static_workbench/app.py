@@ -45,6 +45,7 @@ from .creator_shelf import CreatorShelf, CreatorConflict, preview_pack
 from .maxhinal_dock import parse_ride
 from .native_maxhinal import preview_fuels, spin, FuelConflict
 from .broadcast import broadcast_door
+from .field_station import compose_nearby_station_doors
 from .lifestream_inbox import MomentInbox
 from .journal import Journal, SenseFieldRecord
 from .house import build_house_status
@@ -504,6 +505,22 @@ def create_app(config: WorkbenchConfig | None = None) -> FastAPI:
     @app.get("/api/doorhouse/state")
     def doorhouse_state():
         return doorhouse.state()
+
+    @app.get("/api/doorhouse/field-station")
+    def doorhouse_field_station():
+        house_state = doorhouse.state()
+        repos = discover_repositories(config.roots, config.max_repo_depth)
+        broadcast = broadcast_door(config, repos)
+        try:
+            moments = moment_inbox.list_moments()
+        except (ValueError, OSError, TypeError, UnicodeError):
+            moments = []
+        return compose_nearby_station_doors(
+            house_state,
+            broadcast,
+            moments,
+            repos,
+        )
 
     @app.post("/api/doorhouse/enter")
     def doorhouse_enter(request: Request):
