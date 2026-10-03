@@ -260,6 +260,12 @@ function renderReceipts(){
             && w.kind==="phonograph_field_answer:"+audioWindow.snapshot.window_id
         )
       : null;
+    const phonographReentry=audioWindow
+      ? state.external_witnesses.find(
+          w=>w.receipt_id===receipt.id
+            && w.kind==="phonograph_reentry:"+audioWindow.snapshot.window_id
+        )
+      : null;
     const phonographDoor=audioWindow
       ? (fieldState?.nearby_doors||[]).find(
           d=>d.kind==="ask-phonograph-answer"
@@ -467,6 +473,15 @@ function renderReceipts(){
         "adapter-line"
       ));
 
+      if(phonographReentry){
+        const rw=phonographReentry.snapshot;
+        card.append(el(
+          "div",
+          "PHONOGRAPH RE-ENTRY · descendant of "+rw.parent_window_id.slice(0,30)+"… · fresh radio witness required",
+          "adapter-line"
+        ));
+      }
+
       if(phonographAnswer){
         const pw=phonographAnswer.snapshot;
         card.append(el(
@@ -497,11 +512,19 @@ function renderReceipts(){
         phonoReceipt.rel="noopener";
         phonoReceipt.textContent="Phonograph receipt";
         phonoReceipt.className="radio-link";
-        phonoActions.append(midi,phonoReceipt);
+        const admit=el("button","ADMIT AS NEW RADIO SPECIMEN");
+        admit.type="button";
+        admit.addEventListener("click",()=>mutate(
+          "/api/doorhouse/receipts/"+receipt.id+"/phonograph/"
+            +encodeURIComponent(audioWindow.snapshot.window_id)+"/admit-radio",
+          {},
+          "You admitted the Phonograph proposal as a descendant radio specimen. Fresh first-listen evidence is required before Phonograph may answer the descendant."
+        ));
+        phonoActions.append(midi,phonoReceipt,admit);
         card.append(phonoActions);
         card.append(el(
           "div",
-          "signal facts → musical proposal · audition != admission · proposal != source evidence",
+          "signal facts → musical proposal · audition != admission · descendant != parent",
           "adapter-line"
         ));
       } else if(phonographDoor){
@@ -644,6 +667,7 @@ function renderReceipts(){
     if(audioDialoguePacket) evidence.audio_dialogue_packet=audioDialoguePacket.snapshot;
     if(audioDialogue) evidence.audio_dialogue=audioDialogue.snapshot;
     if(phonographAnswer) evidence.phonograph_field_answer=phonographAnswer.snapshot;
+    if(phonographReentry) evidence.phonograph_reentry=phonographReentry.snapshot;
     if(broadcastEpisode) evidence.broadcast_episode=broadcastEpisode.snapshot;
     details.append(el("code",JSON.stringify(evidence,null,2)));
     card.append(details); root.append(card);
