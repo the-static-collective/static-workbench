@@ -88,34 +88,47 @@ It also gives the recent growth a common user-facing sentence:
 
 > **The system can show me where I could go, preserve what I chose, and carry that choice forward without pretending it already happened.**
 
+## Landed browser loop
+
+The House UI now exposes **TAKE / HOLD / PASS** on every current Field Station door.
+
+The browser submits the exact `field_state_id` that the human actually saw. Before recording a disposition, the server recomputes the current field. If the field changed, the write is refused with a conflict and the human must review the new field before choosing.
+
+Accepted returns are stored in Workbench-owned `field_returns.sqlite3` and survive restart. The Field Return shelf exposes the exact receipt for inspection. TAKE returns additionally expose the exact proposal-only reseed for clipboard copy or JSON download.
+
+The persisted return still has `effect: none`. It does not mutate DoorHouse world state or create a House crossing receipt.
+
 ## Current boundary
 
-FIELD RETURN 001 is deliberately a pure logic slice.
+FIELD RETURN 001 now persists **human disposition**, not project consequence.
 
-It does **not** yet:
+It still does **not**:
 
-- persist returns in SQLite;
-- add UI controls to Field Station;
-- execute a target;
-- call another project;
+- execute a Field target;
+- call another project merely because TAKE was chosen;
 - send a reLATTE crossing;
 - write TranchNode continuity;
-- imply that a downstream organ accepted the reseed.
+- imply that a downstream organ accepted the reseed;
+- convert HOLD or PASS into hidden scheduling or suppression behavior.
 
 Those are separate seams and should be proved separately.
 
 ## Next breach
 
-The next honest native slice is:
+The next honest native slice is one explicit receiver:
 
 ```text
-Field Station UI
+proposal-only field reseed
     ↓
-explicit TAKE / HOLD / PASS
+version-pinned receiver boundary
     ↓
-persist Workbench return receipt
+RECEIVE
     ↓
-inspect/copy/export exact reseed
+HOLD by default
+    ↓
+destination-local human admission
+    ↓
+destination-local consequence
 ```
 
-Only after that survives local use should one version-pinned receiver be allowed to ingest a reseed, ideally through a boundary-preserving crossing whose destination keeps local admission authority.
+That would turn “carry this door forward” into a genuine cross-organ crossing without making the Workbench the authority that decides what the receiving organ must do.
