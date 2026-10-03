@@ -198,6 +198,7 @@ def test_mature_field_composes_multiple_organs_without_selecting_any():
         "audio_windows": 1,
         "broadcast_episodes": 1,
         "phonograph_answers": 0,
+        "phonograph_reentries": 0,
         "unresolved_house_doors": 1,
         "registered_live_moments": 1,
     }
@@ -235,6 +236,111 @@ def test_radio_lane_advances_only_to_currently_earned_aperture():
     ]
     state = compose_nearby_station_doors(base, broadcast(), [], [])
     assert state["nearby_doors"][0]["kind"] == "acquire-first-listens"
+
+
+def test_phonograph_descendant_requires_fresh_radio_cross_read_before_next_answer():
+    house = mature_house()
+    parent_window = next(
+        item for item in house["external_witnesses"]
+        if item["kind"].startswith("audio_window:")
+    )
+    parent_window_id = parent_window["snapshot"]["window_id"]
+    child_window_id = "autodisco-audio-window-v0:" + "c" * 64
+    child_pair_id = "autodisco-audio-look-twice-pair-v0:" + "d" * 64
+    child = witness(
+        "audio_window:" + child_window_id,
+        {
+            "schema": "workbench.audio-window-materialized/v0",
+            "window_id": child_window_id,
+            "audio_sha256": "e" * 64,
+            "source_lineage": {
+                "schema": "workbench.phonograph-reentry-lineage/v0",
+                "relation": "ADMITTED_PROPOSAL_AS_NEW_AUDIO_SPECIMEN",
+                "human_action": "explicit-admit",
+                "parent_window_id": parent_window_id,
+                "proposal_receipt_hash": "sha256:" + "f" * 64,
+            },
+        },
+        20,
+    )
+    house["external_witnesses"].insert(0, child)
+
+    capability = {
+        "checkout_present": True,
+        "available": True,
+        "repo_head": "038b710",
+        "repo_branch": "main",
+        "capability": "field-answer-001",
+    }
+    locked = compose_nearby_station_doors(
+        house,
+        broadcast(),
+        [],
+        [repo("the-haunted-phonography")],
+        phonograph=capability,
+    )
+    assert locked["nearby_doors"][0]["kind"] == "prepare-first-listen-booths"
+    assert not any(door["lane"] == "phono" for door in locked["nearby_doors"])
+
+    pair_snapshot = {
+        "schema": "workbench.audio-look-twice-pair/v0",
+        "pair_id": child_pair_id,
+        "window_id": child_window_id,
+        "audio_sha256": "e" * 64,
+        "pair": {
+            "schema": "autodisco.audio-look-twice-pair/v0",
+            "pair_id": child_pair_id,
+            "window_ref": {
+                "window_id": child_window_id,
+                "audio_sha256": "e" * 64,
+            },
+            "packets": [],
+        },
+    }
+    house["external_witnesses"].insert(
+        0, witness("audio_look_twice_pair:" + child_pair_id, pair_snapshot, 21)
+    )
+    for row, listener in [(22, "static-sam"), (23, "juniper")]:
+        house["external_witnesses"].insert(
+            0,
+            witness(
+                f"audio_look_twice_first:{child_pair_id}:{listener}",
+                {
+                    "pair_id": child_pair_id,
+                    "first_response_id": f"first-{listener}",
+                    "listener": {"id": listener},
+                },
+                row,
+            ),
+        )
+    house["external_witnesses"].insert(
+        0,
+        witness(
+            "audio_look_twice_dialogue:" + child_pair_id,
+            {
+                "schema": "workbench.audio-look-twice-dialogue/v0",
+                "pair_id": child_pair_id,
+                "window_id": child_window_id,
+                "dialogue_id": "dialogue-child",
+                "dialogue": {
+                    "lingering_intrigue": True,
+                    "door_seed": "answer after fresh witness",
+                },
+            },
+            24,
+        ),
+    )
+
+    unlocked = compose_nearby_station_doors(
+        house,
+        broadcast(),
+        [],
+        [repo("the-haunted-phonography")],
+        phonograph=capability,
+    )
+    phono = next(door for door in unlocked["nearby_doors"] if door["lane"] == "phono")
+    assert phono["kind"] == "ask-phonograph-answer"
+    assert "RECURSION REQUIRES FRESH WITNESS" in unlocked["laws"]
 
 
 def test_state_identity_is_deterministic_and_changes_with_witnessed_field():

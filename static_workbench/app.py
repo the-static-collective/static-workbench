@@ -30,6 +30,7 @@ from .doorhouse_autodisco import (
 
 from .doorhouse_phonograph import (
     PhonographApertureError,
+    admit_phonograph_answer_as_audio_window,
     phonograph_field_answer_available,
     run_phonograph_field_answer,
 )
@@ -933,10 +934,35 @@ def create_app(config: WorkbenchConfig | None = None) -> FastAPI:
     def doorhouse_phonograph_field_answer(receipt_id: str, request: Request):
         _creator_write_guard(request)
         window = _doorhouse_call(lambda: doorhouse.latest_audio_window(receipt_id))
+        materialized = window["snapshot"]
+        lineage = materialized.get("source_lineage")
+        if (
+            isinstance(lineage, dict)
+            and lineage.get("schema")
+                == "workbench.phonograph-reentry-lineage/v0"
+        ):
+            current_window_id = materialized.get("window_id")
+            house_state = doorhouse.state()
+            fresh_cross_read = any(
+                str(item.get("kind", "")).startswith(
+                    "audio_look_twice_dialogue:"
+                )
+                and item.get("snapshot", {}).get("window_id")
+                    == current_window_id
+                for item in house_state.get("external_witnesses", [])
+            )
+            if not fresh_cross_read:
+                raise HTTPException(
+                    status_code=409,
+                    detail=(
+                        "Phonograph descendant requires a fresh sealed radio "
+                        "cross-read before another musical answer"
+                    ),
+                )
         try:
             repos = discover_repositories(config.roots, config.max_repo_depth)
             result = run_phonograph_field_answer(
-                window["snapshot"],
+                materialized,
                 repos,
                 config.state_dir,
                 receipt_id,
@@ -955,6 +981,58 @@ def create_app(config: WorkbenchConfig | None = None) -> FastAPI:
             "proposal_hash": result["proposal_hash"],
             "resolved_performance_hash": result["resolved_performance_hash"],
             "audition_sha256": result["audition"]["sha256"],
+        })
+        return state
+
+    @app.post(
+        "/api/doorhouse/receipts/{receipt_id}/phonograph/{window_id}/admit-radio"
+    )
+    def doorhouse_phonograph_admit_radio(
+        receipt_id: str,
+        window_id: str,
+        request: Request,
+    ):
+        _creator_write_guard(request)
+        latest = _doorhouse_call(
+            lambda: doorhouse.latest_audio_window(receipt_id)
+        )
+        if latest["snapshot"].get("window_id") != window_id:
+            raise HTTPException(
+                status_code=409,
+                detail="Only the current audio window's Phonograph proposal may re-enter radio",
+            )
+        answer = _doorhouse_call(
+            lambda: doorhouse.phonograph_field_answer(receipt_id, window_id)
+        )
+        try:
+            repos = discover_repositories(config.roots, config.max_repo_depth)
+            child = admit_phonograph_answer_as_audio_window(
+                answer,
+                repos,
+                config.state_dir,
+                receipt_id,
+            )
+        except PhonographApertureError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+        _doorhouse_call(
+            lambda: doorhouse.record_audio_window(receipt_id, child)
+        )
+        state = _doorhouse_call(
+            lambda: doorhouse.record_phonograph_reentry(
+                receipt_id,
+                window_id,
+                answer,
+                child,
+            )
+        )
+        journal.append("doorhouse.phonograph.reentry", {
+            "local_receipt_id": receipt_id,
+            "parent_window_id": window_id,
+            "proposal_receipt_hash": answer.get("proposal_receipt_hash"),
+            "child_window_id": child.get("window_id"),
+            "child_audio_sha256": child.get("audio_sha256"),
+            "relation": "ADMITTED_PROPOSAL_AS_NEW_AUDIO_SPECIMEN",
         })
         return state
 

@@ -255,7 +255,14 @@ def compose_nearby_station_doors(
     # PHONOGRAPH LANE — only a proven local FIELD ANSWER executable earns a door.
     if audio_window is not None and phonograph.get("available") is True:
         window_snapshot = audio_window.get("snapshot", {})
-        if phono_answer is None:
+        source_lineage = window_snapshot.get("source_lineage")
+        phono_descendant = (
+            isinstance(source_lineage, dict)
+            and source_lineage.get("schema")
+                == "workbench.phonograph-reentry-lineage/v0"
+        )
+        recursion_unlocked = (not phono_descendant) or audio_dialogue is not None
+        if phono_answer is None and recursion_unlocked:
             doors.append(_door(
                 "ask-phonograph-answer",
                 "Ask Haunted Phonograph to answer this window",
@@ -281,7 +288,7 @@ def compose_nearby_station_doors(
                     "control": "phonograph-field-answer",
                 },
             ))
-        else:
+        elif phono_answer is not None:
             answer = phono_answer.get("snapshot", {})
             doors.append(_door(
                 "audition-phonograph-answer",
@@ -304,6 +311,12 @@ def compose_nearby_station_doors(
                     "artifact": "audition.wav",
                 },
             ))
+
+        elif phono_descendant and not recursion_unlocked:
+            # Deliberately no Phonograph door. A Phonograph-derived descendant
+            # must acquire a fresh sealed radio cross-read before another
+            # musical answer may be requested.
+            pass
 
     # STATIC LIVE LANE — presence/reachability is factual, never inferred.
     static_live_present = "static-live" in repo_names
@@ -436,6 +449,10 @@ def compose_nearby_station_doors(
             1 for item in witnesses
             if str(item.get("kind", "")).startswith("phonograph_field_answer:")
         ),
+        "phonograph_reentries": sum(
+            1 for item in witnesses
+            if str(item.get("kind", "")).startswith("phonograph_reentry:")
+        ),
         "unresolved_house_doors": len(unresolved),
         "registered_live_moments": len(moments),
     }
@@ -529,6 +546,8 @@ def compose_nearby_station_doors(
             "READ != OCCURRENCE",
             "REPOSITORY PRESENT != CAPABILITY AVAILABLE",
             "MUSICAL POSSIBILITY != RECOMMENDATION",
+            "RECURSION REQUIRES FRESH WITNESS",
+            "DESCENDANT != PARENT",
         ],
     }
     return {
