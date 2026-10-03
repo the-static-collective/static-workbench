@@ -35,10 +35,35 @@ def _digest(value: Any) -> str:
     return hashlib.sha256(_canonical(value).encode("utf-8")).hexdigest()
 
 
-def _compatible(repo: RepoStatus, expected: str) -> bool:
-    if repo.dirty:
+def _tracked_checkout_matches(root: Path, expected: str) -> bool:
+    try:
+        head = subprocess.run(
+            ["git", "-C", str(root), "rev-parse", "HEAD"],
+            text=True,
+            capture_output=True,
+            check=False,
+            timeout=5,
+            env={**os.environ, "LC_ALL": "C", "GIT_OPTIONAL_LOCKS": "0"},
+        )
+        if head.returncode != 0 or head.stdout.strip() != expected:
+            return False
+        for args in (
+            ["diff", "--quiet", expected, "--"],
+            ["diff", "--cached", "--quiet", expected, "--"],
+        ):
+            result = subprocess.run(
+                ["git", "-C", str(root), *args],
+                text=True,
+                capture_output=True,
+                check=False,
+                timeout=5,
+                env={**os.environ, "LC_ALL": "C", "GIT_OPTIONAL_LOCKS": "0"},
+            )
+            if result.returncode != 0:
+                return False
+        return True
+    except (OSError, subprocess.SubprocessError):
         return False
-    return isinstance(repo.head, str) and expected.startswith(repo.head)
 
 
 def _find_pinned(
@@ -51,9 +76,9 @@ def _find_pinned(
         if repo.name.casefold() != name.casefold():
             continue
         root = Path(repo.path)
-        if not _compatible(repo, expected):
+        if not _tracked_checkout_matches(root, expected):
             raise FieldReseedCrossingError(
-                f"{name} checkout must be clean and pinned to {expected}"
+                f"{name} tracked checkout must exactly match pinned revision {expected}"
             )
         if not (root / required_path).is_file():
             raise FieldReseedCrossingError(
