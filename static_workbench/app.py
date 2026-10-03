@@ -17,6 +17,7 @@ from .doorhouse_relatte import RelatteApertureError, run_relatte_aperture
 from .doorhouse_ghot import GHotApertureError, discover_ghot_bodies, assign_ghot_body
 from .doorhouse_autodisco import (
     AutodiscoApertureError,
+    assemble_broadcast_episode,
     build_audio_window,
     prepare_audio_look_twice,
     prepare_look_twice,
@@ -903,6 +904,129 @@ def create_app(config: WorkbenchConfig | None = None) -> FastAPI:
             ),
         })
         return state
+
+    @app.post("/api/doorhouse/receipts/{receipt_id}/radio/assemble")
+    def doorhouse_radio_assemble(receipt_id: str, request: Request):
+        _creator_write_guard(request)
+        pair_witness = _doorhouse_call(
+            lambda: doorhouse.latest_audio_look_twice_pair(receipt_id)
+        )
+        pair = pair_witness["snapshot"]["pair"]
+        pair_id = pair["pair_id"]
+        window_id = pair["window_ref"]["window_id"]
+        window = _doorhouse_call(
+            lambda: doorhouse.audio_window_for_id(receipt_id, window_id)
+        )
+        firsts = _doorhouse_call(
+            lambda: doorhouse.audio_look_twice_first_responses(
+                receipt_id, pair_id
+            )
+        )
+        if len(firsts) != 2:
+            raise HTTPException(
+                status_code=409,
+                detail="Two sealed audio first listens are required before assembly",
+            )
+        packet = _doorhouse_call(
+            lambda: doorhouse.audio_look_twice_dialogue_packet(
+                receipt_id, pair_id
+            )
+        )
+        dialogue = _doorhouse_call(
+            lambda: doorhouse.audio_look_twice_dialogue(
+                receipt_id, pair_id
+            )
+        )
+        try:
+            repos = discover_repositories(config.roots, config.max_repo_depth)
+            episode = assemble_broadcast_episode(
+                window["snapshot"],
+                pair,
+                firsts,
+                packet,
+                dialogue,
+                repos,
+                config.state_dir,
+                receipt_id,
+            )
+        except AutodiscoApertureError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+        state = _doorhouse_call(
+            lambda: doorhouse.record_broadcast_episode(
+                receipt_id, episode
+            )
+        )
+        journal.append("doorhouse.radio.episode_assembled", {
+            "local_receipt_id": receipt_id,
+            "episode_id": episode["episode_id"],
+            "episode_digest": episode["episode_digest"],
+            "window_id": episode["window_id"],
+            "pair_id": episode["pair_id"],
+            "dialogue_id": episode["dialogue_id"],
+        })
+        return state
+
+    def _radio_episode_file(
+        receipt_id: str,
+        episode_id: str,
+        field: str,
+        filename: str,
+    ) -> Path:
+        episode = _doorhouse_call(
+            lambda: doorhouse.broadcast_episode(receipt_id, episode_id)
+        )
+        raw = episode.get(field)
+        if not isinstance(raw, str):
+            raise HTTPException(status_code=404, detail="episode file is unavailable")
+        candidate = Path(raw).resolve()
+        expected_root = (
+            config.state_dir
+            / "doorhouse-radio"
+            / receipt_id
+            / episode_id
+        ).resolve()
+        if candidate.parent != expected_root or candidate.name != filename:
+            raise HTTPException(status_code=409, detail="episode file escaped its bundle")
+        if not candidate.is_file():
+            raise HTTPException(status_code=404, detail="episode file is missing")
+        return candidate
+
+    @app.get(
+        "/api/doorhouse/receipts/{receipt_id}/radio/{episode_id}/",
+        include_in_schema=False,
+    )
+    def doorhouse_radio_player(receipt_id: str, episode_id: str):
+        return FileResponse(
+            _radio_episode_file(
+                receipt_id, episode_id, "html_path", "index.html"
+            ),
+            media_type="text/html",
+        )
+
+    @app.get(
+        "/api/doorhouse/receipts/{receipt_id}/radio/{episode_id}/window.wav",
+        include_in_schema=False,
+    )
+    def doorhouse_radio_audio(receipt_id: str, episode_id: str):
+        return FileResponse(
+            _radio_episode_file(
+                receipt_id, episode_id, "audio_path", "window.wav"
+            ),
+            media_type="audio/wav",
+        )
+
+    @app.get(
+        "/api/doorhouse/receipts/{receipt_id}/radio/{episode_id}/episode.json",
+        include_in_schema=False,
+    )
+    def doorhouse_radio_manifest(receipt_id: str, episode_id: str):
+        return FileResponse(
+            _radio_episode_file(
+                receipt_id, episode_id, "manifest_path", "episode.json"
+            ),
+            media_type="application/json",
+            filename="episode.json",
+        )
 
     @app.get("/api/bootstrap", response_model=BootstrapResponse)
     def bootstrap() -> BootstrapResponse:

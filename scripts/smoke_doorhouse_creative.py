@@ -5,13 +5,16 @@ from __future__ import annotations
 
 import math
 import os
+import json
 import struct
+import subprocess
 import tempfile
 import wave
 from pathlib import Path
 
 from static_workbench.doorhouse import DoorHouse
 from static_workbench.doorhouse_autodisco import (
+    assemble_broadcast_episode,
     build_audio_window,
     prepare_audio_look_twice,
     prepare_look_twice,
@@ -88,6 +91,86 @@ def write_test_wav(path: Path, duration_seconds: float = 2.0) -> None:
             sample = int(math.sin(index / 18.0) * 10000)
             payload.extend(struct.pack("<hh", sample, -sample))
         handle.writeframes(bytes(payload))
+
+
+def synthetic_audio_firsts(pair: dict) -> list[dict]:
+    script = r"""
+import fs from 'node:fs';
+import { sealAudioFirstResponse } from './scripts/audio-look-twice.mjs';
+const pair = JSON.parse(fs.readFileSync(0, 'utf8'));
+const make = (label) => ({
+  observations: [
+    {mode:'OBSERVED', text: label + ': a repeated pulse is audible.'},
+    {mode:'INTERPRETATION', text: label + ': the cutoff feels unresolved.'}
+  ],
+  lingering_intrigue: true,
+  closing_line: label + ': I want the next window.'
+});
+const out = pair.packets.map((packet, index) =>
+  sealAudioFirstResponse(pair, packet.packet_id, make(index === 0 ? 'Sam' : 'Juniper'), 'ci-synthetic-model')
+);
+process.stdout.write(JSON.stringify(out));
+"""
+    completed = subprocess.run(
+        ["node", "--input-type=module", "-e", script],
+        cwd=AUTODISCO,
+        input=json.dumps(pair),
+        text=True,
+        capture_output=True,
+        check=True,
+    )
+    return json.loads(completed.stdout)
+
+
+def synthetic_audio_dialogue(pair: dict, firsts: list[dict]) -> dict:
+    packet = {
+        "schema": "autodisco.audio-look-twice-dialogue-packet/v0",
+        "pair_id": pair["pair_id"],
+        "window_ref": pair["window_ref"],
+        "sealed_first_responses": [
+            {
+                "first_response_id": item["first_response_id"],
+                "listener": item["listener"],
+                "response_sha256": item["response_sha256"],
+                "response": item["response"],
+            }
+            for item in firsts
+        ],
+        "rules": [
+            "ONLY SEALED FIRST LISTENS MAY ENTER",
+            "AUDIO WINDOW IS NOT REOPENED",
+        ],
+        "dialogue_packet_id": "autodisco-audio-look-twice-dialogue-v0:" + "a" * 64,
+    }
+    return {
+        "schema": "autodisco.audio-look-twice-dialogue-result/v0",
+        "status": "dialogue-sealed",
+        "dialogue_packet": packet,
+        "dialogue": {
+            "turns": [
+                {
+                    "listener_id": "static-sam",
+                    "text": "Synthetic fixture: the cutoff reads as structure.",
+                },
+                {
+                    "listener_id": "juniper",
+                    "text": "Synthetic fixture: the same edge reads as pressure.",
+                },
+            ],
+            "convergences": ["Synthetic fixture: both point beyond the cut."],
+            "differences": ["Synthetic fixture: they name the pull differently."],
+            "lingering_intrigue": True,
+            "intrigue_statement": "Synthetic fixture: the next window remains unresolved.",
+            "door_seed": "Synthetic fixture: move the window forward.",
+        },
+        "dialogue_sha256": "b" * 64,
+        "model_used": "ci-synthetic-model",
+        "laws": [
+            "SYNTHETIC FIXTURE != LIVE LISTENER EVIDENCE",
+            "DOOR SEED != CROSSING",
+        ],
+        "dialogue_id": "autodisco-audio-look-twice-dialogue-result-v0:" + "c" * 64,
+    }
 
 
 def main() -> int:
@@ -225,6 +308,58 @@ def main() -> int:
             for item in final["external_witnesses"]
         )
 
+        # Explicitly synthetic fixture evidence exercises only the downstream
+        # assembly boundary. The no-key proof above remains the canonical claim
+        # about listener absence.
+        fixture_firsts = synthetic_audio_firsts(audio_pair)
+        fixture_encounter = {
+            "schema": "autodisco.audio-look-twice-encounter-result/v0",
+            "status": "two-first-responses-sealed",
+            "pair_id": audio_pair["pair_id"],
+            "window_id": audio["window_id"],
+            "first_responses": fixture_firsts,
+            "model_used": "ci-synthetic-model",
+            "laws": ["SYNTHETIC FIXTURE != LIVE LISTENER EVIDENCE"],
+        }
+        store.record_audio_look_twice_encounters(
+            receipt["id"], fixture_encounter
+        )
+        fixture_dialogue = synthetic_audio_dialogue(
+            audio_pair, fixture_firsts
+        )
+        store.record_audio_look_twice_dialogue(
+            receipt["id"], fixture_dialogue
+        )
+        pair_id = audio_pair["pair_id"]
+        packet_witness = store.audio_look_twice_dialogue_packet(
+            receipt["id"], pair_id
+        )
+        dialogue_witness = store.audio_look_twice_dialogue(
+            receipt["id"], pair_id
+        )
+        episode = assemble_broadcast_episode(
+            audio,
+            audio_pair,
+            fixture_firsts,
+            packet_witness,
+            dialogue_witness,
+            repos,
+            state_dir,
+            receipt["id"],
+        )
+        assert episode["schema"] == "workbench.broadcast-episode-materialized/v0"
+        assert episode["audio_sha256"] == audio["audio_sha256"]
+        assert Path(episode["html_path"]).is_file()
+        assert Path(episode["manifest_path"]).is_file()
+        assert Path(episode["audio_path"]).is_file()
+        final = store.record_broadcast_episode(
+            receipt["id"], episode
+        )
+        assert any(
+            item["kind"].startswith("broadcast_episode:")
+            for item in final["external_witnesses"]
+        )
+
         print(
             "creative loop smoke ok:",
             local["node_id"],
@@ -233,6 +368,8 @@ def main() -> int:
             pair["pair_id"],
             audio["window_id"],
             audio_pair["pair_id"],
+            episode["episode_id"],
+            episode["episode_digest"],
         )
     return 0
 

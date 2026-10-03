@@ -1526,6 +1526,149 @@ class DoorHouse:
                     raise DoorHouseConflict("a different audio dialogue is already sealed")
         return self.state()
 
+    def audio_look_twice_dialogue_packet(self, receipt_id, pair_id):
+        self.receipt(receipt_id)
+        kind = "audio_look_twice_dialogue_packet:" + pair_id
+        witness = self.external_witness(receipt_id, kind)
+        if witness is None:
+            raise DoorHouseMissing("audio LOOK TWICE dialogue packet is missing")
+        return witness["snapshot"]
+
+    def audio_look_twice_dialogue(self, receipt_id, pair_id):
+        self.receipt(receipt_id)
+        kind = "audio_look_twice_dialogue:" + pair_id
+        witness = self.external_witness(receipt_id, kind)
+        if witness is None:
+            raise DoorHouseMissing("sealed audio LOOK TWICE dialogue is missing")
+        return witness["snapshot"]
+
+    def record_broadcast_episode(self, receipt_id, episode):
+        receipt = self.receipt(receipt_id)
+        if (
+            not isinstance(episode, dict)
+            or episode.get("schema")
+                != "workbench.broadcast-episode-materialized/v0"
+        ):
+            raise DoorHouseConflict("invalid broadcast episode materialization")
+        episode_id = episode.get("episode_id")
+        pair_id = episode.get("pair_id")
+        window_id = episode.get("window_id")
+        if (
+            not isinstance(episode_id, str)
+            or not episode_id.startswith("first-signal-")
+            or not isinstance(pair_id, str)
+            or not isinstance(window_id, str)
+            or not isinstance(episode.get("episode_digest"), str)
+        ):
+            raise DoorHouseConflict("broadcast episode identity is incomplete")
+
+        pair_witness = self.latest_audio_look_twice_pair(receipt_id)
+        pair = pair_witness["snapshot"]["pair"]
+        if (
+            pair.get("pair_id") != pair_id
+            or pair.get("window_ref", {}).get("window_id") != window_id
+            or pair.get("window_ref", {}).get("audio_sha256")
+                != episode.get("audio_sha256")
+        ):
+            raise DoorHouseConflict("broadcast episode does not match latest audio pair")
+
+        firsts = self.audio_look_twice_first_responses(receipt_id, pair_id)
+        first_ids = sorted(
+            item.get("first_response_id")
+            for item in firsts
+            if isinstance(item, dict)
+        )
+        if len(first_ids) != 2 or first_ids != sorted(
+            episode.get("first_response_ids", [])
+        ):
+            raise DoorHouseConflict(
+                "broadcast episode is not bound to both sealed first listens"
+            )
+
+        dialogue = self.audio_look_twice_dialogue(receipt_id, pair_id)
+        if dialogue.get("dialogue_id") != episode.get("dialogue_id"):
+            raise DoorHouseConflict(
+                "broadcast episode is not bound to the sealed dialogue"
+            )
+
+        kind = "broadcast_episode:" + episode_id
+        result_sha = _digest(episode)
+        snapshot = {
+            **episode,
+            "local_receipt_id": receipt_id,
+            "local_receipt_sha256": receipt["sha256"],
+            "laws": [
+                *episode.get("laws", []),
+                "ASSEMBLY != BROADCAST OCCURRENCE",
+                "EPISODE WITNESS != PLAYBACK RECEIPT",
+            ],
+        }
+        with self._db() as db:
+            db.execute("BEGIN IMMEDIATE")
+            existing = db.execute(
+                "SELECT * FROM dh_external_witnesses WHERE receipt_id=? AND kind=?",
+                (receipt_id, kind),
+            ).fetchone()
+            if existing is None:
+                db.execute(
+                    "INSERT INTO dh_external_witnesses VALUES (?,?,?,?,?,?)",
+                    (
+                        uuid4().hex,
+                        receipt_id,
+                        kind,
+                        result_sha,
+                        _encoded(snapshot),
+                        _now(),
+                    ),
+                )
+                parent = "broadcast-episode:" + episode.get("episode_digest")
+                prior = db.execute(
+                    "SELECT 1 FROM dh_letters WHERE parent_crossing_id=? LIMIT 1",
+                    (parent,),
+                ).fetchone()
+                if prior is None:
+                    self._create_letter(
+                        db,
+                        "The station has something you can press Play on.",
+                        (
+                            f"{episode.get('title')} is now a portable local episode bundle. "
+                            "Its audio window, first-listen receipts, and cross-read identities "
+                            "are preserved separately from the browser voice used during playback."
+                        ),
+                        [
+                            (
+                                "Play the episode",
+                                "Open the local read-only episode player.",
+                                "Autodisco / Broadcast Assembly",
+                            ),
+                            (
+                                "Offer it to Static Live",
+                                "Treat the episode as declared media for a future broadcast occurrence.",
+                                "Static Live / Broadcast",
+                            ),
+                            (
+                                "Cut another window",
+                                "Build the next bounded episode specimen without mutating this one.",
+                                "Autodisco / First-Listen Radio",
+                            ),
+                        ],
+                        parent_crossing_id=parent,
+                    )
+            elif existing["result_sha256"] != result_sha:
+                raise DoorHouseConflict(
+                    "a different broadcast bundle already uses this episode id"
+                )
+        return self.state()
+
+    def broadcast_episode(self, receipt_id, episode_id):
+        self.receipt(receipt_id)
+        witness = self.external_witness(
+            receipt_id, "broadcast_episode:" + episode_id
+        )
+        if witness is None:
+            raise DoorHouseMissing("broadcast episode is not assembled")
+        return witness["snapshot"]
+
     def record_relatte_witness(self, receipt_id, result):
         receipt = self.receipt(receipt_id)
         if not isinstance(result, dict) or result.get("schema") != "relatte.opaque-roundtrip-result/v0":
