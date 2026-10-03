@@ -1081,7 +1081,7 @@ def test_assignment_receipt_changes_field_to_explicit_dispatch_crossing():
 
 
 
-def test_execution_consequence_changes_field_to_signed_receipt_inspection():
+def test_execution_consequence_sprouts_unranked_banana_elf_co_delight_field():
     receiver = [{
         "stored_at": "2026-10-03T16:31:00+00:00",
         "receiver_at": "2026-10-03T16:45:00+00:00",
@@ -1105,20 +1105,49 @@ def test_execution_consequence_changes_field_to_signed_receipt_inspection():
     state = compose_nearby_station_doors(
         empty_house(), broadcast(), [], [], field_receivers=receiver
     )
-    carried = next(
+    delight = [
         door for door in state["nearby_doors"]
-        if door["lane"] == "carried"
+        if door["lane"] == "delight"
+    ]
+    assert [door["kind"] for door in delight] == [
+        "banana-elf-delightfuler",
+        "banana-elf-helpfuler",
+        "banana-elf-curiouser",
+    ]
+    assert [door["target"]["facet"] for door in delight] == [
+        "delightfuler",
+        "helpfuler",
+        "curiouser",
+    ]
+    assert [door["target"]["move"] for door in delight] == [
+        "tiny-gift",
+        "make-room",
+        "keep-weird",
+    ]
+    assert all(door["effect"] == "none" for door in delight)
+    assert all(
+        door["evidence"][0]["task_id"] == "task-123"
+        and door["evidence"][0]["signed_receipt_id"]
+        == receiver[0]["signed_receipt_id"]
+        for door in delight
     )
-    assert carried["kind"] == "inspect-ghot-carried-intent-consequence"
-    assert carried["effect"] == "none"
-    assert carried["evidence"][0]["task_id"] == "task-123"
-    assert carried["evidence"][0]["signed_receipt_id"] == receiver[0]["signed_receipt_id"]
-    assert carried["evidence"][0]["execution_status"] == "ok"
+    assert all(door["target"]["orientation"] == "co-delight" for door in delight)
+    assert all("DELIGHT != SCORE" in door["laws"] for door in delight)
+    assert all("CO-DELIGHT REQUIRES RETURN" in door["laws"] for door in delight)
+    assert '"score"' not in __import__("json").dumps(delight)
     assert state["counts"]["ghot_assignments"] == 0
     assert state["counts"]["ghot_dispatches"] == 1
     assert state["counts"]["ghot_dispatch_unknown"] == 0
+    pressure = next(
+        item for item in state["memory_pressures"]
+        if item["kind"] == "receiver-execution-consequence"
+    )
+    assert pressure["effect"] == "surface-banana-elf-co-delight-field"
     assert "DISPATCH != SUCCESS" in state["laws"]
     assert "EXECUTION != RECEIPT" in state["laws"]
+    assert "DELIGHT != SCORE" in state["laws"]
+    assert "UNKNOWN UTILITY != ZERO VALUE" in state["laws"]
+    assert "NOT EVERYTHING MUST GRADUATE" in state["laws"]
     assert state["nearby_doors"][-1]["kind"] == "hold-silence"
 
 
@@ -1161,3 +1190,59 @@ def test_ambiguous_dispatch_changes_field_to_inspection_without_retry_control():
     )
     assert "AMBIGUOUS OUTCOME != SAFE RETRY" in state["laws"]
     assert state["nearby_doors"][-1]["kind"] == "hold-silence"
+
+
+
+def test_banana_elf_field_survives_dense_lane_cap_without_becoming_ranked():
+    receiver = [{
+        "stored_at": "2026-10-03T16:31:00+00:00",
+        "receiver_at": "2026-10-03T16:45:00+00:00",
+        "field_return_id": "field-return-v0:" + "1" * 64,
+        "reseed_id": "field-reseed-v0:" + "2" * 64,
+        "status": "EXECUTION_ERROR",
+        "intent_id": "ghot-carried-intent-v0:" + "5" * 64,
+        "assignment_id": "ghot-carried-intent-assignment-v0:" + "7" * 64,
+        "selected_node_id": "node-local",
+        "capability": "system.hash",
+        "dispatch_crossing_id": "relatte-crossing-v0:" + "8" * 64,
+        "task_id": "task-error",
+        "execution_receipt_id": "receipt-error",
+        "signed_receipt_id": "relatte-receipt-v0:" + "9" * 64,
+        "execution_status": "error",
+        "output_sha256": None,
+    }]
+    moments = [{
+        "momentId": "moment-dense-delight",
+        "eventId": "event-dense-delight",
+        "span": {"startMs": 0, "endMs": 100},
+        "status": "registered_not_currently_reverified",
+    }]
+    state = compose_nearby_station_doors(
+        mature_house(),
+        broadcast("reachable"),
+        moments,
+        [repo("static-live"), repo("the-haunted-phonography")],
+        phonograph={
+            "checkout_present": True,
+            "available": True,
+            "repo_head": "038b710",
+            "repo_branch": "main",
+            "capability": "field-answer-001",
+        },
+        field_receivers=receiver,
+    )
+    delight = [
+        door for door in state["nearby_doors"]
+        if door["lane"] == "delight"
+    ]
+    assert len(delight) == 3
+    assert len(state["nearby_doors"]) <= 6
+    assert state["nearby_doors"][-1]["kind"] == "hold-silence"
+    assert all(
+        door["evidence"][0]["status"] == "EXECUTION_ERROR"
+        for door in delight
+    )
+    assert all(
+        door["target"]["novelty"] == "proposal-only"
+        for door in delight
+    )

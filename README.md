@@ -262,7 +262,7 @@ Field Station changes from **Dispatch the assigned capability once** to either
 **Inspect GHoT's signed execution consequence** or **Inspect the ambiguous GHoT
 dispatch**. See [Carried Intent Dispatch 001](docs/carried-intent-dispatch-001.md).
 
-## Creator Desk v0.1 — local source handoff
+## Banana-Elf Co-Delight 001 — sideways return after consequence\n\nA signed GHoT execution consequence now sprouts three unranked Field doors:\n**delightfuler** (tiny gift), **helpfuler** (make room), and **curiouser**\n(keep weird). Each door is grounded in the exact dispatch/task/signed-receipt\nevidence and remains `effect: none`.\n\nThey use the existing human **TAKE / HOLD / PASS** return. TAKE creates only a\nproposal-only reseed; it does not auto-cross, auto-admit, auto-assign, or\nauto-execute. There is no delight score.\n\nThis makes co-delight a reciprocal return surface rather than a metric:\nmachine consequence → sideways possibility → human relation → optional fresh\nmetabolism. See\n[Banana-Elf Co-Delight 001](docs/banana-elf-co-delight-001.md).\n\n## Creator Desk v0.1 — local source handoff
 
 Use **Creator Desk** in the navigator or House actions to inspect the discovered local media, research, live, and community repos through Creator Workspace-inspired workflow doors. Choose **one** discovered checkout and search its bounded Markdown/text sources. Each hit carries its configured root, repository-relative path, line, working-tree HEAD, and dirty marker; **Copy source handoff** prepares one explicitly selected excerpt for pasting into a separate Creator Workspace conversation.
 
