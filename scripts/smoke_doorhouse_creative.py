@@ -23,7 +23,10 @@ from static_workbench.doorhouse_autodisco import (
     run_look_twice_encounters,
 )
 from static_workbench.doorhouse_ghot import assign_ghot_body, discover_ghot_bodies
-from static_workbench.doorhouse_phonograph import run_phonograph_field_answer
+from static_workbench.doorhouse_phonograph import (
+    admit_phonograph_answer_as_audio_window,
+    run_phonograph_field_answer,
+)
 from static_workbench.repos import RepoStatus
 
 
@@ -384,6 +387,55 @@ def main() -> int:
             for item in final["external_witnesses"]
         )
 
+        # Explicit human-admission seam: the already-receipted Phonograph
+        # audition becomes a descendant AUDIO WINDOW, not a replacement for
+        # its parent. The descendant then starts First-Listen Radio fresh.
+        child = admit_phonograph_answer_as_audio_window(
+            phono,
+            repos,
+            state_dir,
+            receipt["id"],
+        )
+        assert child["schema"] == "workbench.audio-window-materialized/v0"
+        assert child["window_id"] != audio["window_id"]
+        assert (
+            child["source_lineage"]["parent_window_id"]
+            == audio["window_id"]
+        )
+        assert (
+            child["source_lineage"]["proposal_receipt_hash"]
+            == phono["proposal_receipt_hash"]
+        )
+        store.record_audio_window(receipt["id"], child)
+        final = store.record_phonograph_reentry(
+            receipt["id"],
+            audio["window_id"],
+            phono,
+            child,
+        )
+        assert any(
+            item["kind"] == "phonograph_reentry:" + child["window_id"]
+            for item in final["external_witnesses"]
+        )
+
+        child_pair = prepare_audio_look_twice(child, repos)
+        assert child_pair["window_ref"]["window_id"] == child["window_id"]
+        store.record_audio_look_twice_pair(receipt["id"], child_pair)
+        child_twice = run_audio_look_twice_encounters(
+            child,
+            child_pair,
+            repos,
+        )
+        assert child_twice["status"] == "packets-only"
+        assert child_twice["first_responses"] == []
+        final = store.record_audio_look_twice_encounters(
+            receipt["id"], child_twice
+        )
+        assert not any(
+            item["kind"].startswith("audio_look_twice_first:" + child_pair["pair_id"])
+            for item in final["external_witnesses"]
+        )
+
         print(
             "creative loop smoke ok:",
             local["node_id"],
@@ -395,6 +447,8 @@ def main() -> int:
             audio_pair["pair_id"],
             episode["episode_id"],
             episode["episode_digest"],
+            child["window_id"],
+            child_pair["pair_id"],
         )
     return 0
 
