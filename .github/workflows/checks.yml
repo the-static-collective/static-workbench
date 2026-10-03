@@ -60,7 +60,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: the-static-collective/the-haunted-toaster
-          ref: 3485cfd7384d540a0a45ad42585b02ca3ce1586d
+          ref: 3652c2a96b6b287cda316d1c92daadf7c7417eaf
           path: .compat/haunted-toaster
           persist-credentials: false
       - name: Checkout pinned Autodisco First Encounter
