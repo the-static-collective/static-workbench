@@ -60,6 +60,7 @@ from .creator_shelf import CreatorShelf, CreatorConflict, preview_pack
 from .maxhinal_dock import parse_ride
 from .native_maxhinal import preview_fuels, spin, FuelConflict
 from .broadcast import broadcast_door
+from .banana_fork import BananaForkStore
 from .field_station import compose_nearby_station_doors
 from .field_return import FieldReturnStore, compose_field_return
 from .field_reseed_crossing import (
@@ -154,6 +155,26 @@ class GHotCarriedIntentAssignmentInput(BaseModel):
     expected_offer_id: str = Field(min_length=1, max_length=200)
     selected_node_id: str = Field(min_length=1, max_length=200)
     capability: str = Field(min_length=1, max_length=200)
+
+
+class BananaForkCreateInput(BaseModel):
+    expected_field_state_id: str = Field(min_length=1, max_length=200)
+    participants: list[str] = Field(min_length=2, max_length=6)
+
+
+class BananaForkReturnInput(BaseModel):
+    booth_id: str = Field(min_length=1, max_length=200)
+    booth_token: str = Field(min_length=1, max_length=200)
+    door_id: str = Field(min_length=1, max_length=200)
+    disposition: Literal["take", "hold", "pass"]
+    note: str = Field(default="", max_length=1200)
+
+
+class BananaRelationReturnInput(BaseModel):
+    expected_field_state_id: str = Field(min_length=1, max_length=200)
+    door_id: str = Field(min_length=1, max_length=200)
+    disposition: Literal["take", "hold", "pass"]
+    note: str = Field(default="", max_length=1200)
 
 
 class AudioWindowInput(BaseModel):
@@ -300,6 +321,7 @@ def create_app(config: WorkbenchConfig | None = None) -> FastAPI:
     world_entry = WorldEntry(config.state_dir / "static_arg.sqlite3")
     doorhouse = DoorHouse(config.state_dir / "doorhouse.sqlite3")
     field_returns = FieldReturnStore(config.state_dir / "field_returns.sqlite3")
+    banana_forks = BananaForkStore(config.state_dir / "banana_forks.sqlite3")
     session_token = secrets.token_urlsafe(32)
 
     @asynccontextmanager
@@ -313,6 +335,7 @@ def create_app(config: WorkbenchConfig | None = None) -> FastAPI:
     app.state.creator_shelf = creator_shelf
     app.state.moment_inbox = moment_inbox
     app.state.field_returns = field_returns
+    app.state.banana_forks = banana_forks
     app.state.session_token = session_token
 
     web_dir = Path(__file__).resolve().parent / "web"
@@ -598,6 +621,104 @@ def create_app(config: WorkbenchConfig | None = None) -> FastAPI:
         journal.append("field.return.recorded", {
             "receipt_id": stored["receipt_id"],
             "field_state_id": stored["field_state_id"],
+            "door_id": stored["door_id"],
+            "disposition": stored["disposition"],
+            "reseed_id": (
+                stored.get("reseed", {}).get("reseed_id")
+                if isinstance(stored.get("reseed"), dict)
+                else None
+            ),
+        })
+        return stored
+
+    @app.get("/api/doorhouse/banana-forks")
+    def doorhouse_banana_forks():
+        return {"forks": banana_forks.list(include_tokens=True)}
+
+    @app.post("/api/doorhouse/banana-forks")
+    def doorhouse_banana_fork_create(
+        payload: BananaForkCreateInput,
+        request: Request,
+    ):
+        _creator_write_guard(request)
+        current = _current_field_state()
+        if payload.expected_field_state_id != current.get("field_state_id"):
+            raise HTTPException(
+                status_code=409,
+                detail="field changed before the Banana-Elf fork was opened",
+            )
+        try:
+            fork = banana_forks.create(current, payload.participants)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        journal.append("banana_elf.fork.opened", {
+            "fork_id": fork["fork_id"],
+            "source_field_state_id": fork["source_field_state_id"],
+            "signed_receipt_id": fork["source_consequence"].get(
+                "signed_receipt_id"
+            ),
+            "booth_count": fork["booth_count"],
+        })
+        return fork
+
+    @app.post("/api/doorhouse/banana-forks/{fork_id}/returns")
+    def doorhouse_banana_fork_return(
+        fork_id: str,
+        payload: BananaForkReturnInput,
+        request: Request,
+    ):
+        _creator_write_guard(request)
+        try:
+            ack = banana_forks.submit(
+                fork_id,
+                payload.booth_id,
+                payload.booth_token,
+                payload.door_id,
+                payload.disposition,
+                payload.note,
+            )
+            state = banana_forks.get(fork_id, include_tokens=True)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        journal.append("banana_elf.fork.returned", {
+            "fork_id": fork_id,
+            "booth_id": payload.booth_id,
+            "submission_id": ack["submission_id"],
+            "sealed": ack["sealed"],
+            "status": ack["status"],
+        })
+        if state["status"] == "revealed":
+            journal.append("banana_elf.fork.revealed", {
+                "fork_id": fork_id,
+                "return_count": len(state["returns"]),
+                "take_descendant_count": len(state["take_descendants"]),
+                "relation_field_state_id": state["relation_field"][
+                    "field_state_id"
+                ],
+            })
+        return {"ack": ack, "fork": state}
+
+    @app.post("/api/doorhouse/banana-forks/{fork_id}/relation-returns")
+    def doorhouse_banana_relation_return(
+        fork_id: str,
+        payload: BananaRelationReturnInput,
+        request: Request,
+    ):
+        _creator_write_guard(request)
+        try:
+            receipt = banana_forks.compose_relation_return(
+                fork_id,
+                payload.expected_field_state_id,
+                payload.door_id,
+                payload.disposition,
+                payload.note,
+            )
+            stored = field_returns.save(receipt)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        journal.append("banana_elf.relation.returned", {
+            "fork_id": fork_id,
+            "receipt_id": stored["receipt_id"],
             "door_id": stored["door_id"],
             "disposition": stored["disposition"],
             "reseed_id": (

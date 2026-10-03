@@ -6,6 +6,7 @@ from __future__ import annotations
 import tempfile
 from pathlib import Path
 
+from static_workbench.banana_fork import BananaForkStore
 from static_workbench.field_reseed_crossing import (
     GHOT_REVISION,
     RELATTE_REVISION,
@@ -311,6 +312,105 @@ def main() -> int:
         delight_stored = store.save(delight_return)
         assert store.receiver(delight_stored["receipt_id"]) is None
 
+        # BANANA-ELF-FORK-001: freeze the exact consequence field into three
+        # independent booths. Earlier booth content stays sealed until the last
+        # return arrives; reveal then exposes relation, never a winner.
+        forks = BananaForkStore(state_dir / "banana_forks.sqlite3")
+        fork = forks.create(
+            consequence_field,
+            ["human-friend", "lumi", "claude"],
+        )
+        assert fork["status"] == "collecting"
+
+        def booth(label):
+            current = forks.get(fork["fork_id"], include_tokens=True)
+            return next(item for item in current["booths"] if item["label"] == label)
+
+        human_booth = booth("human-friend")
+        human_door = next(
+            door for door in human_booth["packet"]["doors"]
+            if door.get("target", {}).get("facet") == "delightfuler"
+        )
+        human_ack = forks.submit(
+            fork["fork_id"],
+            human_booth["booth_id"],
+            human_booth["booth_token"],
+            human_door["door_id"],
+            "take",
+            "add one tiny unnecessary good thing",
+        )
+        assert human_ack["sealed"] is True
+        assert forks.get(fork["fork_id"])["returns"] == []
+
+        lumi_booth = booth("lumi")
+        lumi_door = next(
+            door for door in lumi_booth["packet"]["doors"]
+            if door.get("target", {}).get("facet") == "curiouser"
+        )
+        lumi_ack = forks.submit(
+            fork["fork_id"],
+            lumi_booth["booth_id"],
+            lumi_booth["booth_token"],
+            lumi_door["door_id"],
+            "take",
+            "keep the weird residue alive",
+        )
+        assert lumi_ack["sealed"] is True
+        assert forks.get(fork["fork_id"])["returns"] == []
+
+        claude_booth = booth("claude")
+        silence = next(
+            door for door in claude_booth["packet"]["doors"]
+            if door.get("lane") == "silence"
+        )
+        claude_ack = forks.submit(
+            fork["fork_id"],
+            claude_booth["booth_id"],
+            claude_booth["booth_token"],
+            silence["door_id"],
+            "hold",
+            "let the independent returns remain adjacent first",
+        )
+        assert claude_ack["status"] == "revealed"
+
+        revealed = forks.get(fork["fork_id"])
+        assert len(revealed["returns"]) == 3
+        assert len(revealed["take_descendants"]) == 2
+        assert '"score"' not in __import__("json").dumps(revealed).lower()
+        assert '"winner"' not in __import__("json").dumps(revealed).lower()
+
+        relation_field = revealed["relation_field"]
+        relation_doors = [
+            door for door in relation_field["nearby_doors"]
+            if door.get("lane") == "relation"
+        ]
+        assert len(relation_doors) == 1
+        relation_return = forks.compose_relation_return(
+            fork["fork_id"],
+            relation_field["field_state_id"],
+            relation_doors[0]["door_id"],
+            "take",
+            "let two independent returns make a third possibility",
+        )
+        relation_stored = store.save(relation_return)
+        assert relation_stored["reseed"]["status"] == "proposal-only"
+        assert store.receiver(relation_stored["receipt_id"]) is None
+
+        # The relation descendant uses the exact same portable crossing path.
+        # Crossing it reaches GHoT HOLD only; it does not inherit execution from
+        # the parent consequence.
+        relation_crossing = cross_field_reseed(
+            relation_stored,
+            state_dir,
+            repos,
+        )
+        assert relation_crossing["status"] == "RECEIVED_THEN_HELD"
+        relation_receiver = store.save_crossing(
+            relation_stored["receipt_id"],
+            relation_crossing,
+        )
+        assert relation_receiver["status"] == "RECEIVED_THEN_HELD"
+
         after_dispatch_records = (
             sorted(
                 path.name for path in records.iterdir()
@@ -319,6 +419,10 @@ def main() -> int:
             if records.is_dir()
             else []
         )
+        assert len(after_dispatch_records) == len(after_assignment_records) + 2
+
+        # Forking, reveal, relation TAKE, and relation crossing to HOLD create no
+        # extra task/execution receipt.
         assert len(after_dispatch_records) == len(after_assignment_records) + 2
 
         # Completed dispatch replay is idempotent at GHoT: no second task.
@@ -359,6 +463,10 @@ def main() -> int:
             ghot_dispatch["signed_receipt"]["receipt_id"],
             delight_stored["receipt_id"],
             delight_stored["reseed"]["reseed_id"],
+            fork["fork_id"],
+            relation_stored["receipt_id"],
+            relation_stored["reseed"]["reseed_id"],
+            relation_crossing["ghot_hold"]["hold_id"],
         )
     return 0
 

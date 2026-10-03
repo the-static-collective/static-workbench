@@ -3,6 +3,7 @@ let token = "";
 let state = null;
 let fieldState = null;
 let fieldReturns = [];
+let bananaForks = [];
 let roots = [];
 const $ = (id) => document.getElementById(id);
 
@@ -64,6 +65,75 @@ async function returnFieldDoor(door, disposition, noteInput){
 
 function fieldReturnById(receiptId){
   return fieldReturns.find(item=>item.receipt_id===receiptId)||null;
+}
+
+async function createBananaFork(participantsText){
+  const participants=participantsText
+    .split(/[\n,]+/)
+    .map(value=>value.trim())
+    .filter(Boolean);
+  if(participants.length<2||participants.length>6){
+    say("A Banana-Elf fork needs 2–6 named returners.",true);
+    return;
+  }
+  try{
+    await api("/api/doorhouse/banana-forks",{
+      expected_field_state_id:fieldState.field_state_id,
+      participants
+    });
+    say("Sealed Banana-Elf fork opened. Each booth has the same frozen consequence field.");
+    await refreshFieldStation();
+  }catch(error){
+    say(error.message,true);
+    await refreshFieldStation();
+  }
+}
+
+async function submitBananaForkReturn(fork,booth,doorId,disposition,note){
+  try{
+    const result=await api(
+      "/api/doorhouse/banana-forks/"+fork.fork_id+"/returns",
+      {
+        booth_id:booth.booth_id,
+        booth_token:booth.booth_token,
+        door_id:doorId,
+        disposition,
+        note
+      }
+    );
+    say(
+      result.ack.status==="revealed"
+        ?"Last sealed return received. The fork is revealed without ranking."
+        :"Return sealed. Other booth contents remain hidden."
+    );
+    await refreshFieldStation();
+  }catch(error){
+    say(error.message,true);
+    await refreshFieldStation();
+  }
+}
+
+async function returnBananaRelation(fork,door,disposition,note){
+  try{
+    const result=await api(
+      "/api/doorhouse/banana-forks/"+fork.fork_id+"/relation-returns",
+      {
+        expected_field_state_id:fork.relation_field.field_state_id,
+        door_id:door.door_id,
+        disposition,
+        note
+      }
+    );
+    say(
+      result.reseed
+        ?"Relation TAKE saved as a normal proposal-only reseed."
+        :"Relation return saved without crossing."
+    );
+    await refreshFieldStation();
+  }catch(error){
+    say(error.message,true);
+    await refreshFieldStation();
+  }
 }
 
 async function crossFieldReseed(receipt){
@@ -560,21 +630,230 @@ function renderFieldStation(){
     "The Field proposes. After witnessed consequence, Banana-Elf doors steer sideways: delightfuler, helpfuler, curiouser. They are unranked invitations, not scores. TAKE / HOLD / PASS remains the human return.",
     "field-station-law"
   ));
+
+  renderBananaForkLab(root);
+}
+
+function renderBananaForkLab(root){
+  const lab=el("section",undefined,"banana-fork-lab");
+  lab.append(
+    el("div","BANANA-ELF FORK 001 · SEALED CO-DELIGHT ROOM","banana-fork-heading")
+  );
+
+  const delightDoors=(fieldState?.nearby_doors||[]).filter(
+    door=>door.lane==="delight"
+  );
+  if(delightDoors.length===3){
+    const open=el("div",undefined,"banana-fork-open");
+    open.append(el(
+      "p",
+      "Freeze this exact signed consequence into 2–6 independent booths. Returns stay hidden until every booth answers.",
+      "muted"
+    ));
+    const names=document.createElement("textarea");
+    names.rows=2;
+    names.maxLength=480;
+    names.placeholder="Returners, comma or line separated — e.g. Human Friend, Lumi, Claude";
+    names.setAttribute("aria-label","Banana-Elf fork returner names");
+    const button=el("button","OPEN SEALED FORK");
+    button.type="button";
+    button.addEventListener("click",()=>createBananaFork(names.value));
+    open.append(names,button);
+    lab.append(open);
+  }
+
+  if(!bananaForks.length){
+    lab.append(el(
+      "p",
+      delightDoors.length===3
+        ?"No sealed fork has been opened from this or an earlier consequence."
+        :"A fork can open when a witnessed consequence sprouts the three Banana-Elf doors.",
+      "muted"
+    ));
+    root.append(lab);
+    return;
+  }
+
+  for(const fork of bananaForks){
+    const card=el("article",undefined,"banana-fork-card");
+    card.dataset.status=fork.status;
+    card.append(
+      el(
+        "small",
+        "FORK · "+fork.status.toUpperCase()
+          +" · "+fork.submitted_count+"/"+fork.booth_count+" returned",
+        "banana-fork-status"
+      ),
+      el(
+        "h3",
+        fork.status==="revealed"
+          ?"Independent returns revealed"
+          :"Independent returns remain sealed"
+      ),
+      el(
+        "p",
+        "source receipt · "+String(
+          fork.source_consequence?.signed_receipt_id||"unknown"
+        ),
+        "muted"
+      )
+    );
+
+    if(fork.status==="collecting"){
+      const booths=el("div",undefined,"banana-booth-grid");
+      for(const booth of fork.booths||[]){
+        const boothCard=el("div",undefined,"banana-booth-card");
+        boothCard.dataset.submitted=String(Boolean(booth.submitted));
+        boothCard.append(
+          el("strong",booth.label),
+          el(
+            "small",
+            booth.submitted?"SEALED RETURN RECEIVED":"WAITING FOR RETURN",
+            "banana-booth-status"
+          )
+        );
+        const copy=el("button","Copy booth packet");
+        copy.type="button";
+        copy.addEventListener("click",()=>copyJson(booth.packet));
+        boothCard.append(copy);
+
+        if(!booth.submitted){
+          const select=document.createElement("select");
+          select.setAttribute("aria-label","Frozen fork door for "+booth.label);
+          for(const door of booth.packet?.doors||[]){
+            const option=document.createElement("option");
+            option.value=door.door_id;
+            const facet=door.target?.facet;
+            option.textContent=facet
+              ?String(facet)+" · "+door.label
+              :"silence · "+door.label;
+            select.append(option);
+          }
+          const note=document.createElement("textarea");
+          note.rows=2;
+          note.maxLength=1200;
+          note.placeholder="Return without consulting the other booths…";
+          const actions=el("div",undefined,"banana-booth-actions");
+          for(const disposition of ["take","hold","pass"]){
+            const b=el("button",disposition.toUpperCase());
+            b.type="button";
+            b.dataset.disposition=disposition;
+            b.addEventListener("click",()=>submitBananaForkReturn(
+              fork,booth,select.value,disposition,note.value
+            ));
+            actions.append(b);
+          }
+          boothCard.append(select,note,actions);
+        }
+        booths.append(boothCard);
+      }
+      card.append(booths);
+    } else {
+      const reveal=el("div",undefined,"banana-reveal-grid");
+      for(const returned of fork.returns||[]){
+        const fieldReturn=returned.field_return||{};
+        const door=fieldReturn.selected_door||{};
+        const item=el("article",undefined,"banana-reveal-card");
+        item.append(
+          el("strong",returned.returner_label),
+          el(
+            "small",
+            String(fieldReturn.disposition||"").toUpperCase()
+              +" · "+String(door.target?.facet||door.kind||"silence"),
+            "banana-booth-status"
+          )
+        );
+        if(fieldReturn.human_note){
+          item.append(el("p",fieldReturn.human_note,"field-return-human-note"));
+        }
+        const details=document.createElement("details");
+        details.append(el("summary","Inspect exact sealed return"));
+        details.append(el("code",JSON.stringify(returned,null,2)));
+        item.append(details);
+        reveal.append(item);
+      }
+      card.append(reveal);
+
+      const relation=fork.relation_field;
+      if(relation){
+        card.append(el(
+          "div",
+          "RELATION FIELD · "+String(
+            Math.max(0,(relation.nearby_doors||[]).length-1)
+          )+" pairwise apertures · no winner",
+          "banana-relation-heading"
+        ));
+        const grid=el("div",undefined,"banana-relation-grid");
+        for(const door of relation.nearby_doors||[]){
+          const relationCard=el("article",undefined,"banana-relation-card");
+          relationCard.dataset.lane=door.lane;
+          relationCard.append(
+            el("small",String(door.lane||"relation").toUpperCase(),"field-door-lane"),
+            el("h4",door.label),
+            el("p",door.why)
+          );
+          const details=document.createElement("details");
+          details.append(el("summary","Inspect relation evidence"));
+          details.append(el("code",JSON.stringify({
+            evidence:door.evidence,
+            target:door.target,
+            laws:door.laws
+          },null,2)));
+          relationCard.append(details);
+
+          const note=document.createElement("textarea");
+          note.rows=2;
+          note.maxLength=1200;
+          note.placeholder=door.lane==="relation"
+            ?"What third thing do these independent returns make possible together?"
+            :"Optional note while holding the fork open…";
+          const actions=el("div",undefined,"field-return-actions");
+          for(const disposition of ["take","hold","pass"]){
+            const b=el("button",disposition.toUpperCase());
+            b.type="button";
+            b.dataset.disposition=disposition;
+            b.addEventListener("click",()=>returnBananaRelation(
+              fork,door,disposition,note.value
+            ));
+            actions.append(b);
+          }
+          relationCard.append(note,actions);
+          grid.append(relationCard);
+        }
+        card.append(grid);
+      }
+    }
+
+    const exact=document.createElement("details");
+    exact.append(el("summary","Inspect fork constitution"));
+    exact.append(el("code",JSON.stringify({
+      fork_id:fork.fork_id,
+      source_field_state_id:fork.source_field_state_id,
+      source_consequence:fork.source_consequence,
+      laws:fork.laws
+    },null,2)));
+    card.append(exact);
+    lab.append(card);
+  }
+  root.append(lab);
 }
 
 async function refreshFieldStation(){
   try{
-    const [nextField,returnPayload]=await Promise.all([
+    const [nextField,returnPayload,forkPayload]=await Promise.all([
       api("/api/doorhouse/field-station"),
-      api("/api/doorhouse/field-station/returns")
+      api("/api/doorhouse/field-station/returns"),
+      api("/api/doorhouse/banana-forks")
     ]);
     fieldState=nextField;
     fieldReturns=returnPayload.returns||[];
+    bananaForks=forkPayload.forks||[];
     renderFieldStation();
     if(state?.entered) renderReceipts();
   }catch(error){
     fieldState=null;
     fieldReturns=[];
+    bananaForks=[];
     const root=$("field-station");
     if(root){
       root.replaceChildren(el("p","Field unavailable · "+error.message,"muted"));
