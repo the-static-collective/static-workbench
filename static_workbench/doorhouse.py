@@ -1755,6 +1755,112 @@ class DoorHouse:
             raise DoorHouseMissing("Haunted Phonograph field answer is not available")
         return witness["snapshot"]
 
+    def record_phonograph_reentry(
+        self,
+        receipt_id,
+        parent_window_id,
+        answer,
+        child_window,
+    ):
+        receipt = self.receipt(receipt_id)
+        if (
+            not isinstance(answer, dict)
+            or answer.get("schema") != "workbench.phonograph-field-answer/v0"
+            or answer.get("window_id") != parent_window_id
+        ):
+            raise DoorHouseConflict("invalid parent Phonograph proposal for re-entry")
+        if (
+            not isinstance(child_window, dict)
+            or child_window.get("schema") != "workbench.audio-window-materialized/v0"
+        ):
+            raise DoorHouseConflict("invalid descendant audio window")
+
+        child_window_id = child_window.get("window_id")
+        lineage = child_window.get("source_lineage")
+        if (
+            not isinstance(child_window_id, str)
+            or not child_window_id.startswith("autodisco-audio-window-v0:")
+            or not isinstance(lineage, dict)
+            or lineage.get("schema")
+                != "workbench.phonograph-reentry-lineage/v0"
+            or lineage.get("relation")
+                != "ADMITTED_PROPOSAL_AS_NEW_AUDIO_SPECIMEN"
+            or lineage.get("human_action") != "explicit-admit"
+            or lineage.get("parent_window_id") != parent_window_id
+            or lineage.get("proposal_receipt_hash")
+                != answer.get("proposal_receipt_hash")
+            or lineage.get("audition_sha256")
+                != answer.get("audition", {}).get("sha256")
+        ):
+            raise DoorHouseConflict("Phonograph re-entry lineage is incomplete")
+
+        parent = self.phonograph_field_answer(receipt_id, parent_window_id)
+        if (
+            parent.get("proposal_receipt_hash")
+                != answer.get("proposal_receipt_hash")
+            or parent.get("proposal_hash") != answer.get("proposal_hash")
+        ):
+            raise DoorHouseConflict(
+                "Phonograph re-entry parent does not match the durable proposal witness"
+            )
+
+        latest = self.latest_audio_window(receipt_id)["snapshot"]
+        if latest.get("window_id") != child_window_id:
+            raise DoorHouseConflict(
+                "Phonograph descendant is not the current admitted audio window"
+            )
+
+        kind = "phonograph_reentry:" + child_window_id
+        snapshot = {
+            "schema": "workbench.phonograph-reentry/v0",
+            "status": "admitted-as-audio-specimen",
+            "local_receipt_id": receipt_id,
+            "local_receipt_sha256": receipt["sha256"],
+            "parent_window_id": parent_window_id,
+            "parent_audio_sha256": answer.get("audio_sha256"),
+            "proposal_receipt_hash": answer.get("proposal_receipt_hash"),
+            "proposal_hash": answer.get("proposal_hash"),
+            "resolved_performance_hash": answer.get(
+                "resolved_performance_hash"
+            ),
+            "audition_sha256": answer.get("audition", {}).get("sha256"),
+            "child_window_id": child_window_id,
+            "child_audio_sha256": child_window.get("audio_sha256"),
+            "lineage": lineage,
+            "laws": [
+                "AUDITION != ADMISSION",
+                "HUMAN ADMISSION CREATES DESCENDANT",
+                "DESCENDANT != PARENT",
+                "REENTRY != RESET",
+                "LINEAGE != AUTHORITY",
+                "RECURSION REQUIRES FRESH WITNESS",
+            ],
+        }
+        result_sha = _digest(snapshot)
+        with self._db() as db:
+            db.execute("BEGIN IMMEDIATE")
+            existing = db.execute(
+                "SELECT * FROM dh_external_witnesses WHERE receipt_id=? AND kind=?",
+                (receipt_id, kind),
+            ).fetchone()
+            if existing is None:
+                db.execute(
+                    "INSERT INTO dh_external_witnesses VALUES (?,?,?,?,?,?)",
+                    (
+                        uuid4().hex,
+                        receipt_id,
+                        kind,
+                        result_sha,
+                        _encoded(snapshot),
+                        _now(),
+                    ),
+                )
+            elif existing["result_sha256"] != result_sha:
+                raise DoorHouseConflict(
+                    "Phonograph descendant window has conflicting lineage"
+                )
+        return self.state()
+
     def record_relatte_witness(self, receipt_id, result):
         receipt = self.receipt(receipt_id)
         if not isinstance(result, dict) or result.get("schema") != "relatte.opaque-roundtrip-result/v0":
