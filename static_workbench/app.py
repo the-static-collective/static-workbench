@@ -522,13 +522,15 @@ def create_app(config: WorkbenchConfig | None = None) -> FastAPI:
     @app.post("/api/doorhouse/receipts/{receipt_id}/relatte")
     def doorhouse_relatte(receipt_id: str, request: Request):
         _creator_write_guard(request)
+        receipt = _doorhouse_call(lambda: doorhouse.receipt(receipt_id))
         try:
-            receipt = doorhouse.receipt(receipt_id)
             repos = discover_repositories(config.roots, config.max_repo_depth)
             result = run_relatte_aperture(receipt, config.state_dir, repos)
-            state = doorhouse.record_relatte_witness(receipt_id, result)
         except RelatteApertureError as exc:
             raise HTTPException(status_code=409, detail=str(exc)) from exc
+        state = _doorhouse_call(
+            lambda: doorhouse.record_relatte_witness(receipt_id, result)
+        )
         journal.append("doorhouse.relatte.held", {
             "local_receipt_id": receipt_id,
             "crossing_id": result["crossing"]["crossing_id"],
