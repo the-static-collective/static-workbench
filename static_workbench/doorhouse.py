@@ -1884,6 +1884,135 @@ class DoorHouse:
                 )
         return self.state()
 
+    def phonograph_reentry(self, receipt_id, child_window_id):
+        self.receipt(receipt_id)
+        witness = self.external_witness(
+            receipt_id, "phonograph_reentry:" + child_window_id
+        )
+        if witness is None:
+            raise DoorHouseMissing("Phonograph re-entry witness is not available")
+        return witness["snapshot"]
+
+    def record_dogram_generation_delta(self, receipt_id, result):
+        receipt = self.receipt(receipt_id)
+        if (
+            not isinstance(result, dict)
+            or result.get("schema") != "workbench.dogram-generation-delta/v0"
+            or result.get("status") != "measured"
+        ):
+            raise DoorHouseConflict("invalid Dogram generation-delta result")
+
+        parent_window_id = result.get("parent_window_id")
+        child_window_id = result.get("child_window_id")
+        if (
+            not isinstance(parent_window_id, str)
+            or not isinstance(child_window_id, str)
+            or parent_window_id == child_window_id
+        ):
+            raise DoorHouseConflict("Dogram generation identities are invalid")
+
+        reentry = self.phonograph_reentry(receipt_id, child_window_id)
+        if (
+            reentry.get("parent_window_id") != parent_window_id
+            or reentry.get("proposal_receipt_hash")
+                != result.get("proposal_receipt_hash")
+        ):
+            raise DoorHouseConflict(
+                "Dogram generation delta is not bound to the durable re-entry witness"
+            )
+
+        parent = self.audio_window_for_id(receipt_id, parent_window_id)["snapshot"]
+        child = self.audio_window_for_id(receipt_id, child_window_id)["snapshot"]
+        dogram_receipt = result.get("dogram_receipt")
+        if not isinstance(dogram_receipt, dict):
+            raise DoorHouseConflict("Dogram generation receipt is missing")
+        if (
+            dogram_receipt.get("parent", {}).get("audio_sha256")
+                != "sha256:" + str(parent.get("audio_sha256"))
+            or dogram_receipt.get("child", {}).get("audio_sha256")
+                != "sha256:" + str(child.get("audio_sha256"))
+        ):
+            raise DoorHouseConflict(
+                "Dogram generation receipt does not preserve House audio identities"
+            )
+
+        with self._db() as db:
+            rows = db.execute(
+                """SELECT snapshot FROM dh_external_witnesses
+                   WHERE receipt_id=?
+                     AND kind LIKE 'audio_look_twice_dialogue:%'""",
+                (receipt_id,),
+            ).fetchall()
+        witnessed_window_ids = {
+            json.loads(row["snapshot"]).get("window_id")
+            for row in rows
+        }
+        if (
+            parent_window_id not in witnessed_window_ids
+            or child_window_id not in witnessed_window_ids
+        ):
+            raise DoorHouseConflict(
+                "Dogram generation delta requires sealed radio cross-reads "
+                "for both parent and descendant"
+            )
+
+        classification = result.get("classification")
+        if classification not in {"MEASURED_CHANGE", "NO_MEASURED_CHANGE"}:
+            raise DoorHouseConflict("invalid Dogram generation classification")
+        required = {
+            "DOGRAM MEASURES TRANSFORMS, NOT PEOPLE",
+            "DELTA != VALUE",
+            "RESIDUAL != FAILURE",
+            "SIGNAL DELTA != LISTENER DELTA",
+        }
+        if not required.issubset(set(result.get("laws") or [])):
+            raise DoorHouseConflict("Dogram generation result omitted required laws")
+
+        kind = "dogram_generation_delta:" + child_window_id
+        snapshot = {
+            **result,
+            "local_receipt_id": receipt_id,
+            "local_receipt_sha256": receipt["sha256"],
+            "laws": [
+                *result.get("laws", []),
+                "DOGRAM RECEIPT != MUSICAL VERDICT",
+                "MEASUREMENT != SELECTION",
+            ],
+        }
+        result_sha = _digest(snapshot)
+        with self._db() as db:
+            db.execute("BEGIN IMMEDIATE")
+            existing = db.execute(
+                "SELECT * FROM dh_external_witnesses WHERE receipt_id=? AND kind=?",
+                (receipt_id, kind),
+            ).fetchone()
+            if existing is None:
+                db.execute(
+                    "INSERT INTO dh_external_witnesses VALUES (?,?,?,?,?,?)",
+                    (
+                        uuid4().hex,
+                        receipt_id,
+                        kind,
+                        result_sha,
+                        _encoded(snapshot),
+                        _now(),
+                    ),
+                )
+            elif existing["result_sha256"] != result_sha:
+                raise DoorHouseConflict(
+                    "a different Dogram delta already measures this descendant"
+                )
+        return self.state()
+
+    def dogram_generation_delta(self, receipt_id, child_window_id):
+        self.receipt(receipt_id)
+        witness = self.external_witness(
+            receipt_id, "dogram_generation_delta:" + child_window_id
+        )
+        if witness is None:
+            raise DoorHouseMissing("Dogram generation delta is not available")
+        return witness["snapshot"]
+
     def record_relatte_witness(self, receipt_id, result):
         receipt = self.receipt(receipt_id)
         if not isinstance(result, dict) or result.get("schema") != "relatte.opaque-roundtrip-result/v0":

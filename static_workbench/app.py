@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import secrets
 from contextlib import asynccontextmanager
 from dataclasses import asdict
@@ -33,6 +34,11 @@ from .doorhouse_phonograph import (
     admit_phonograph_answer_as_audio_window,
     phonograph_field_answer_available,
     run_phonograph_field_answer,
+)
+from .doorhouse_dogram import (
+    DogramGenerationError,
+    dogram_generation_delta_available,
+    run_dogram_generation_delta,
 )
 import uvicorn
 from fastapi import FastAPI, HTTPException, Query, Request
@@ -527,6 +533,7 @@ def create_app(config: WorkbenchConfig | None = None) -> FastAPI:
         repos = discover_repositories(config.roots, config.max_repo_depth)
         broadcast = broadcast_door(config, repos)
         phonograph = phonograph_field_answer_available(repos)
+        dogram = dogram_generation_delta_available(repos)
         try:
             moments = moment_inbox.list_moments()
         except (ValueError, OSError, TypeError, UnicodeError):
@@ -537,6 +544,7 @@ def create_app(config: WorkbenchConfig | None = None) -> FastAPI:
             moments,
             repos,
             phonograph=phonograph,
+            dogram=dogram,
         )
 
     @app.get("/api/doorhouse/field-station")
@@ -1032,6 +1040,125 @@ def create_app(config: WorkbenchConfig | None = None) -> FastAPI:
             "audition_sha256": result["audition"]["sha256"],
         })
         return state
+
+    @app.post(
+        "/api/doorhouse/receipts/{receipt_id}/dogram/{child_window_id}/generation-delta"
+    )
+    def doorhouse_dogram_generation_delta(
+        receipt_id: str,
+        child_window_id: str,
+        request: Request,
+    ):
+        _creator_write_guard(request)
+        latest = _doorhouse_call(
+            lambda: doorhouse.latest_audio_window(receipt_id)
+        )
+        if latest["snapshot"].get("window_id") != child_window_id:
+            raise HTTPException(
+                status_code=409,
+                detail="Only the current descendant audio window may be measured",
+            )
+        reentry = _doorhouse_call(
+            lambda: doorhouse.phonograph_reentry(
+                receipt_id, child_window_id
+            )
+        )
+        parent_window_id = reentry.get("parent_window_id")
+        parent = _doorhouse_call(
+            lambda: doorhouse.audio_window_for_id(
+                receipt_id, parent_window_id
+            )
+        )
+        house_state = doorhouse.state()
+        witnessed = {
+            item.get("snapshot", {}).get("window_id")
+            for item in house_state.get("external_witnesses", [])
+            if str(item.get("kind", "")).startswith(
+                "audio_look_twice_dialogue:"
+            )
+        }
+        if (
+            parent_window_id not in witnessed
+            or child_window_id not in witnessed
+        ):
+            raise HTTPException(
+                status_code=409,
+                detail=(
+                    "Dogram generation delta requires sealed radio "
+                    "cross-reads for both parent and descendant"
+                ),
+            )
+
+        try:
+            repos = discover_repositories(config.roots, config.max_repo_depth)
+            result = run_dogram_generation_delta(
+                parent["snapshot"],
+                latest["snapshot"],
+                reentry,
+                repos,
+                config.state_dir,
+                receipt_id,
+            )
+        except DogramGenerationError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+        state = _doorhouse_call(
+            lambda: doorhouse.record_dogram_generation_delta(
+                receipt_id, result
+            )
+        )
+        journal.append("doorhouse.dogram.generation_delta", {
+            "local_receipt_id": receipt_id,
+            "parent_window_id": result["parent_window_id"],
+            "child_window_id": result["child_window_id"],
+            "dogram_receipt_hash": result["dogram_receipt_hash"],
+            "classification": result["classification"],
+            "changed_axes": result["changed_axes"],
+        })
+        return state
+
+    @app.get(
+        "/api/doorhouse/receipts/{receipt_id}/dogram/{child_window_id}/generation-delta.json",
+        include_in_schema=False,
+    )
+    def doorhouse_dogram_generation_delta_receipt(
+        receipt_id: str,
+        child_window_id: str,
+    ):
+        result = _doorhouse_call(
+            lambda: doorhouse.dogram_generation_delta(
+                receipt_id, child_window_id
+            )
+        )
+        raw = result.get("receipt_path")
+        if not isinstance(raw, str):
+            raise HTTPException(
+                status_code=404,
+                detail="Dogram generation receipt is unavailable",
+            )
+        candidate = Path(raw).resolve()
+        slug = hashlib.sha256(
+            child_window_id.encode("utf-8")
+        ).hexdigest()[:24]
+        expected_root = (
+            config.state_dir
+            / "doorhouse-dogram"
+            / receipt_id
+            / slug
+        ).resolve()
+        if (
+            candidate.parent != expected_root
+            or candidate.name != "generation-delta.json"
+        ):
+            raise HTTPException(
+                status_code=409,
+                detail="Dogram generation receipt escaped its bundle",
+            )
+        if not candidate.is_file():
+            raise HTTPException(
+                status_code=404,
+                detail="Dogram generation receipt is missing",
+            )
+        return FileResponse(candidate, media_type="application/json")
 
     @app.post(
         "/api/doorhouse/receipts/{receipt_id}/phonograph/{window_id}/admit-radio"

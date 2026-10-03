@@ -77,6 +77,13 @@ jobs:
           ref: 038b7101ecff781ee2ae17a22a1323ca28740d06
           path: .compat/haunted-phonograph
           persist-credentials: false
+      - name: Checkout pinned Dogram GENERATION DELTA
+        uses: actions/checkout@v4
+        with:
+          repository: the-static-collective/Dogram
+          ref: f352fe50bde594f9e88ebb37a58b58fbf3aeaedd
+          path: .compat/Dogram
+          persist-credentials: false
       - name: Actual House -> GHoT -> Toaster -> Autodisco creative smoke
         run: python scripts/smoke_doorhouse_creative.py
       - name: Browser JavaScript syntax

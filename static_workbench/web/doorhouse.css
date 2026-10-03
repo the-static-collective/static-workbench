@@ -19,3 +19,4 @@
 .field-return-card code{display:block;white-space:pre-wrap;overflow-wrap:anywhere;margin-top:7px;font-size:9px}
 .field-return-time{font:9px ui-monospace,monospace;color:var(--muted)}
 .field-return-human-note{margin:8px 0 0!important;color:var(--ink)!important}
+.field-door-card[data-lane="dogram"]{border-top-color:#8da1b5}

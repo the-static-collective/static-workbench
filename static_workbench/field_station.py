@@ -91,6 +91,7 @@ def compose_nearby_station_doors(
     moments: list[dict],
     repos: list[RepoStatus],
     phonograph: dict | None = None,
+    dogram: dict | None = None,
 ) -> dict:
     """Return a deterministic, read-only station field.
 
@@ -139,12 +140,59 @@ def compose_nearby_station_doors(
         "repo_branch": None,
         "capability": None,
     }
+    dogram = dogram or {
+        "checkout_present": False,
+        "available": False,
+        "repo_head": None,
+        "repo_branch": None,
+        "capability": None,
+    }
     phono_answer = next(
         (
             witness
             for witness in witnesses
             if str(witness.get("kind", "")).startswith("phonograph_field_answer:")
             and witness.get("snapshot", {}).get("window_id") == current_window_id
+        ),
+        None,
+    )
+    current_snapshot = (
+        audio_window.get("snapshot", {})
+        if audio_window is not None
+        else {}
+    )
+    current_lineage = current_snapshot.get("source_lineage")
+    current_is_phono_descendant = (
+        isinstance(current_lineage, dict)
+        and current_lineage.get("schema")
+            == "workbench.phonograph-reentry-lineage/v0"
+    )
+    parent_window_id = (
+        current_lineage.get("parent_window_id")
+        if current_is_phono_descendant
+        else None
+    )
+    parent_dialogue = next(
+        (
+            witness
+            for witness in witnesses
+            if str(witness.get("kind", "")).startswith(
+                "audio_look_twice_dialogue:"
+            )
+            and witness.get("snapshot", {}).get("window_id")
+                == parent_window_id
+        ),
+        None,
+    )
+    dogram_delta = next(
+        (
+            witness
+            for witness in witnesses
+            if str(witness.get("kind", "")).startswith(
+                "dogram_generation_delta:"
+            )
+            and witness.get("snapshot", {}).get("child_window_id")
+                == current_window_id
         ),
         None,
     )
@@ -318,6 +366,91 @@ def compose_nearby_station_doors(
             # musical answer may be requested.
             pass
 
+    # DOGRAM LANE — only after both generations have sealed radio cross-reads.
+    if (
+        current_is_phono_descendant
+        and dogram.get("available") is True
+        and parent_dialogue is not None
+        and audio_dialogue is not None
+    ):
+        reentry = next(
+            (
+                witness
+                for witness in witnesses
+                if str(witness.get("kind", "")).startswith(
+                    "phonograph_reentry:"
+                )
+                and witness.get("snapshot", {}).get("child_window_id")
+                    == current_window_id
+            ),
+            None,
+        )
+        if reentry is not None and dogram_delta is None:
+            rw = reentry.get("snapshot", {})
+            doors.append(_door(
+                "measure-generation-delta",
+                "Measure what changed from parent to descendant",
+                "Both generations have sealed radio cross-reads, and Dogram GENERATION-DELTA-001 can measure the admitted PCM transform without grading it.",
+                lane="dogram",
+                adapter="Dogram / GENERATION-DELTA-001",
+                evidence=[
+                    {
+                        "kind": "phonograph-reentry",
+                        "ref": current_window_id,
+                        "parent_window_id": parent_window_id,
+                        "proposal_receipt_hash": rw.get(
+                            "proposal_receipt_hash"
+                        ),
+                    },
+                    {
+                        "kind": "parent-dialogue",
+                        "ref": parent_dialogue.get(
+                            "snapshot", {}
+                        ).get("dialogue_id"),
+                    },
+                    {
+                        "kind": "child-dialogue",
+                        "ref": audio_dialogue.get(
+                            "snapshot", {}
+                        ).get("dialogue_id"),
+                    },
+                    {
+                        "kind": "capability",
+                        "ref": "generation-delta-001",
+                        "repo_head": dogram.get("repo_head"),
+                        "repo_branch": dogram.get("repo_branch"),
+                    },
+                ],
+                target={
+                    "receipt_id": audio_window.get("receipt_id"),
+                    "parent_window_id": parent_window_id,
+                    "child_window_id": current_window_id,
+                    "control": "dogram-generation-delta",
+                },
+            ))
+        elif dogram_delta is not None:
+            dw = dogram_delta.get("snapshot", {})
+            doors.append(_door(
+                "inspect-generation-delta",
+                "Inspect the measured generation delta",
+                "Dogram has already receipted the finite parent-to-descendant transform. The receipt is measurement, not musical verdict.",
+                lane="dogram",
+                adapter="Dogram / GENERATION-DELTA-001",
+                evidence=[
+                    {
+                        "kind": "dogram-generation-delta",
+                        "ref": dw.get("dogram_receipt_hash"),
+                        "classification": dw.get("classification"),
+                        "changed_axes": dw.get("changed_axes"),
+                    }
+                ],
+                target={
+                    "receipt_id": dogram_delta.get("receipt_id"),
+                    "child_window_id": current_window_id,
+                    "artifact": "generation-delta.json",
+                },
+            ))
+
     # STATIC LIVE LANE — presence/reachability is factual, never inferred.
     static_live_present = "static-live" in repo_names
     if episode is not None and static_live_present:
@@ -433,8 +566,16 @@ def compose_nearby_station_doors(
         target=None,
     ))
 
-    # Keep one door per lane in deterministic construction order, max six.
-    doors = doors[:6]
+    # Keep at most six doors while preserving constitutional silence.
+    # This is deterministic lane coverage, not a relevance score.
+    silence = next(
+        (door for door in doors if door.get("lane") == "silence"),
+        None,
+    )
+    non_silence = [
+        door for door in doors if door.get("lane") != "silence"
+    ][:5]
+    doors = non_silence + ([silence] if silence is not None else [])
 
     counts = {
         "audio_windows": sum(
@@ -452,6 +593,12 @@ def compose_nearby_station_doors(
         "phonograph_reentries": sum(
             1 for item in witnesses
             if str(item.get("kind", "")).startswith("phonograph_reentry:")
+        ),
+        "dogram_generation_deltas": sum(
+            1 for item in witnesses
+            if str(item.get("kind", "")).startswith(
+                "dogram_generation_delta:"
+            )
         ),
         "unresolved_house_doors": len(unresolved),
         "registered_live_moments": len(moments),
@@ -534,6 +681,13 @@ def compose_nearby_station_doors(
             "repo_branch": phonograph.get("repo_branch"),
             "capability": phonograph.get("capability"),
         },
+        "dogram_capability": {
+            "checkout_present": dogram.get("checkout_present"),
+            "available": dogram.get("available"),
+            "repo_head": dogram.get("repo_head"),
+            "repo_branch": dogram.get("repo_branch"),
+            "capability": dogram.get("capability"),
+        },
         "counts": counts,
         "memory_pressures": pressures,
         "nearby_doors": doors,
@@ -548,6 +702,10 @@ def compose_nearby_station_doors(
             "MUSICAL POSSIBILITY != RECOMMENDATION",
             "RECURSION REQUIRES FRESH WITNESS",
             "DESCENDANT != PARENT",
+            "DOGRAM MEASURES TRANSFORMS, NOT PEOPLE",
+            "DELTA != VALUE",
+            "SIGNAL DELTA != LISTENER DELTA",
+            "RESIDUAL != FAILURE",
         ],
     }
     return {
