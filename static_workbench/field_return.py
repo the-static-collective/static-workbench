@@ -176,7 +176,8 @@ class FieldReturnStore:
                     crossing_json TEXT,
                     admission_json TEXT,
                     assignment_offer_json TEXT,
-                    assignment_json TEXT
+                    assignment_json TEXT,
+                    dispatch_json TEXT
                 )
                 """
             )
@@ -186,7 +187,11 @@ class FieldReturnStore:
                     "PRAGMA table_info(field_return_receivers)"
                 ).fetchall()
             }
-            for name in ("assignment_offer_json", "assignment_json"):
+            for name in (
+                "assignment_offer_json",
+                "assignment_json",
+                "dispatch_json",
+            ):
                 if name not in columns:
                     db.execute(
                         f"ALTER TABLE field_return_receivers ADD COLUMN {name} TEXT"
@@ -254,7 +259,8 @@ class FieldReturnStore:
             row = db.execute(
                 """
                 SELECT crossing_json, admission_json,
-                       assignment_offer_json, assignment_json
+                       assignment_offer_json, assignment_json,
+                       dispatch_json
                 FROM field_return_receivers
                 WHERE receipt_id = ?
                 """,
@@ -282,13 +288,21 @@ class FieldReturnStore:
             if row["assignment_json"] is not None
             else None
         )
+        dispatch = (
+            json.loads(str(row["dispatch_json"]))
+            if row["dispatch_json"] is not None
+            else None
+        )
         return {
             "crossing": crossing,
             "admission": admission,
             "assignment_offer": assignment_offer,
             "assignment": assignment,
+            "dispatch": dispatch,
             "status": (
-                "ASSIGNED_NOT_EXECUTED"
+                str(dispatch.get("status"))
+                if isinstance(dispatch, dict)
+                else "ASSIGNED_NOT_EXECUTED"
                 if assignment is not None
                 else "OFFER_READY"
                 if assignment_offer is not None
@@ -436,6 +450,49 @@ class FieldReturnStore:
             raise RuntimeError("field reseed assignment did not persist")
         return result
 
+    def save_dispatch(self, receipt_id: str, dispatch: dict) -> dict:
+        receiver = self.receiver(receipt_id)
+        if receiver is None or not isinstance(receiver.get("assignment"), dict):
+            raise ValueError("assignment-only receipt is required before dispatch")
+        if dispatch.get("schema") != "workbench.field-reseed-dispatch/v0":
+            raise ValueError("unsupported field reseed dispatch schema")
+        if dispatch.get("field_return_id") != receipt_id:
+            raise ValueError("dispatch is bound to another return")
+        assignment = receiver["assignment"]
+        if dispatch.get("intent_id") != assignment.get("intent_id"):
+            raise ValueError("dispatch changed carried intent identity")
+        ghot_assignment = assignment.get("ghot_assignment", {})
+        if dispatch.get("assignment_id") != ghot_assignment.get("assignment_id"):
+            raise ValueError("dispatch changed assignment identity")
+        if dispatch.get("status") not in {
+            "EXECUTED",
+            "EXECUTION_ERROR",
+            "DISPATCH_OUTCOME_UNKNOWN",
+        }:
+            raise ValueError("dispatch status is not a terminal/ambiguous consequence")
+        payload = _canonical(dispatch)
+        with self._connect() as db:
+            row = db.execute(
+                "SELECT dispatch_json FROM field_return_receivers WHERE receipt_id = ?",
+                (receipt_id,),
+            ).fetchone()
+            if row is not None and row["dispatch_json"] is not None:
+                if str(row["dispatch_json"]) != payload:
+                    raise ValueError("a different dispatch consequence is already stored")
+            else:
+                db.execute(
+                    """
+                    UPDATE field_return_receivers
+                    SET dispatch_json = ?
+                    WHERE receipt_id = ?
+                    """,
+                    (payload, receipt_id),
+                )
+        result = self.receiver(receipt_id)
+        if result is None or result["dispatch"] is None:
+            raise RuntimeError("field reseed dispatch consequence did not persist")
+        return result
+
     def latest(self, limit: int = 50) -> list[dict]:
         bounded = max(1, min(int(limit), 200))
         with self._connect() as db:
@@ -443,7 +500,8 @@ class FieldReturnStore:
                 """
                 SELECT r.stored_at, r.receipt_json,
                        x.crossing_json, x.admission_json,
-                       x.assignment_offer_json, x.assignment_json
+                       x.assignment_offer_json, x.assignment_json,
+                       x.dispatch_json
                 FROM field_returns r
                 LEFT JOIN field_return_receivers x ON x.receipt_id = r.receipt_id
                 ORDER BY r.stored_at DESC, r.receipt_id DESC
@@ -477,15 +535,26 @@ class FieldReturnStore:
                 if row["assignment_json"] is not None
                 else None
             )
+            dispatch = (
+                json.loads(str(row["dispatch_json"]))
+                if row["dispatch_json"] is not None
+                else None
+            )
             if any(
                 value is not None
                 for value in (
-                    crossing, admission, assignment_offer, assignment
+                    crossing,
+                    admission,
+                    assignment_offer,
+                    assignment,
+                    dispatch,
                 )
             ):
                 item["receiver"] = {
                     "status": (
-                        "ASSIGNED_NOT_EXECUTED"
+                        str(dispatch.get("status"))
+                        if isinstance(dispatch, dict)
+                        else "ASSIGNED_NOT_EXECUTED"
                         if assignment is not None
                         else "OFFER_READY"
                         if assignment_offer is not None
@@ -497,6 +566,7 @@ class FieldReturnStore:
                     "admission": admission,
                     "assignment_offer": assignment_offer,
                     "assignment": assignment,
+                    "dispatch": dispatch,
                 }
             result.append(item)
         return result
@@ -511,6 +581,7 @@ class FieldReturnStore:
             admission = receiver.get("admission")
             assignment_offer = receiver.get("assignment_offer")
             assignment = receiver.get("assignment")
+            dispatch = receiver.get("dispatch")
             if not isinstance(crossing, dict):
                 continue
             hold = crossing.get("ghot_hold")
@@ -529,8 +600,47 @@ class FieldReturnStore:
                 if isinstance(assignment, dict)
                 else None
             )
+            ghot_dispatch = (
+                dispatch.get("ghot_dispatch")
+                if isinstance(dispatch, dict)
+                else None
+            )
+            ghot_dispatch_status = (
+                dispatch.get("ghot_dispatch_status")
+                if isinstance(dispatch, dict)
+                else None
+            )
+            dispatch_state = (
+                ghot_dispatch_status.get("dispatch_state")
+                if isinstance(ghot_dispatch_status, dict)
+                else None
+            )
+            execution = (
+                ghot_dispatch.get("execution")
+                if isinstance(ghot_dispatch, dict)
+                else None
+            )
+            task = (
+                execution.get("task")
+                if isinstance(execution, dict)
+                else None
+            )
+            execution_receipt = (
+                execution.get("receipt")
+                if isinstance(execution, dict)
+                else None
+            )
+            signed_receipt = (
+                ghot_dispatch.get("signed_receipt")
+                if isinstance(ghot_dispatch, dict)
+                else None
+            )
             receiver_at = (
-                assigned.get("assigned_at")
+                ghot_dispatch.get("completed_at")
+                if isinstance(ghot_dispatch, dict)
+                else dispatch_state.get("prepared_at")
+                if isinstance(dispatch_state, dict)
+                else assigned.get("assigned_at")
                 if isinstance(assigned, dict)
                 else offer.get("observed_at")
                 if isinstance(offer, dict)
@@ -575,6 +685,38 @@ class FieldReturnStore:
                 "capability": (
                     assigned.get("capability")
                     if isinstance(assigned, dict)
+                    else None
+                ),
+                "dispatch_crossing_id": (
+                    ghot_dispatch.get("dispatch_crossing_id")
+                    if isinstance(ghot_dispatch, dict)
+                    else dispatch_state.get("crossing_id")
+                    if isinstance(dispatch_state, dict)
+                    else None
+                ),
+                "task_id": (
+                    task.get("task_id")
+                    if isinstance(task, dict)
+                    else None
+                ),
+                "execution_receipt_id": (
+                    execution_receipt.get("receipt_id")
+                    if isinstance(execution_receipt, dict)
+                    else None
+                ),
+                "signed_receipt_id": (
+                    signed_receipt.get("receipt_id")
+                    if isinstance(signed_receipt, dict)
+                    else None
+                ),
+                "execution_status": (
+                    execution_receipt.get("status")
+                    if isinstance(execution_receipt, dict)
+                    else None
+                ),
+                "output_sha256": (
+                    execution_receipt.get("output_sha256")
+                    if isinstance(execution_receipt, dict)
                     else None
                 ),
             })
