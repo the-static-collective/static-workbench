@@ -1,0 +1,149 @@
+#!/usr/bin/env python3
+"""Actual cross-repo smoke for the first bounded creative return loop."""
+
+from __future__ import annotations
+
+import os
+import tempfile
+from pathlib import Path
+
+from static_workbench.doorhouse import DoorHouse
+from static_workbench.doorhouse_autodisco import run_first_encounter
+from static_workbench.doorhouse_ghot import assign_ghot_body, discover_ghot_bodies
+from static_workbench.repos import RepoStatus
+
+
+ROOT = Path(__file__).resolve().parent.parent
+GHOT = ROOT / ".compat" / "GHoT"
+TOASTER = ROOT / ".compat" / "haunted-toaster"
+AUTODISCO = ROOT / ".compat" / "autodisco"
+
+
+def repo(name: str, path: Path) -> RepoStatus:
+    return RepoStatus(
+        name=name,
+        path=str(path),
+        branch=None,
+        detached=True,
+        head=None,
+        dirty=False,
+        ahead=None,
+        behind=None,
+    )
+
+
+def fake_relatte(receipt: dict) -> dict:
+    crossing_id = "relatte-crossing-v0:" + "a" * 64
+    return {
+        "schema": "relatte.opaque-roundtrip-result/v0",
+        "request_id": "relatte-opaque-roundtrip-v0:" + "b" * 64,
+        "crossing": {
+            "crossing_id": crossing_id,
+            "extensions": {
+                "organ_adapter": {
+                    "donor_claims": {
+                        "local_receipt_id": receipt["id"],
+                        "local_receipt_sha256": receipt["sha256"],
+                    }
+                }
+            },
+        },
+        "transport_frame": {"transport_id": "relatte-transport-v0:" + "c" * 64},
+        "receive_receipt": {
+            "crossing_id": crossing_id,
+            "receipt_id": "relatte-receipt-v0:" + "d" * 64,
+            "kind": "RECEIVED",
+            "semantic_effect": "none",
+            "world_id": "world:creative-smoke",
+        },
+        "disposition_receipt": {
+            "crossing_id": crossing_id,
+            "receipt_id": "relatte-receipt-v0:" + "e" * 64,
+            "kind": "R3_HOLD",
+            "semantic_effect": "none",
+        },
+        "receiver_snapshot": {"state_ref": "relatte-local-state-v0:" + "f" * 64},
+    }
+
+
+def main() -> int:
+    for path in (GHOT, TOASTER, AUTODISCO):
+        if not path.is_dir():
+            raise SystemExit(f"missing integration checkout: {path}")
+
+    repos = [
+        repo("GHoT", GHOT),
+        repo("the-haunted-toaster", TOASTER),
+        repo("The-AutodiscoV.20.-question-marks-", AUTODISCO),
+    ]
+
+    with tempfile.TemporaryDirectory(prefix="doorhouse-creative-smoke-") as raw:
+        state_dir = Path(raw) / "state"
+        store = DoorHouse(state_dir / "doorhouse.sqlite3")
+        state = store.enter()
+        letter = state["letters"][0]
+        store.open_letter(letter["id"])
+        state = store.state()
+        door = next(item for item in state["doors"] if item["letter_id"] == letter["id"])
+        store.select(door["id"], 0)
+        state = store.cross(door["id"], 0)
+        receipt = state["receipts"][0]
+
+        store.record_relatte_witness(receipt["id"], fake_relatte(receipt))
+        relatte = store.require_relatte_hold(receipt["id"])
+
+        offer = discover_ghot_bodies(receipt, relatte, repos, state_dir)
+        assert offer["capability"] == "creative.toaster.witness-sigil"
+        eligible = [item for item in offer["candidates"] if item.get("eligible") is True]
+        assert eligible, "no body offered the Toaster witness-sigil capability"
+        local = next((item for item in eligible if item.get("location") == "local"), eligible[0])
+
+        store.record_ghot_offer(receipt["id"], offer)
+        result = assign_ghot_body(
+            receipt,
+            relatte,
+            offer,
+            local["node_id"],
+            repos,
+            state_dir,
+        )
+        state = store.record_ghot_execution(
+            receipt["id"],
+            offer["offer_id"],
+            local["node_id"],
+            result,
+        )
+        ghot = next(
+            item for item in state["external_witnesses"]
+            if item["kind"] == "ghot_execution"
+        )
+        creative = ghot["snapshot"]["creative_artifact"]
+        assert Path(creative["svg_path"]).is_file()
+        assert creative["instrument"] == "witness-sigil/v0.1"
+
+        os.environ.pop("GEMINI_API_KEY", None)
+        encounter = run_first_encounter(ghot["snapshot"], repos)
+        assert encounter["status"] == "packet-only"
+        assert encounter["response"] is None
+        final = store.record_autodisco_first_encounter(receipt["id"], encounter)
+        assert any(
+            item["kind"] == "autodisco_packet"
+            for item in final["external_witnesses"]
+        )
+        assert not any(
+            item["kind"] == "autodisco_first_response"
+            for item in final["external_witnesses"]
+        )
+        assert final["letters"][0]["body"] is None
+
+        print(
+            "creative loop smoke ok:",
+            local["node_id"],
+            creative["svg_sha256"],
+            encounter["packet"]["packet_id"],
+        )
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
