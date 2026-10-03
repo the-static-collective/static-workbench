@@ -3,13 +3,19 @@
 
 from __future__ import annotations
 
+import math
 import os
+import struct
 import tempfile
+import wave
 from pathlib import Path
 
 from static_workbench.doorhouse import DoorHouse
 from static_workbench.doorhouse_autodisco import (
+    build_audio_window,
+    prepare_audio_look_twice,
     prepare_look_twice,
+    run_audio_look_twice_encounters,
     run_first_encounter,
     run_look_twice_encounters,
 )
@@ -68,6 +74,20 @@ def fake_relatte(receipt: dict) -> dict:
         },
         "receiver_snapshot": {"state_ref": "relatte-local-state-v0:" + "f" * 64},
     }
+
+
+def write_test_wav(path: Path, duration_seconds: float = 2.0) -> None:
+    sample_rate = 44100
+    frames = int(sample_rate * duration_seconds)
+    with wave.open(str(path), "wb") as handle:
+        handle.setnchannels(2)
+        handle.setsampwidth(2)
+        handle.setframerate(sample_rate)
+        payload = bytearray()
+        for index in range(frames):
+            sample = int(math.sin(index / 18.0) * 10000)
+            payload.extend(struct.pack("<hh", sample, -sample))
+        handle.writeframes(bytes(payload))
 
 
 def main() -> int:
@@ -161,12 +181,58 @@ def main() -> int:
             for item in final["external_witnesses"]
         )
 
+        audio_source = Path(raw) / "radio-specimen.wav"
+        write_test_wav(audio_source)
+        audio = build_audio_window(
+            audio_source,
+            receipt["id"],
+            state_dir,
+            repos,
+            start_ms=250,
+            end_ms=1250,
+            window_label="ci-window-001",
+        )
+        assert audio["schema"] == "workbench.audio-window-materialized/v0"
+        assert Path(audio["audio_path"]).is_file()
+        store.record_audio_window(receipt["id"], audio)
+
+        audio_pair = prepare_audio_look_twice(audio, repos)
+        assert audio_pair["schema"] == "autodisco.audio-look-twice-pair/v0"
+        assert len(audio_pair["packets"]) == 2
+        assert audio_pair["window_ref"]["audio_sha256"] == audio["audio_sha256"]
+        store.record_audio_look_twice_pair(receipt["id"], audio_pair)
+
+        audio_twice = run_audio_look_twice_encounters(
+            audio,
+            audio_pair,
+            repos,
+        )
+        assert audio_twice["status"] == "packets-only"
+        assert audio_twice["first_responses"] == []
+        final = store.record_audio_look_twice_encounters(
+            receipt["id"], audio_twice
+        )
+        assert any(
+            item["kind"].startswith("audio_window:")
+            for item in final["external_witnesses"]
+        )
+        assert any(
+            item["kind"].startswith("audio_look_twice_pair:")
+            for item in final["external_witnesses"]
+        )
+        assert not any(
+            item["kind"].startswith("audio_look_twice_first:")
+            for item in final["external_witnesses"]
+        )
+
         print(
             "creative loop smoke ok:",
             local["node_id"],
             creative["svg_sha256"],
             encounter["packet"]["packet_id"],
             pair["pair_id"],
+            audio["window_id"],
+            audio_pair["pair_id"],
         )
     return 0
 
