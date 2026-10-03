@@ -651,6 +651,387 @@ class DoorHouse:
                     )
         return self.state()
 
+    def record_look_twice_pair(self, receipt_id, pair):
+        receipt = self.receipt(receipt_id)
+        ghot = self.external_witness(receipt_id, "ghot_execution")
+        if ghot is None:
+            raise DoorHouseConflict("GHoT creative execution is required before LOOK TWICE")
+        creative = ghot["snapshot"].get("creative_artifact")
+        if not isinstance(creative, dict):
+            raise DoorHouseConflict("GHoT witness has no creative artifact")
+        if (
+            not isinstance(pair, dict)
+            or pair.get("schema") != "autodisco.look-twice-pair/v0"
+        ):
+            raise DoorHouseConflict("invalid LOOK TWICE pair")
+        pair_id = pair.get("pair_id")
+        packets = pair.get("packets")
+        if (
+            not isinstance(pair_id, str)
+            or not pair_id.startswith("autodisco-look-twice-pair-v0:")
+            or not isinstance(packets, list)
+            or len(packets) != 2
+            or pair.get("source", {}).get("sha256") != creative.get("svg_sha256")
+        ):
+            raise DoorHouseConflict("LOOK TWICE pair is not bound to the returned SVG")
+        listener_ids = {
+            packet.get("listener", {}).get("id")
+            for packet in packets
+            if isinstance(packet, dict)
+        }
+        if len(listener_ids) != 2 or None in listener_ids:
+            raise DoorHouseConflict("LOOK TWICE pair does not contain two distinct listeners")
+        snapshot = {
+            "schema": "workbench.look-twice-pair/v0",
+            "local_receipt_id": receipt_id,
+            "local_receipt_sha256": receipt["sha256"],
+            "pair_id": pair_id,
+            "source_sha256": pair.get("source", {}).get("sha256"),
+            "pair": pair,
+            "laws": [
+                "SAME ARTIFACT != SHARED CONTEXT",
+                "PAIR != FIRST RESPONSE",
+                "FIRST RESPONSE PRECEDES CROSS-READ",
+            ],
+        }
+        result_sha = _digest(pair)
+        with self._db() as db:
+            db.execute("BEGIN IMMEDIATE")
+            existing = db.execute(
+                "SELECT * FROM dh_external_witnesses WHERE receipt_id=? AND kind='look_twice_pair'",
+                (receipt_id,),
+            ).fetchone()
+            if existing is None:
+                db.execute(
+                    "INSERT INTO dh_external_witnesses VALUES (?,?,?,?,?,?)",
+                    (
+                        uuid4().hex,
+                        receipt_id,
+                        "look_twice_pair",
+                        result_sha,
+                        _encoded(snapshot),
+                        _now(),
+                    ),
+                )
+            elif existing["result_sha256"] != result_sha:
+                raise DoorHouseConflict(
+                    "a different LOOK TWICE pair is already attached to this artifact"
+                )
+        return self.state()
+
+    def look_twice_pair(self, receipt_id):
+        witness = self.external_witness(receipt_id, "look_twice_pair")
+        if witness is None:
+            raise DoorHouseMissing("LOOK TWICE pair has not been prepared")
+        return witness["snapshot"]["pair"]
+
+    def look_twice_first_responses(self, receipt_id):
+        self.receipt(receipt_id)
+        with self._db() as db:
+            rows = db.execute(
+                """SELECT * FROM dh_external_witnesses
+                   WHERE receipt_id=? AND kind LIKE 'look_twice_first:%'
+                   ORDER BY kind""",
+                (receipt_id,),
+            ).fetchall()
+        responses = []
+        for row in rows:
+            snapshot = json.loads(row["snapshot"])
+            sealed = snapshot.get("sealed_response")
+            if isinstance(sealed, dict):
+                responses.append(sealed)
+        return responses
+
+    def record_look_twice_encounters(self, receipt_id, result):
+        pair = self.look_twice_pair(receipt_id)
+        if (
+            not isinstance(result, dict)
+            or result.get("schema") != "autodisco.look-twice-encounter-result/v0"
+            or result.get("pair_id") != pair.get("pair_id")
+        ):
+            raise DoorHouseConflict("invalid LOOK TWICE encounter result")
+        status = result.get("status")
+        responses = result.get("first_responses")
+        if status == "packets-only":
+            if responses != [] or result.get("model_used") is not None:
+                raise DoorHouseConflict("LOOK TWICE packets-only result contains fake responses")
+            return self.state()
+        if status != "two-first-responses-sealed":
+            raise DoorHouseConflict("unexpected LOOK TWICE encounter status")
+        if not isinstance(responses, list) or len(responses) != 2:
+            raise DoorHouseConflict("LOOK TWICE did not return two first responses")
+
+        pair_packet_ids = {
+            packet.get("packet_id")
+            for packet in pair.get("packets", [])
+            if isinstance(packet, dict)
+        }
+        seen_packets = set()
+        seen_listeners = set()
+        with self._db() as db:
+            db.execute("BEGIN IMMEDIATE")
+            inserted = 0
+            for sealed in responses:
+                if not isinstance(sealed, dict):
+                    raise DoorHouseConflict("LOOK TWICE sealed response is malformed")
+                packet_id = sealed.get("packet_id")
+                listener = sealed.get("listener")
+                listener_id = listener.get("id") if isinstance(listener, dict) else None
+                response_id = sealed.get("first_response_id")
+                if (
+                    sealed.get("schema") != "autodisco.look-twice-first-response/v0"
+                    or sealed.get("pair_id") != pair.get("pair_id")
+                    or packet_id not in pair_packet_ids
+                    or packet_id in seen_packets
+                    or not isinstance(listener_id, str)
+                    or listener_id in seen_listeners
+                    or not isinstance(response_id, str)
+                    or not response_id.startswith("autodisco-look-twice-response-v0:")
+                ):
+                    raise DoorHouseConflict("LOOK TWICE first response binding is invalid")
+                seen_packets.add(packet_id)
+                seen_listeners.add(listener_id)
+                kind = "look_twice_first:" + listener_id
+                response_sha = _digest(sealed)
+                snapshot = {
+                    "schema": "workbench.look-twice-first-response/v0",
+                    "local_receipt_id": receipt_id,
+                    "pair_id": pair.get("pair_id"),
+                    "listener": listener,
+                    "packet_id": packet_id,
+                    "first_response_id": response_id,
+                    "response_sha256": sealed.get("response_sha256"),
+                    "model_used": sealed.get("model_used"),
+                    "sealed_response": sealed,
+                    "laws": [
+                        "FIRST RESPONSE PRECEDES CROSS-READ",
+                        "SEALED != SHARED",
+                        "FIRST RESPONSE IDENTITY IS IMMUTABLE",
+                    ],
+                }
+                existing = db.execute(
+                    "SELECT * FROM dh_external_witnesses WHERE receipt_id=? AND kind=?",
+                    (receipt_id, kind),
+                ).fetchone()
+                if existing is None:
+                    db.execute(
+                        "INSERT INTO dh_external_witnesses VALUES (?,?,?,?,?,?)",
+                        (
+                            uuid4().hex,
+                            receipt_id,
+                            kind,
+                            response_sha,
+                            _encoded(snapshot),
+                            _now(),
+                        ),
+                    )
+                    inserted += 1
+                elif existing["result_sha256"] != response_sha:
+                    raise DoorHouseConflict(
+                        "a different sealed first response already exists for this listener"
+                    )
+
+            total = db.execute(
+                """SELECT COUNT(*) AS n FROM dh_external_witnesses
+                   WHERE receipt_id=? AND kind LIKE 'look_twice_first:%'""",
+                (receipt_id,),
+            ).fetchone()["n"]
+            if total != 2:
+                raise DoorHouseConflict(
+                    "LOOK TWICE requires exactly two sealed first responses"
+                )
+            if inserted:
+                existing_letter = db.execute(
+                    """SELECT 1 FROM dh_letters
+                       WHERE parent_crossing_id=? LIMIT 1""",
+                    ("look-twice-firsts:" + pair.get("pair_id"),),
+                ).fetchone()
+                if existing_letter is None:
+                    self._create_letter(
+                        db,
+                        "Two strangers looked. Neither had seen the other's notes.",
+                        (
+                            "Static Sam and Juniper now have independently sealed first "
+                            "responses to the same artifact. Their first impressions are "
+                            "immutable. Cross-reading is finally allowed."
+                        ),
+                        [
+                            (
+                                "Let them look twice",
+                                "Allow the two sealed first responses to see each other for a short exchange.",
+                                "Autodisco / LOOK TWICE",
+                            ),
+                            (
+                                "Read them separately",
+                                "Inspect both first responses without composing them.",
+                                "House witness",
+                            ),
+                            (
+                                "Leave them unintroduced",
+                                "Preserve both first encounters without opening dialogue.",
+                                "House memory",
+                            ),
+                        ],
+                        parent_crossing_id="look-twice-firsts:" + pair.get("pair_id"),
+                    )
+        return self.state()
+
+    def record_look_twice_dialogue(self, receipt_id, result):
+        pair = self.look_twice_pair(receipt_id)
+        first_responses = self.look_twice_first_responses(receipt_id)
+        if len(first_responses) != 2:
+            raise DoorHouseConflict(
+                "two sealed LOOK TWICE first responses are required before dialogue"
+            )
+        if (
+            not isinstance(result, dict)
+            or result.get("schema") != "autodisco.look-twice-dialogue-result/v0"
+        ):
+            raise DoorHouseConflict("invalid LOOK TWICE dialogue result")
+        packet = result.get("dialogue_packet")
+        if (
+            not isinstance(packet, dict)
+            or packet.get("pair_id") != pair.get("pair_id")
+            or "content" in packet
+            or "artifact" in packet
+        ):
+            raise DoorHouseConflict("LOOK TWICE dialogue packet violated the temporal gate")
+        sealed = packet.get("sealed_first_responses")
+        if not isinstance(sealed, list) or len(sealed) != 2:
+            raise DoorHouseConflict("LOOK TWICE dialogue packet lacks two sealed responses")
+
+        packet_snapshot = {
+            "schema": "workbench.look-twice-dialogue-packet/v0",
+            "local_receipt_id": receipt_id,
+            "pair_id": pair.get("pair_id"),
+            "dialogue_packet_id": packet.get("dialogue_packet_id"),
+            "source_sha256": packet.get("source_sha256"),
+            "first_response_ids": [
+                item.get("first_response_id")
+                for item in sealed
+                if isinstance(item, dict)
+            ],
+            "dialogue_packet": packet,
+            "status": result.get("status"),
+            "laws": [
+                "TWO SEALED FIRST RESPONSES PRECEDE DIALOGUE",
+                "ORIGINAL ARTIFACT IS NOT REOPENED",
+                "PACKET != EXCHANGE",
+            ],
+        }
+        packet_sha = _digest(packet)
+        with self._db() as db:
+            db.execute("BEGIN IMMEDIATE")
+            existing_packet = db.execute(
+                "SELECT * FROM dh_external_witnesses WHERE receipt_id=? AND kind='look_twice_dialogue_packet'",
+                (receipt_id,),
+            ).fetchone()
+            if existing_packet is None:
+                db.execute(
+                    "INSERT INTO dh_external_witnesses VALUES (?,?,?,?,?,?)",
+                    (
+                        uuid4().hex,
+                        receipt_id,
+                        "look_twice_dialogue_packet",
+                        packet_sha,
+                        _encoded(packet_snapshot),
+                        _now(),
+                    ),
+                )
+            elif existing_packet["result_sha256"] != packet_sha:
+                raise DoorHouseConflict(
+                    "a different LOOK TWICE dialogue packet is already attached"
+                )
+
+            if result.get("status") == "dialogue-packet-only":
+                if result.get("dialogue") is not None or result.get("model_used") is not None:
+                    raise DoorHouseConflict(
+                        "LOOK TWICE dialogue-packet-only result contains fake dialogue"
+                    )
+                return self.state()
+
+            if result.get("status") != "dialogue-sealed":
+                raise DoorHouseConflict("unexpected LOOK TWICE dialogue status")
+            dialogue = result.get("dialogue")
+            dialogue_id = result.get("dialogue_id")
+            if not isinstance(dialogue, dict) or not isinstance(dialogue_id, str):
+                raise DoorHouseConflict("LOOK TWICE sealed dialogue is incomplete")
+            if (
+                dialogue.get("lingering_intrigue") is not True
+                and dialogue.get("door_seed") is not None
+            ):
+                raise DoorHouseConflict("LOOK TWICE door seed lacks lingering intrigue")
+            snapshot = {
+                "schema": "workbench.look-twice-dialogue/v0",
+                "local_receipt_id": receipt_id,
+                "pair_id": pair.get("pair_id"),
+                "dialogue_id": dialogue_id,
+                "dialogue_sha256": result.get("dialogue_sha256"),
+                "model_used": result.get("model_used"),
+                "dialogue": dialogue,
+                "laws": [
+                    "DIALOGUE != RETROACTIVE FIRST IMPRESSION",
+                    "LINGERING INTRIGUE != SOURCE TRUTH",
+                    "DOOR SEED != CROSSING",
+                ],
+            }
+            result_sha = _digest(result)
+            existing = db.execute(
+                "SELECT * FROM dh_external_witnesses WHERE receipt_id=? AND kind='look_twice_dialogue'",
+                (receipt_id,),
+            ).fetchone()
+            if existing is None:
+                db.execute(
+                    "INSERT INTO dh_external_witnesses VALUES (?,?,?,?,?,?)",
+                    (
+                        uuid4().hex,
+                        receipt_id,
+                        "look_twice_dialogue",
+                        result_sha,
+                        _encoded(snapshot),
+                        _now(),
+                    ),
+                )
+                if dialogue.get("lingering_intrigue") is True:
+                    door_seed = str(dialogue.get("door_seed") or "").strip()
+                    intrigue = str(dialogue.get("intrigue_statement") or "").strip()
+                    body = (
+                        "The first responses remained sealed. Only afterward did "
+                        "Static Sam and Juniper see each other's notes."
+                    )
+                    if intrigue:
+                        body += "\n\nLINGERING — " + intrigue
+                    if door_seed:
+                        body += "\n\nDOOR SEED — " + door_seed
+                    self._create_letter(
+                        db,
+                        "They looked twice. Something was still pulling.",
+                        body,
+                        [
+                            (
+                                door_seed or "Follow what still pulls",
+                                "Treat the lingering intrigue as a proposal for a new bounded crossing.",
+                                "House composition",
+                            ),
+                            (
+                                "Carry it into sound",
+                                "Translate the proven temporal-isolation protocol onto a bounded audio window.",
+                                "Autodisco / First-Listen Radio",
+                            ),
+                            (
+                                "Leave the exchange sealed",
+                                "Preserve the dialogue without promoting its interpretation to source truth.",
+                                "House memory",
+                            ),
+                        ],
+                        parent_crossing_id=dialogue_id,
+                    )
+            elif existing["result_sha256"] != result_sha:
+                raise DoorHouseConflict(
+                    "a different LOOK TWICE dialogue is already sealed"
+                )
+        return self.state()
+
     def record_relatte_witness(self, receipt_id, result):
         receipt = self.receipt(receipt_id)
         if not isinstance(result, dict) or result.get("schema") != "relatte.opaque-roundtrip-result/v0":
