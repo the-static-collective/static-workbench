@@ -93,6 +93,7 @@ def compose_nearby_station_doors(
     phonograph: dict | None = None,
     dogram: dict | None = None,
     listener_dogram: dict | None = None,
+    field_receivers: list[dict] | None = None,
 ) -> dict:
     """Return a deterministic, read-only station field.
 
@@ -148,6 +149,14 @@ def compose_nearby_station_doors(
         "repo_branch": None,
         "capability": None,
     }
+    field_receivers = list(field_receivers or [])
+    field_receivers.sort(
+        key=lambda item: (
+            str(item.get("receiver_at") or item.get("stored_at") or ""),
+            str(item.get("field_return_id") or ""),
+        ),
+        reverse=True,
+    )
     listener_dogram = listener_dogram or {
         "checkout_present": False,
         "available": False,
@@ -650,6 +659,52 @@ def compose_nearby_station_doors(
             target={"moment_id": moment.get("momentId")},
         ))
 
+    # CARRIED INTENT LANE — receiver-local state may change the Field,
+    # but never turns admission into execution.
+    latest_receiver = field_receivers[0] if field_receivers else None
+    if latest_receiver is not None:
+        receiver_status = latest_receiver.get("status")
+        if receiver_status == "RECEIVED_THEN_HELD":
+            doors.append(_door(
+                "admit-ghot-field-reseed",
+                "Admit the carried reseed to GHoT's local inbox",
+                "reLATTE delivered the exact TAKE reseed and GHoT is holding it with zero semantic effect. Admission remains a separate human act.",
+                lane="carried",
+                adapter="GHoT / FIELD RESEED RECEIVER 001",
+                evidence=[{
+                    "kind": "ghot-field-reseed-hold",
+                    "field_return_id": latest_receiver.get("field_return_id"),
+                    "reseed_id": latest_receiver.get("reseed_id"),
+                    "hold_id": latest_receiver.get("hold_id"),
+                    "status": receiver_status,
+                }],
+                target={
+                    "field_return_id": latest_receiver.get("field_return_id"),
+                    "hold_id": latest_receiver.get("hold_id"),
+                    "control": "ghot-field-reseed-admit",
+                },
+            ))
+        elif receiver_status == "ADMITTED_NOT_ASSIGNED":
+            doors.append(_door(
+                "inspect-ghot-carried-intent",
+                "Inspect GHoT's admitted carried intent",
+                "GHoT admitted the reseed into its own durable inbox, but no body, capability, or execution has been assigned.",
+                lane="carried",
+                adapter="GHoT / carried intent",
+                evidence=[{
+                    "kind": "ghot-carried-intent",
+                    "field_return_id": latest_receiver.get("field_return_id"),
+                    "reseed_id": latest_receiver.get("reseed_id"),
+                    "admission_id": latest_receiver.get("admission_id"),
+                    "intent_id": latest_receiver.get("intent_id"),
+                    "status": receiver_status,
+                }],
+                target={
+                    "field_return_id": latest_receiver.get("field_return_id"),
+                    "intent_id": latest_receiver.get("intent_id"),
+                },
+            ))
+
     # HOUSE LANE — only already-open, uncrossed proposals are considered nearby.
     letters_by_id = {
         item.get("id"): item
@@ -694,15 +749,25 @@ def compose_nearby_station_doors(
         target=None,
     ))
 
-    # Keep at most six doors while preserving constitutional silence.
-    # This is deterministic lane coverage, not a relevance score.
+    # Keep at most six doors while preserving constitutional silence and an
+    # active receiver boundary. This is deterministic lane coverage, not a
+    # relevance score: a receiver-held human TAKE must remain addressable.
     silence = next(
         (door for door in doors if door.get("lane") == "silence"),
         None,
     )
-    non_silence = [
-        door for door in doors if door.get("lane") != "silence"
-    ][:5]
+    carried = next(
+        (door for door in doors if door.get("lane") == "carried"),
+        None,
+    )
+    other_non_silence = [
+        door for door in doors
+        if door.get("lane") not in {"silence", "carried"}
+    ]
+    if carried is not None:
+        non_silence = other_non_silence[:4] + [carried]
+    else:
+        non_silence = other_non_silence[:5]
     doors = non_silence + ([silence] if silence is not None else [])
 
     counts = {
@@ -736,6 +801,14 @@ def compose_nearby_station_doors(
         ),
         "unresolved_house_doors": len(unresolved),
         "registered_live_moments": len(moments),
+        "ghot_reseed_holds": sum(
+            1 for item in field_receivers
+            if item.get("status") == "RECEIVED_THEN_HELD"
+        ),
+        "ghot_reseed_admissions": sum(
+            1 for item in field_receivers
+            if item.get("status") == "ADMITTED_NOT_ASSIGNED"
+        ),
     }
     pressures = []
     if counts["unresolved_house_doors"]:
@@ -755,6 +828,18 @@ def compose_nearby_station_doors(
             "kind": "first-episode-absence",
             "value": 1,
             "effect": "keep-radio-workflow-visible",
+        })
+    if counts["ghot_reseed_holds"]:
+        pressures.append({
+            "kind": "receiver-hold",
+            "value": counts["ghot_reseed_holds"],
+            "effect": "surface-explicit-admission-door",
+        })
+    if counts["ghot_reseed_admissions"]:
+        pressures.append({
+            "kind": "receiver-admission",
+            "value": counts["ghot_reseed_admissions"],
+            "effect": "surface-receiver-local-consequence",
         })
 
     current_episode = (
@@ -822,6 +907,19 @@ def compose_nearby_station_doors(
             "repo_branch": dogram.get("repo_branch"),
             "capability": dogram.get("capability"),
         },
+        "field_receivers": [
+            {
+                "stored_at": item.get("stored_at"),
+                "receiver_at": item.get("receiver_at"),
+                "field_return_id": item.get("field_return_id"),
+                "reseed_id": item.get("reseed_id"),
+                "status": item.get("status"),
+                "hold_id": item.get("hold_id"),
+                "admission_id": item.get("admission_id"),
+                "intent_id": item.get("intent_id"),
+            }
+            for item in field_receivers
+        ],
         "listener_dogram_capability": {
             "checkout_present": listener_dogram.get("checkout_present"),
             "available": listener_dogram.get("available"),
@@ -850,6 +948,10 @@ def compose_nearby_station_doors(
             "RESPONSE DELTA != CAUSAL EFFECT",
             "LEXICAL OVERLAP != SEMANTIC AGREEMENT",
             "RESIDUAL != FAILURE",
+            "RECEIVE != ADMISSION",
+            "ADMISSION != ASSIGNMENT",
+            "ASSIGNMENT != EXECUTION",
+            "RECEIVER CONSEQUENCE != DONOR CONSEQUENCE",
         ],
     }
     return {
