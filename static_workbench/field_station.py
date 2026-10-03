@@ -58,6 +58,7 @@ def _door(
     adapter: str,
     evidence: list[dict],
     target: dict | None = None,
+    laws: list[str] | None = None,
 ) -> dict:
     body = {
         "schema": "workbench.field-station-door/v0",
@@ -73,6 +74,7 @@ def _door(
             "RECOMMENDATION != SELECTION",
             "DOOR != CROSSING",
             "AVAILABILITY != OBLIGATION",
+            *(laws or []),
         ],
     }
     return {
@@ -750,31 +752,68 @@ def compose_nearby_station_doors(
                 },
             ))
         elif receiver_status in {"EXECUTED", "EXECUTION_ERROR"}:
-            doors.append(_door(
-                "inspect-ghot-carried-intent-consequence",
-                "Inspect GHoT's signed execution consequence",
-                "The explicit dispatch crossing produced one bounded capability attempt and a signed receiver consequence receipt.",
-                lane="carried",
-                adapter="GHoT / CARRIED INTENT DISPATCH 001",
-                evidence=[{
-                    "kind": "ghot-carried-intent-dispatch",
-                    "field_return_id": latest_receiver.get("field_return_id"),
-                    "intent_id": latest_receiver.get("intent_id"),
-                    "assignment_id": latest_receiver.get("assignment_id"),
-                    "dispatch_crossing_id": latest_receiver.get("dispatch_crossing_id"),
-                    "task_id": latest_receiver.get("task_id"),
-                    "execution_receipt_id": latest_receiver.get("execution_receipt_id"),
-                    "signed_receipt_id": latest_receiver.get("signed_receipt_id"),
-                    "execution_status": latest_receiver.get("execution_status"),
-                    "output_sha256": latest_receiver.get("output_sha256"),
-                    "status": receiver_status,
-                }],
-                target={
-                    "field_return_id": latest_receiver.get("field_return_id"),
-                    "dispatch_crossing_id": latest_receiver.get("dispatch_crossing_id"),
-                    "signed_receipt_id": latest_receiver.get("signed_receipt_id"),
-                },
-            ))
+            consequence = {
+                "kind": "ghot-carried-intent-dispatch",
+                "field_return_id": latest_receiver.get("field_return_id"),
+                "intent_id": latest_receiver.get("intent_id"),
+                "assignment_id": latest_receiver.get("assignment_id"),
+                "dispatch_crossing_id": latest_receiver.get("dispatch_crossing_id"),
+                "task_id": latest_receiver.get("task_id"),
+                "execution_receipt_id": latest_receiver.get("execution_receipt_id"),
+                "signed_receipt_id": latest_receiver.get("signed_receipt_id"),
+                "execution_status": latest_receiver.get("execution_status"),
+                "output_sha256": latest_receiver.get("output_sha256"),
+                "status": receiver_status,
+            }
+            banana_laws = [
+                "DELIGHT != SCORE",
+                "JOY != OBLIGATION",
+                "UNKNOWN UTILITY != ZERO VALUE",
+                "NOT EVERYTHING MUST GRADUATE",
+                "BANANA ELF != CONTROLLER",
+                "CO-DELIGHT REQUIRES RETURN",
+                "CONSEQUENCE != NEXT COMMAND",
+            ]
+            banana_variants = [
+                (
+                    "delightfuler",
+                    "Add one tiny unnecessary good thing",
+                    "The consequence is real. Instead of optimizing it, ask what small gift, joke, texture, invitation, or bit of care could make the local field more inhabitable.",
+                    "tiny-gift",
+                ),
+                (
+                    "helpfuler",
+                    "Remove one needless friction",
+                    "The consequence is real. Look for one small bureaucracy, awkward handoff, repeated step, or avoidable snag that can be softened without changing anyone's authority.",
+                    "make-room",
+                ),
+                (
+                    "curiouser",
+                    "Keep one weird residue alive",
+                    "The consequence is real. Preserve one surprising, unresolved, funny, or anomalous trace instead of normalizing it away; let it remain available for a later relation.",
+                    "keep-weird",
+                ),
+            ]
+            for facet, label, why, move in banana_variants:
+                doors.append(_door(
+                    f"banana-elf-{facet}",
+                    label,
+                    why,
+                    lane="delight",
+                    adapter="BANANA ELF / CO-DELIGHT 001",
+                    evidence=[consequence],
+                    target={
+                        "field_return_id": latest_receiver.get("field_return_id"),
+                        "dispatch_crossing_id": latest_receiver.get("dispatch_crossing_id"),
+                        "signed_receipt_id": latest_receiver.get("signed_receipt_id"),
+                        "orientation": "co-delight",
+                        "facet": facet,
+                        "move": move,
+                        "grounded_in": "signed-receiver-consequence",
+                        "novelty": "proposal-only",
+                    },
+                    laws=banana_laws,
+                ))
         elif receiver_status == "DISPATCH_OUTCOME_UNKNOWN":
             doors.append(_door(
                 "inspect-ghot-carried-intent-dispatch-unknown",
@@ -851,12 +890,20 @@ def compose_nearby_station_doors(
         (door for door in doors if door.get("lane") == "carried"),
         None,
     )
+    delight = [
+        door for door in doors
+        if door.get("lane") == "delight"
+    ]
     other_non_silence = [
         door for door in doors
-        if door.get("lane") not in {"silence", "carried"}
+        if door.get("lane") not in {"silence", "carried", "delight"}
     ]
     if carried is not None:
         non_silence = other_non_silence[:4] + [carried]
+    elif delight:
+        # A witnessed consequence gets a small Banana-Elf possibility field.
+        # Preserve all three unranked facets, plus at most two other live lanes.
+        non_silence = other_non_silence[:2] + delight[:3]
     else:
         non_silence = other_non_silence[:5]
     doors = non_silence + ([silence] if silence is not None else [])
@@ -964,7 +1011,7 @@ def compose_nearby_station_doors(
         pressures.append({
             "kind": "receiver-execution-consequence",
             "value": counts["ghot_dispatches"],
-            "effect": "surface-signed-execution-consequence",
+            "effect": "surface-banana-elf-co-delight-field",
         })
     if counts["ghot_dispatch_unknown"]:
         pressures.append({
@@ -1099,6 +1146,11 @@ def compose_nearby_station_doors(
             "EXECUTION != RECEIPT",
             "RECEIPT != TRUTH",
             "AMBIGUOUS OUTCOME != SAFE RETRY",
+            "DELIGHT != SCORE",
+            "JOY != OBLIGATION",
+            "UNKNOWN UTILITY != ZERO VALUE",
+            "NOT EVERYTHING MUST GRADUATE",
+            "CO-DELIGHT REQUIRES RETURN",
             "RECEIVER CONSEQUENCE != DONOR CONSEQUENCE",
         ],
     }
