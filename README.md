@@ -213,6 +213,22 @@ Field Station doors now support an explicit local **TAKE / HOLD / PASS** disposi
 
 A **TAKE** produces a deterministic `workbench.field-reseed/v0` object that can be inspected, copied, or downloaded. It remains proposal-only: selection is not execution, a reseed is not admission, and no downstream project is called automatically. See [FIELD RETURN 001](docs/field-return-001.md).
 
+## Field Reseed Crossing 001 — first whole cross-organ metabolism
+
+A persisted **TAKE** can now be crossed by a second explicit human action through
+exactly pinned reLATTE R14 into GHoT's Field Reseed Receiver. reLATTE must return
+`RECEIVED → R3_HOLD` with zero semantic effect; GHoT independently verifies and
+persists the exact reseed in receiver-local HOLD.
+
+A third explicit **Admit to GHoT inbox** action creates a GHoT-owned
+`ghot.carried-intent/v0` with status `admitted-not-assigned` and effect
+`local-inbox-only`. No body, capability, adapter execution, or remote dispatch
+is selected. Receiver HOLD and admission re-enter Field Station as witnessed
+state, so the Field changes without Workbench claiming receiver authority.
+
+Pinned organs: reLATTE `87006f3…`; GHoT `fa3a2d8…`. See
+[FIELD RESEED CROSSING 001](docs/field-reseed-crossing-001.md).
+
 ## Creator Desk v0.1 — local source handoff
 
 Use **Creator Desk** in the navigator or House actions to inspect the discovered local media, research, live, and community repos through Creator Workspace-inspired workflow doors. Choose **one** discovered checkout and search its bounded Markdown/text sources. Each hit carries its configured root, repository-relative path, line, working-tree HEAD, and dirty marker; **Copy source handoff** prepares one explicitly selected excerpt for pasting into a separate Creator Workspace conversation.
