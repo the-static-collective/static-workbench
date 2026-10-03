@@ -1701,6 +1701,29 @@ class DoorHouse:
             raise DoorHouseConflict(
                 "Haunted Phonograph answer lost evidence/proposal authority split"
             )
+        source_lineage = window.get("source_lineage")
+        if (
+            isinstance(source_lineage, dict)
+            and source_lineage.get("schema")
+                == "workbench.phonograph-reentry-lineage/v0"
+        ):
+            with self._db() as db:
+                rows = db.execute(
+                    """SELECT snapshot FROM dh_external_witnesses
+                       WHERE receipt_id=?
+                         AND kind LIKE 'audio_look_twice_dialogue:%'""",
+                    (receipt_id,),
+                ).fetchall()
+            has_fresh_cross_read = any(
+                json.loads(row["snapshot"]).get("window_id") == window_id
+                for row in rows
+            )
+            if not has_fresh_cross_read:
+                raise DoorHouseConflict(
+                    "Phonograph descendant requires a fresh sealed radio cross-read "
+                    "before another musical answer"
+                )
+
         required = {
             "SIGNAL FACT != MUSICAL MEANING",
             "PROPOSAL != SOURCE EVIDENCE",
