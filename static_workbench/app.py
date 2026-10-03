@@ -1013,7 +1013,6 @@ def create_app(config: WorkbenchConfig | None = None) -> FastAPI:
                 receipt_id, episode_id, "audio_path", "window.wav"
             ),
             media_type="audio/wav",
-            filename="window.wav",
         )
 
     @app.get(
