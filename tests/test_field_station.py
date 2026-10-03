@@ -1,3 +1,7 @@
+from fastapi.testclient import TestClient
+
+from static_workbench.app import create_app
+from static_workbench.config import RootConfig, WorkbenchConfig
 from static_workbench.field_station import compose_nearby_station_doors
 from static_workbench.repos import RepoStatus
 
@@ -267,3 +271,54 @@ def test_static_live_checkout_is_not_confused_with_reachable_broadcast_body():
     )
     assert body["connection"] == "offline_or_incompatible"
     assert state["present"] is None
+
+
+def test_newer_window_does_not_advance_older_pair():
+    house = mature_house()
+    new_window_id = "autodisco-audio-window-v0:" + "f" * 64
+    house["external_witnesses"].insert(
+        0,
+        witness(
+            "audio_window:" + new_window_id,
+            {
+                "schema": "workbench.audio-window-materialized/v0",
+                "window_id": new_window_id,
+                "audio_sha256": "e" * 64,
+            },
+            10,
+        ),
+    )
+    state = compose_nearby_station_doors(house, broadcast(), [], [])
+    assert state["nearby_doors"][0]["kind"] == "prepare-first-listen-booths"
+    assert state["nearby_doors"][0]["target"]["window_id"] == new_window_id
+
+
+def test_field_station_api_is_read_only(tmp_path):
+    root = tmp_path / "root"
+    root.mkdir()
+    config = WorkbenchConfig(
+        bind_host="127.0.0.1",
+        port=13700,
+        state_dir=tmp_path / "state",
+        roots=(RootConfig("static", root),),
+    )
+
+    with TestClient(create_app(config), base_url="http://127.0.0.1") as client:
+        token = client.get("/api/bootstrap").json()["session_token"]
+        headers = {"x-workbench-session": token}
+        entered = client.post("/api/doorhouse/enter", json={}, headers=headers)
+        assert entered.status_code == 200
+
+        before = client.get("/api/doorhouse/state").json()
+        field = client.get("/api/doorhouse/field-station")
+        after = client.get("/api/doorhouse/state").json()
+
+        assert field.status_code == 200
+        payload = field.json()
+        assert payload["read_only"] is True
+        assert payload["nearby_doors"]
+        assert payload["nearby_doors"][-1]["kind"] == "hold-silence"
+        assert before["world_version"] == after["world_version"]
+        assert len(before["letters"]) == len(after["letters"])
+        assert len(before["doors"]) == len(after["doors"])
+        assert len(before["external_witnesses"]) == len(after["external_witnesses"])
