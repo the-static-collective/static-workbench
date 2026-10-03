@@ -62,6 +62,38 @@ async function returnFieldDoor(door, disposition, noteInput){
   }
 }
 
+function fieldReturnById(receiptId){
+  return fieldReturns.find(item=>item.receipt_id===receiptId)||null;
+}
+
+async function crossFieldReseed(receipt){
+  try{
+    await api(
+      "/api/doorhouse/field-station/returns/"+receipt.receipt_id+"/ghot/receive",
+      {}
+    );
+    say("reLATTE delivered the exact reseed. GHoT is holding it; admission is still pending.");
+    await refreshFieldStation();
+  }catch(error){
+    say(error.message,true);
+    await refreshFieldStation();
+  }
+}
+
+async function admitFieldReseed(receipt){
+  try{
+    await api(
+      "/api/doorhouse/field-station/returns/"+receipt.receipt_id+"/ghot/admit",
+      {}
+    );
+    say("GHoT admitted the carried intent locally. No body, capability, or execution was assigned.");
+    await refreshFieldStation();
+  }catch(error){
+    say(error.message,true);
+    await refreshFieldStation();
+  }
+}
+
 function latestOpenLetter() {
   const newest = state.letters[0];
   return newest && newest.opened_at ? newest : null;
@@ -152,12 +184,29 @@ function renderFieldStation(){
     note.setAttribute("aria-label","Optional note for "+door.label);
 
     const actions=el("div",undefined,"field-return-actions");
-    for(const disposition of ["take","hold","pass"]){
-      const button=el("button",disposition.toUpperCase());
-      button.type="button";
-      button.dataset.disposition=disposition;
-      button.addEventListener("click",()=>returnFieldDoor(door,disposition,note));
-      actions.append(button);
+    if(door.target?.control==="ghot-field-reseed-admit"){
+      const source=fieldReturnById(door.target.field_return_id);
+      const admit=el("button","ADMIT TO GHOT");
+      admit.type="button";
+      admit.dataset.disposition="admit";
+      admit.disabled=!source;
+      admit.addEventListener("click",()=>source&&admitFieldReseed(source));
+      actions.append(admit);
+      for(const disposition of ["hold","pass"]){
+        const button=el("button",disposition.toUpperCase());
+        button.type="button";
+        button.dataset.disposition=disposition;
+        button.addEventListener("click",()=>returnFieldDoor(door,disposition,note));
+        actions.append(button);
+      }
+    } else {
+      for(const disposition of ["take","hold","pass"]){
+        const button=el("button",disposition.toUpperCase());
+        button.type="button";
+        button.dataset.disposition=disposition;
+        button.addEventListener("click",()=>returnFieldDoor(door,disposition,note));
+        actions.append(button);
+      }
     }
     card.append(note,actions);
     doors.append(card);
@@ -209,6 +258,45 @@ function renderFieldStation(){
       seed.append(el("summary","Inspect proposal-only reseed"));
       seed.append(el("code",JSON.stringify(receipt.reseed,null,2)));
       card.append(seed);
+
+      const receiver=receipt.receiver;
+      if(!receiver){
+        const cross=el("button","Cross to GHoT → HOLD");
+        cross.type="button";
+        cross.addEventListener("click",()=>crossFieldReseed(receipt));
+        actions.append(cross);
+      } else if(receiver.status==="RECEIVED_THEN_HELD"){
+        card.append(el(
+          "div",
+          "reLATTE · RECEIVED → HOLD · GHoT · HOLD · semantic effect: none",
+          "field-receiver-status"
+        ));
+        const admit=el("button","Admit to GHoT inbox");
+        admit.type="button";
+        admit.dataset.disposition="admit";
+        admit.addEventListener("click",()=>admitFieldReseed(receipt));
+        actions.append(admit);
+      } else if(receiver.status==="ADMITTED_NOT_ASSIGNED"){
+        const intent=receiver.admission?.ghot_admission?.intent;
+        card.append(el(
+          "div",
+          "GHoT · ADMITTED · NOT ASSIGNED · local inbox only",
+          "field-receiver-status"
+        ));
+        if(intent){
+          const carried=document.createElement("details");
+          carried.append(el("summary","Inspect receiver-owned carried intent"));
+          carried.append(el("code",JSON.stringify(intent,null,2)));
+          card.append(carried);
+        }
+      }
+
+      if(receiver){
+        const receiverDetails=document.createElement("details");
+        receiverDetails.append(el("summary","Inspect receiver crossing / admission"));
+        receiverDetails.append(el("code",JSON.stringify(receiver,null,2)));
+        card.append(receiverDetails);
+      }
     }
     card.append(actions);
     shelf.append(card);
