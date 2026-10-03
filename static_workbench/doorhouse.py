@@ -387,9 +387,21 @@ class DoorHouse:
             raise DoorHouseConflict("GHoT receipt names a different executor body")
         if ghot_receipt.get("status") != "ok":
             raise DoorHouseConflict("GHoT receipt is not successful")
+        if assignment.get("capability") != "creative.toaster.witness-sigil":
+            raise DoorHouseConflict("GHoT assignment is not the bounded Toaster capability")
+        materialized = result.get("workbench_materialized")
+        if not isinstance(materialized, dict):
+            raise DoorHouseConflict("returned Toaster artifact was not materialized")
+        if (
+            materialized.get("kind") != "workbench.materialized-toaster-artifact/v0"
+            or materialized.get("instrument") != "witness-sigil/v0.1"
+        ):
+            raise DoorHouseConflict("unexpected returned Toaster artifact")
+        if materialized.get("source_digest_sha256") != receipt["snapshot"].get("artifact_sha256"):
+            raise DoorHouseConflict("Toaster artifact does not descend from this local artifact")
 
         snapshot = {
-            "schema": "workbench.ghot-execution-witness/v0",
+            "schema": "workbench.ghot-execution-witness/v1",
             "local_receipt_id": receipt_id,
             "local_receipt_sha256": receipt["sha256"],
             "offer_id": offer_id,
@@ -400,7 +412,7 @@ class DoorHouse:
             "ghot_receipt_id": ghot_receipt.get("receipt_id"),
             "executor_node_id": ghot_receipt.get("executor_node_id"),
             "output_sha256": ghot_receipt.get("output_sha256"),
-            "output": ghot_receipt.get("output"),
+            "creative_artifact": materialized,
             "status": ghot_receipt.get("status"),
             "laws": [
                 "RELATTE HOLD != GHOT ASSIGNMENT",
@@ -408,6 +420,8 @@ class DoorHouse:
                 "CAPABILITY != AUTHORITY",
                 "ASSIGNMENT != EXECUTION",
                 "GHOT RECEIPT != LOCAL RECEIPT",
+                "TOASTER PROJECTION != KEEP",
+                "RETURNED ARTIFACT != NEW AUTHORITY",
             ],
         }
         result_sha = _digest(result)
@@ -428,6 +442,33 @@ class DoorHouse:
                         _encoded(snapshot),
                         _now(),
                     ),
+                )
+                self._create_letter(
+                    db,
+                    "Something came back wearing a new body.",
+                    (
+                        f"GHoT body {selected_node_id} executed the Haunted Toaster "
+                        "witness-sigil instrument. The SVG is a deterministic projection "
+                        "of the local artifact digest, not an interpretation or KEEP verdict."
+                    ),
+                    [
+                        (
+                            "Look twice",
+                            "Prepare the returned artifact as a bounded first-encounter packet without leaking its history.",
+                            "Autodisco / First-Listen Radio",
+                        ),
+                        (
+                            "Give it another body",
+                            "Offer this artifact to another bounded creative instrument.",
+                            "GHoT / Haunted Toaster",
+                        ),
+                        (
+                            "Keep it as a relic",
+                            "Preserve the artifact and its receipts without granting them new authority.",
+                            "TranchNode / local archive",
+                        ),
+                    ],
+                    parent_crossing_id=ghot_receipt.get("receipt_id"),
                 )
             elif existing["result_sha256"] != result_sha:
                 raise DoorHouseConflict(
