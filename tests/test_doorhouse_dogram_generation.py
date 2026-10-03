@@ -137,7 +137,10 @@ def encounter(window_id, audio_sha, pair_id):
                 "closing_line": "fixture closing line",
             },
             "laws": ["SEALED != SHARED"],
-            "first_response_id": f"first:{pair_id}:{listener['id']}",
+            "first_response_id": (
+                "autodisco-audio-look-twice-response-v0:"
+                + (("1" if listener["id"] == "static-sam" else "2") * 64)
+            ),
         })
     return {
         "schema": "autodisco.audio-look-twice-encounter-result/v0",
