@@ -16,6 +16,9 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
       - name: Install workbench and test dependencies
         run: python -m pip install -e '.[dev]'
       - name: Python tests
@@ -49,13 +52,24 @@ jobs:
           persist-credentials: false
       - name: LIFESTREAM-002 marker to HOUSE inbox to verified Live return
         run: python scripts/smoke_lifestream_002.py
-      - name: Checkout pinned GHoT creative body runtime
+      - name: Checkout pinned reLATTE R14 transport
+        uses: actions/checkout@v4
+        with:
+          repository: the-static-collective/reLATTE
+          ref: 87006f3265103a8abe387d81597c58aeb39b0beb
+          path: .compat/reLATTE
+          persist-credentials: false
+      - name: Install pinned reLATTE dependencies
+        run: npm install --prefix .compat/reLATTE --no-package-lock --ignore-scripts
+      - name: Checkout pinned GHoT creative body and field-reseed receiver
         uses: actions/checkout@v4
         with:
           repository: the-static-collective/GHoT
-          ref: 684c585ae620bf9037105ded6fbc5fe1e8a503b0
+          ref: fa3a2d81b5cebc3532c9f7f6b950039186cc37c3
           path: .compat/GHoT
           persist-credentials: false
+      - name: Actual Field reseed -> reLATTE -> GHoT HOLD/admission smoke
+        run: python scripts/smoke_field_reseed_crossing.py
       - name: Checkout pinned Haunted Toaster creative adapter
         uses: actions/checkout@v4
         with:
