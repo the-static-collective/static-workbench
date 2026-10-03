@@ -11,6 +11,9 @@ from __future__ import annotations
 
 import hashlib
 import json
+import sqlite3
+from datetime import datetime, timezone
+from pathlib import Path
 from typing import Any
 
 
@@ -137,3 +140,92 @@ def compose_field_return(
         "receipt_id": receipt_id,
         "reseed": reseed,
     }
+
+
+class FieldReturnStore:
+    """Durable Workbench-owned shelf for explicit Field Return receipts."""
+
+    def __init__(self, db_path: Path):
+        self.db_path = Path(db_path)
+        self.db_path.parent.mkdir(parents=True, exist_ok=True)
+        self._initialize()
+
+    def _connect(self) -> sqlite3.Connection:
+        connection = sqlite3.connect(self.db_path)
+        connection.row_factory = sqlite3.Row
+        return connection
+
+    def _initialize(self) -> None:
+        with self._connect() as db:
+            db.execute(
+                """
+                CREATE TABLE IF NOT EXISTS field_returns (
+                    receipt_id TEXT PRIMARY KEY,
+                    stored_at TEXT NOT NULL,
+                    field_state_id TEXT NOT NULL,
+                    door_id TEXT NOT NULL,
+                    disposition TEXT NOT NULL,
+                    receipt_json TEXT NOT NULL
+                )
+                """
+            )
+
+    def save(self, receipt: dict) -> dict:
+        if receipt.get("schema") != "workbench.field-return/v0":
+            raise ValueError("unsupported field return schema")
+        receipt_id = str(receipt.get("receipt_id") or "")
+        if not receipt_id:
+            raise ValueError("field return is missing receipt_id")
+
+        payload = _canonical(receipt)
+        stored_at = datetime.now(timezone.utc).isoformat()
+        with self._connect() as db:
+            db.execute(
+                """
+                INSERT OR IGNORE INTO field_returns(
+                    receipt_id, stored_at, field_state_id, door_id, disposition, receipt_json
+                ) VALUES (?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    receipt_id,
+                    stored_at,
+                    str(receipt.get("field_state_id") or ""),
+                    str(receipt.get("door_id") or ""),
+                    str(receipt.get("disposition") or ""),
+                    payload,
+                ),
+            )
+            row = db.execute(
+                """
+                SELECT stored_at, receipt_json
+                FROM field_returns
+                WHERE receipt_id = ?
+                """,
+                (receipt_id,),
+            ).fetchone()
+        if row is None:
+            raise RuntimeError("field return did not persist")
+        return {
+            "stored_at": str(row["stored_at"]),
+            **json.loads(str(row["receipt_json"])),
+        }
+
+    def latest(self, limit: int = 50) -> list[dict]:
+        bounded = max(1, min(int(limit), 200))
+        with self._connect() as db:
+            rows = db.execute(
+                """
+                SELECT stored_at, receipt_json
+                FROM field_returns
+                ORDER BY stored_at DESC, receipt_id DESC
+                LIMIT ?
+                """,
+                (bounded,),
+            ).fetchall()
+        return [
+            {
+                "stored_at": str(row["stored_at"]),
+                **json.loads(str(row["receipt_json"])),
+            }
+            for row in rows
+        ]
