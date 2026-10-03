@@ -68,6 +68,10 @@ function renderReceipts(){
     const ghotExecution=state.external_witnesses.find(w=>w.receipt_id===receipt.id&&w.kind==="ghot_execution");
     const autodiscoPacket=state.external_witnesses.find(w=>w.receipt_id===receipt.id&&w.kind==="autodisco_packet");
     const autodiscoResponse=state.external_witnesses.find(w=>w.receipt_id===receipt.id&&w.kind==="autodisco_first_response");
+    const lookTwicePair=state.external_witnesses.find(w=>w.receipt_id===receipt.id&&w.kind==="look_twice_pair");
+    const lookTwiceFirsts=state.external_witnesses.filter(w=>w.receipt_id===receipt.id&&w.kind.startsWith("look_twice_first:"));
+    const lookTwiceDialoguePacket=state.external_witnesses.find(w=>w.receipt_id===receipt.id&&w.kind==="look_twice_dialogue_packet");
+    const lookTwiceDialogue=state.external_witnesses.find(w=>w.receipt_id===receipt.id&&w.kind==="look_twice_dialogue");
     const ghotOffers=state.external_witnesses
       .filter(w=>w.receipt_id===receipt.id&&w.kind.startsWith("ghot_offer:"))
       .sort((a,b)=>String(b.created_at).localeCompare(String(a.created_at)));
@@ -175,6 +179,60 @@ function renderReceipts(){
           ));
         }
       }
+
+      if(!lookTwicePair){
+        const prepareTwice=el("button","LOOK TWICE · prepare two isolated booths");
+        prepareTwice.type="button";
+        prepareTwice.addEventListener("click",()=>mutate(
+          "/api/doorhouse/receipts/"+receipt.id+"/autodisco/look-twice/prepare",
+          {},
+          "Static Sam and Juniper received separate sealed packets. Neither has seen the other's response."
+        ));
+        card.append(prepareTwice);
+      } else {
+        card.append(el(
+          "div",
+          "LOOK TWICE · pair sealed · "+lookTwiceFirsts.length+"/2 first responses",
+          "adapter-line"
+        ));
+        if(lookTwiceFirsts.length<2){
+          const encounter=el("button","Invite both fresh listeners independently");
+          encounter.type="button";
+          encounter.addEventListener("click",()=>mutate(
+            "/api/doorhouse/receipts/"+receipt.id+"/autodisco/look-twice/encounters",
+            {},
+            "LOOK TWICE returned only first responses that actually occurred. Cross-read remains locked until both are sealed."
+          ));
+          card.append(encounter);
+        } else if(!lookTwiceDialogue){
+          const crossRead=el("button","Unlock cross-read · let them look twice");
+          crossRead.type="button";
+          crossRead.addEventListener("click",()=>mutate(
+            "/api/doorhouse/receipts/"+receipt.id+"/autodisco/look-twice/dialogue",
+            {},
+            "The two immutable first responses were allowed to see each other only after sealing."
+          ));
+          card.append(crossRead);
+          if(lookTwiceDialoguePacket){
+            card.append(el(
+              "div",
+              "LOOK TWICE · dialogue packet sealed · no simulated exchange",
+              "adapter-line"
+            ));
+          }
+        } else {
+          const dw=lookTwiceDialogue.snapshot;
+          const dialogue=dw.dialogue||{};
+          card.append(el(
+            "div",
+            "LOOK TWICE · dialogue sealed · lingering intrigue: "+String(Boolean(dialogue.lingering_intrigue)),
+            "adapter-line"
+          ));
+          if(dialogue.door_seed){
+            card.append(el("div","door seed · "+dialogue.door_seed,"adapter-line"));
+          }
+        }
+      }
     }
 
     const details=document.createElement("details");
@@ -190,6 +248,10 @@ function renderReceipts(){
     if(ghotExecution) evidence.ghot_execution=ghotExecution.snapshot;
     if(autodiscoPacket) evidence.autodisco_packet=autodiscoPacket.snapshot;
     if(autodiscoResponse) evidence.autodisco_first_response=autodiscoResponse.snapshot;
+    if(lookTwicePair) evidence.look_twice_pair=lookTwicePair.snapshot;
+    if(lookTwiceFirsts.length) evidence.look_twice_first_responses=lookTwiceFirsts.map(w=>w.snapshot);
+    if(lookTwiceDialoguePacket) evidence.look_twice_dialogue_packet=lookTwiceDialoguePacket.snapshot;
+    if(lookTwiceDialogue) evidence.look_twice_dialogue=lookTwiceDialogue.snapshot;
     details.append(el("code",JSON.stringify(evidence,null,2)));
     card.append(details); root.append(card);
   }
