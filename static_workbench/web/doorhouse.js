@@ -94,6 +94,38 @@ async function admitFieldReseed(receipt){
   }
 }
 
+async function offerFieldIntentAssignment(receipt){
+  try{
+    await api(
+      "/api/doorhouse/field-station/returns/"+receipt.receipt_id+"/ghot/assignment-offer",
+      {}
+    );
+    say("GHoT exposed its current body/capability field. Nothing was selected.");
+    await refreshFieldStation();
+  }catch(error){
+    say(error.message,true);
+    await refreshFieldStation();
+  }
+}
+
+async function assignFieldIntent(receipt, selectedNodeId, capability, offerId){
+  try{
+    await api(
+      "/api/doorhouse/field-station/returns/"+receipt.receipt_id+"/ghot/assign",
+      {
+        expected_offer_id:offerId,
+        selected_node_id:selectedNodeId,
+        capability
+      }
+    );
+    say("GHoT assigned the carried intent to the exact chosen pair. No task or execution was created.");
+    await refreshFieldStation();
+  }catch(error){
+    say(error.message,true);
+    await refreshFieldStation();
+  }
+}
+
 function latestOpenLetter() {
   const newest = state.letters[0];
   return newest && newest.opened_at ? newest : null;
@@ -184,7 +216,8 @@ function renderFieldStation(){
     note.setAttribute("aria-label","Optional note for "+door.label);
 
     const actions=el("div",undefined,"field-return-actions");
-    if(door.target?.control==="ghot-field-reseed-admit"){
+    const receiverControl=door.target?.control;
+    if(receiverControl==="ghot-field-reseed-admit"){
       const source=fieldReturnById(door.target.field_return_id);
       const admit=el("button","ADMIT TO GHOT");
       admit.type="button";
@@ -192,6 +225,39 @@ function renderFieldStation(){
       admit.disabled=!source;
       admit.addEventListener("click",()=>source&&admitFieldReseed(source));
       actions.append(admit);
+      for(const disposition of ["hold","pass"]){
+        const button=el("button",disposition.toUpperCase());
+        button.type="button";
+        button.dataset.disposition=disposition;
+        button.addEventListener("click",()=>returnFieldDoor(door,disposition,note));
+        actions.append(button);
+      }
+    } else if(receiverControl==="ghot-field-intent-offer"){
+      const source=fieldReturnById(door.target.field_return_id);
+      const openOffer=el("button","OPEN BODY + CAPABILITY FIELD");
+      openOffer.type="button";
+      openOffer.dataset.disposition="offer";
+      openOffer.disabled=!source;
+      openOffer.addEventListener("click",()=>source&&offerFieldIntentAssignment(source));
+      actions.append(openOffer);
+      for(const disposition of ["hold","pass"]){
+        const button=el("button",disposition.toUpperCase());
+        button.type="button";
+        button.dataset.disposition=disposition;
+        button.addEventListener("click",()=>returnFieldDoor(door,disposition,note));
+        actions.append(button);
+      }
+    } else if(receiverControl==="ghot-field-intent-assign"){
+      const choose=el("button","CHOOSE BODY + CAPABILITY ↓");
+      choose.type="button";
+      choose.dataset.disposition="assign";
+      choose.addEventListener("click",()=>{
+        const target=document.getElementById(
+          "field-return-"+String(door.target.field_return_id||"").replaceAll(":","-")
+        );
+        target?.scrollIntoView({behavior:"smooth",block:"center"});
+      });
+      actions.append(choose);
       for(const disposition of ["hold","pass"]){
         const button=el("button",disposition.toUpperCase());
         button.type="button";
@@ -220,6 +286,7 @@ function renderFieldStation(){
   }
   for(const receipt of fieldReturns.slice(0,12)){
     const card=el("article",undefined,"field-return-card");
+    card.id="field-return-"+String(receipt.receipt_id||"").replaceAll(":","-");
     const lane=receipt.selected_door?.lane||"field";
     card.dataset.disposition=receipt.disposition;
     card.append(
@@ -289,11 +356,97 @@ function renderFieldStation(){
           carried.append(el("code",JSON.stringify(intent,null,2)));
           card.append(carried);
         }
+        const offer=el("button","Open body + capability field");
+        offer.type="button";
+        offer.dataset.disposition="offer";
+        offer.addEventListener("click",()=>offerFieldIntentAssignment(receipt));
+        actions.append(offer);
+      } else if(receiver.status==="OFFER_READY"){
+        const offered=receiver.assignment_offer?.ghot_offer;
+        card.append(el(
+          "div",
+          "GHoT · OFFER READY · NO SELECTION · NO SCORE",
+          "field-receiver-status"
+        ));
+        const options=[];
+        for(const body of offered?.bodies||[]){
+          for(const item of body.offers||[]){
+            if(item.eligible===true){
+              options.push({
+                node_id:body.node_id,
+                location:body.location,
+                hostname:body.hostname,
+                capability:item.capability
+              });
+            }
+          }
+        }
+        if(options.length){
+          const chooser=document.createElement("select");
+          chooser.className="field-assignment-select";
+          chooser.setAttribute("aria-label","Choose one GHoT body and capability");
+          for(const option of options){
+            const elOption=document.createElement("option");
+            elOption.value=JSON.stringify({
+              node_id:option.node_id,
+              capability:option.capability
+            });
+            elOption.textContent=
+              String(option.capability)
+              +" · "+String(option.location||"body")
+              +" · "+String(option.hostname||option.node_id);
+            chooser.append(elOption);
+          }
+          const assign=el("button","Assign exact pair");
+          assign.type="button";
+          assign.dataset.disposition="assign";
+          assign.addEventListener("click",()=>{
+            const chosen=JSON.parse(chooser.value);
+            assignFieldIntent(
+              receipt,
+              chosen.node_id,
+              chosen.capability,
+              offered.offer_id
+            );
+          });
+          const chooserWrap=el("div",undefined,"field-assignment-picker");
+          chooserWrap.append(chooser,assign);
+          card.append(chooserWrap);
+        } else {
+          card.append(el(
+            "p",
+            "No currently eligible body/capability pair is present in this exact offer.",
+            "muted"
+          ));
+        }
+        const exactOffer=document.createElement("details");
+        exactOffer.append(el("summary","Inspect exact unranked GHoT offer"));
+        exactOffer.append(el("code",JSON.stringify(offered,null,2)));
+        card.append(exactOffer);
+      } else if(receiver.status==="ASSIGNED_NOT_EXECUTED"){
+        const assigned=receiver.assignment?.ghot_assignment;
+        card.append(el(
+          "div",
+          "GHoT · ASSIGNED · NOT EXECUTED · assignment only",
+          "field-receiver-status"
+        ));
+        if(assigned){
+          card.append(el(
+            "p",
+            String(assigned.capability)
+              +" → "+String(assigned.selected_node_id),
+            "field-return-human-note"
+          ));
+          const exactAssignment=document.createElement("details");
+          exactAssignment.append(el("summary","Inspect assignment-only receipt"));
+          exactAssignment.append(el("code",JSON.stringify(assigned,null,2)));
+          card.append(exactAssignment);
+        }
       }
 
       if(receiver){
         const receiverDetails=document.createElement("details");
-        receiverDetails.append(el("summary","Inspect receiver crossing / admission"));
+        receiverDetails.append(el("summary","Inspect receiver continuity"));
         receiverDetails.append(el("code",JSON.stringify(receiver,null,2)));
         card.append(receiverDetails);
       }
@@ -305,7 +458,7 @@ function renderFieldStation(){
 
   root.append(el(
     "p",
-    "The Field proposes. TAKE / HOLD / PASS is human disposition, not project execution. A TAKE reseed remains proposal-only until a destination explicitly admits it.",
+    "The Field proposes. TAKE, crossing, admission, assignment, and execution remain separate acts. An assignment-only receipt creates no task and authorizes no dispatch.",
     "field-station-law"
   ));
 }
