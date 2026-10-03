@@ -51,6 +51,7 @@ from .maxhinal_dock import parse_ride
 from .native_maxhinal import preview_fuels, spin, FuelConflict
 from .broadcast import broadcast_door
 from .field_station import compose_nearby_station_doors
+from .field_return import FieldReturnStore, compose_field_return
 from .lifestream_inbox import MomentInbox
 from .journal import Journal, SenseFieldRecord
 from .house import build_house_status
@@ -116,6 +117,13 @@ class WorldPlayInput(BaseModel):
 
 class DoorHouseVersionInput(BaseModel):
     expected_world_version: int = Field(ge=0)
+
+
+class FieldReturnInput(BaseModel):
+    expected_field_state_id: str = Field(min_length=1, max_length=200)
+    door_id: str = Field(min_length=1, max_length=200)
+    disposition: Literal["take", "hold", "pass"]
+    note: str = Field(default="", max_length=1200)
 
 
 class GHotAssignmentInput(BaseModel):
@@ -266,6 +274,7 @@ def create_app(config: WorkbenchConfig | None = None) -> FastAPI:
     first_door = FirstDoor(config.state_dir / "static_arg.sqlite3")
     world_entry = WorldEntry(config.state_dir / "static_arg.sqlite3")
     doorhouse = DoorHouse(config.state_dir / "doorhouse.sqlite3")
+    field_returns = FieldReturnStore(config.state_dir / "field_returns.sqlite3")
     session_token = secrets.token_urlsafe(32)
 
     @asynccontextmanager
@@ -278,6 +287,7 @@ def create_app(config: WorkbenchConfig | None = None) -> FastAPI:
     app.state.journal = journal
     app.state.creator_shelf = creator_shelf
     app.state.moment_inbox = moment_inbox
+    app.state.field_returns = field_returns
     app.state.session_token = session_token
 
     web_dir = Path(__file__).resolve().parent / "web"
@@ -511,8 +521,7 @@ def create_app(config: WorkbenchConfig | None = None) -> FastAPI:
     def doorhouse_state():
         return doorhouse.state()
 
-    @app.get("/api/doorhouse/field-station")
-    def doorhouse_field_station():
+    def _current_field_state():
         house_state = doorhouse.state()
         repos = discover_repositories(config.roots, config.max_repo_depth)
         broadcast = broadcast_door(config, repos)
@@ -528,6 +537,46 @@ def create_app(config: WorkbenchConfig | None = None) -> FastAPI:
             repos,
             phonograph=phonograph,
         )
+
+    @app.get("/api/doorhouse/field-station")
+    def doorhouse_field_station():
+        return _current_field_state()
+
+    @app.get("/api/doorhouse/field-station/returns")
+    def doorhouse_field_returns():
+        return {"returns": field_returns.latest()}
+
+    @app.post("/api/doorhouse/field-station/returns")
+    def doorhouse_field_return(payload: FieldReturnInput, request: Request):
+        _creator_write_guard(request)
+        current = _current_field_state()
+        if payload.expected_field_state_id != current.get("field_state_id"):
+            raise HTTPException(
+                status_code=409,
+                detail="field changed since this door was shown; refresh before choosing",
+            )
+        try:
+            receipt = compose_field_return(
+                current,
+                payload.door_id,
+                payload.disposition,
+                payload.note,
+            )
+            stored = field_returns.save(receipt)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        journal.append("field.return.recorded", {
+            "receipt_id": stored["receipt_id"],
+            "field_state_id": stored["field_state_id"],
+            "door_id": stored["door_id"],
+            "disposition": stored["disposition"],
+            "reseed_id": (
+                stored.get("reseed", {}).get("reseed_id")
+                if isinstance(stored.get("reseed"), dict)
+                else None
+            ),
+        })
+        return stored
 
     @app.post("/api/doorhouse/enter")
     def doorhouse_enter(request: Request):
