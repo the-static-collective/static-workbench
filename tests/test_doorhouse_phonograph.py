@@ -398,3 +398,11 @@ def test_explicit_admission_creates_descendant_and_preserves_parent_witness(
         )
         assert stale.status_code == 409
         assert "current audio window" in stale.json()["detail"]
+
+        recursive = client.post(
+            f"/api/doorhouse/receipts/{receipt['id']}/phonograph/field-answer",
+            json={},
+            headers=headers,
+        )
+        assert recursive.status_code == 409
+        assert "fresh sealed radio cross-read" in recursive.json()["detail"]
