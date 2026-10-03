@@ -67,7 +67,9 @@ from .field_reseed_crossing import (
     admit_field_reseed,
     assign_field_reseed_intent,
     cross_field_reseed,
+    dispatch_field_reseed_intent,
     offer_field_reseed_assignment,
+    read_field_reseed_dispatch_status,
 )
 from .lifestream_inbox import MomentInbox
 from .journal import Journal, SenseFieldRecord
@@ -772,6 +774,98 @@ def create_app(config: WorkbenchConfig | None = None) -> FastAPI:
             "status": assignment["status"],
             "semantic_effect": assignment["semantic_effect"],
             "ghot_revision": assignment["pins"]["ghot"],
+        })
+        return receiver
+
+    @app.post(
+        "/api/doorhouse/field-station/returns/{receipt_id}/ghot/dispatch"
+    )
+    def doorhouse_field_reseed_dispatch(
+        receipt_id: str,
+        request: Request,
+    ):
+        _creator_write_guard(request)
+        receiver = field_returns.receiver(receipt_id)
+        if receiver is None or not isinstance(receiver.get("assignment"), dict):
+            raise HTTPException(
+                status_code=400,
+                detail="assignment-only receipt is required before dispatch",
+            )
+        if receiver.get("dispatch") is not None:
+            return receiver
+
+        repos = discover_repositories(config.roots, config.max_repo_depth)
+        assignment = receiver["assignment"]
+        try:
+            dispatch = dispatch_field_reseed_intent(
+                assignment,
+                config.state_dir,
+                repos,
+            )
+            receiver = field_returns.save_dispatch(
+                receipt_id,
+                dispatch,
+            )
+        except FieldReseedCrossingError as exc:
+            # A failed invocation may still have crossed into PREPARED state.
+            # Read receiver truth before surfacing the error so ambiguity is
+            # durable and cannot become a hidden retry button.
+            try:
+                observed = read_field_reseed_dispatch_status(
+                    assignment,
+                    config.state_dir,
+                    repos,
+                )
+                if observed.get("status") in {
+                    "EXECUTED",
+                    "EXECUTION_ERROR",
+                    "DISPATCH_OUTCOME_UNKNOWN",
+                }:
+                    receiver = field_returns.save_dispatch(
+                        receipt_id,
+                        observed,
+                    )
+                    if observed.get("status") == "DISPATCH_OUTCOME_UNKNOWN":
+                        journal.append("field.reseed.ghot_dispatch_unknown", {
+                            "field_return_id": receipt_id,
+                            "intent_id": observed["intent_id"],
+                            "assignment_id": observed["assignment_id"],
+                            "ghot_revision": observed["pins"]["ghot"],
+                        })
+                        raise HTTPException(
+                            status_code=409,
+                            detail=(
+                                "GHoT dispatch outcome is unknown; automatic "
+                                "retry is disabled. Inspect the receiver state."
+                            ),
+                        ) from exc
+                    return receiver
+            except HTTPException:
+                raise
+            except Exception:
+                pass
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+        ghot_dispatch = dispatch["ghot_dispatch"]
+        execution = ghot_dispatch["execution"]
+        task = execution["task"]
+        execution_receipt = execution["receipt"]
+        signed_receipt = ghot_dispatch["signed_receipt"]
+        journal.append("field.reseed.ghot_dispatched", {
+            "field_return_id": receipt_id,
+            "intent_id": dispatch["intent_id"],
+            "assignment_id": dispatch["assignment_id"],
+            "dispatch_crossing_id": ghot_dispatch["dispatch_crossing_id"],
+            "selected_node_id": ghot_dispatch["selected_node_id"],
+            "capability": ghot_dispatch["capability"],
+            "task_id": task["task_id"],
+            "ghot_receipt_id": execution_receipt["receipt_id"],
+            "signed_receipt_id": signed_receipt["receipt_id"],
+            "status": dispatch["status"],
+            "semantic_effect": dispatch["semantic_effect"],
+            "ghot_revision": dispatch["pins"]["ghot"],
         })
         return receiver
 
