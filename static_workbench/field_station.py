@@ -151,7 +151,7 @@ def compose_nearby_station_doors(
     field_receivers = list(field_receivers or [])
     field_receivers.sort(
         key=lambda item: (
-            str(item.get("stored_at") or ""),
+            str(item.get("receiver_at") or item.get("stored_at") or ""),
             str(item.get("field_return_id") or ""),
         ),
         reverse=True,
@@ -621,15 +621,25 @@ def compose_nearby_station_doors(
         target=None,
     ))
 
-    # Keep at most six doors while preserving constitutional silence.
-    # This is deterministic lane coverage, not a relevance score.
+    # Keep at most six doors while preserving constitutional silence and an
+    # active receiver boundary. This is deterministic lane coverage, not a
+    # relevance score: a receiver-held human TAKE must remain addressable.
     silence = next(
         (door for door in doors if door.get("lane") == "silence"),
         None,
     )
-    non_silence = [
-        door for door in doors if door.get("lane") != "silence"
-    ][:5]
+    carried = next(
+        (door for door in doors if door.get("lane") == "carried"),
+        None,
+    )
+    other_non_silence = [
+        door for door in doors
+        if door.get("lane") not in {"silence", "carried"}
+    ]
+    if carried is not None:
+        non_silence = other_non_silence[:4] + [carried]
+    else:
+        non_silence = other_non_silence[:5]
     doors = non_silence + ([silence] if silence is not None else [])
 
     counts = {
@@ -766,6 +776,7 @@ def compose_nearby_station_doors(
         "field_receivers": [
             {
                 "stored_at": item.get("stored_at"),
+                "receiver_at": item.get("receiver_at"),
                 "field_return_id": item.get("field_return_id"),
                 "reseed_id": item.get("reseed_id"),
                 "status": item.get("status"),
