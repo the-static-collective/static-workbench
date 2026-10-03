@@ -199,6 +199,10 @@ def test_ghot_execution_must_match_latest_offer_and_explicit_selected_body(tmp_p
     assert witness["snapshot"]["executor_node_id"] == "node-alpha"
     assert witness["snapshot"]["selection_source"] == "doorhouse-user-explicit"
     assert witness["snapshot"]["status"] == "ok"
+    assert witness["snapshot"]["creative_artifact"]["instrument"] == "witness-sigil/v0.1"
+    newest = state["letters"][0]
+    assert newest["body"] is None
+    assert newest["parent_crossing_id"] == "receipt-ghot-001"
 
     wrong = fake_execution(
         offer, "node-sleeping", receipt["snapshot"]["artifact_sha256"]
