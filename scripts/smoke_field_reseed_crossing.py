@@ -269,17 +269,47 @@ def main() -> int:
         assert dispatched_state["status"] == "EXECUTED"
 
         consequence_field = compose(store.receiver_field_state())
-        consequence = next(
+        banana_field = [
             door for door in consequence_field["nearby_doors"]
-            if door["lane"] == "carried"
+            if door["lane"] == "delight"
+        ]
+        assert [door["target"]["facet"] for door in banana_field] == [
+            "delightfuler",
+            "helpfuler",
+            "curiouser",
+        ]
+        assert all(door["effect"] == "none" for door in banana_field)
+        assert all(
+            door["evidence"][0]["task_id"] == task["task_id"]
+            for door in banana_field
         )
-        assert consequence["kind"] == "inspect-ghot-carried-intent-consequence"
-        assert consequence["effect"] == "none"
-        assert (
-            consequence["evidence"][0]["task_id"]
-            == task["task_id"]
+        assert all(
+            door["target"]["signed_receipt_id"]
+            == ghot_dispatch["signed_receipt"]["receipt_id"]
+            for door in banana_field
         )
         assert consequence_field["field_state_id"] != assigned_field["field_state_id"]
+
+        # Co-delight stays human-gated. TAKE one sideways door and prove it
+        # creates only a proposal-only reseed; no new task exists until a later
+        # explicit crossing/admission/assignment/dispatch sequence.
+        delightful = banana_field[0]
+        delight_return = compose_field_return(
+            consequence_field,
+            delightful["door_id"],
+            "take",
+            "keep the joy attributable; make one tiny unnecessary good thing",
+        )
+        assert delight_return["selected_door"]["lane"] == "delight"
+        assert delight_return["selected_door"]["target"]["facet"] == "delightfuler"
+        assert delight_return["reseed"]["status"] == "proposal-only"
+        assert delight_return["reseed"]["effect"] == "none"
+        assert (
+            delight_return["reseed"]["door"]["target"]["signed_receipt_id"]
+            == ghot_dispatch["signed_receipt"]["receipt_id"]
+        )
+        delight_stored = store.save(delight_return)
+        assert store.receiver(delight_stored["receipt_id"]) is None
 
         after_dispatch_records = (
             sorted(
@@ -327,6 +357,8 @@ def main() -> int:
             task["task_id"],
             execution_receipt["receipt_id"],
             ghot_dispatch["signed_receipt"]["receipt_id"],
+            delight_stored["receipt_id"],
+            delight_stored["reseed"]["reseed_id"],
         )
     return 0
 
