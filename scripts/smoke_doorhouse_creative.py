@@ -23,6 +23,7 @@ from static_workbench.doorhouse_autodisco import (
     run_look_twice_encounters,
 )
 from static_workbench.doorhouse_ghot import assign_ghot_body, discover_ghot_bodies
+from static_workbench.doorhouse_phonograph import run_phonograph_field_answer
 from static_workbench.repos import RepoStatus
 
 
@@ -30,6 +31,7 @@ ROOT = Path(__file__).resolve().parent.parent
 GHOT = ROOT / ".compat" / "GHoT"
 TOASTER = ROOT / ".compat" / "haunted-toaster"
 AUTODISCO = ROOT / ".compat" / "autodisco"
+PHONOGRAPH = ROOT / ".compat" / "haunted-phonograph"
 
 
 def repo(name: str, path: Path) -> RepoStatus:
@@ -174,7 +176,7 @@ def synthetic_audio_dialogue(pair: dict, firsts: list[dict]) -> dict:
 
 
 def main() -> int:
-    for path in (GHOT, TOASTER, AUTODISCO):
+    for path in (GHOT, TOASTER, AUTODISCO, PHONOGRAPH):
         if not path.is_dir():
             raise SystemExit(f"missing integration checkout: {path}")
 
@@ -182,6 +184,7 @@ def main() -> int:
         repo("GHoT", GHOT),
         repo("the-haunted-toaster", TOASTER),
         repo("The-AutodiscoV.20.-question-marks-", AUTODISCO),
+        repo("the-haunted-phonography", PHONOGRAPH),
     ]
 
     with tempfile.TemporaryDirectory(prefix="doorhouse-creative-smoke-") as raw:
@@ -279,6 +282,27 @@ def main() -> int:
         assert Path(audio["audio_path"]).is_file()
         store.record_audio_window(receipt["id"], audio)
 
+        phono = run_phonograph_field_answer(
+            audio,
+            repos,
+            state_dir,
+            receipt["id"],
+        )
+        assert phono["schema"] == "workbench.phonograph-field-answer/v0"
+        assert phono["status"] == "proposal-ready"
+        assert phono["window_id"] == audio["window_id"]
+        assert phono["signal_profile"]["authority"] == "evidence"
+        assert phono["proposal"]["authority"] == "proposal"
+        assert Path(phono["audition"]["path"]).is_file()
+        assert Path(phono["midi"]["path"]).is_file()
+        final = store.record_phonograph_field_answer(
+            receipt["id"], phono
+        )
+        assert any(
+            item["kind"] == "phonograph_field_answer:" + audio["window_id"]
+            for item in final["external_witnesses"]
+        )
+
         audio_pair = prepare_audio_look_twice(audio, repos)
         assert audio_pair["schema"] == "autodisco.audio-look-twice-pair/v0"
         assert len(audio_pair["packets"]) == 2
@@ -367,6 +391,7 @@ def main() -> int:
             encounter["packet"]["packet_id"],
             pair["pair_id"],
             audio["window_id"],
+            phono["proposal_receipt_hash"],
             audio_pair["pair_id"],
             episode["episode_id"],
             episode["episode_digest"],
