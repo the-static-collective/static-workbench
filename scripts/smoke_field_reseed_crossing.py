@@ -12,6 +12,7 @@ from static_workbench.field_reseed_crossing import (
     admit_field_reseed,
     assign_field_reseed_intent,
     cross_field_reseed,
+    dispatch_field_reseed_intent,
     offer_field_reseed_assignment,
 )
 from static_workbench.field_return import FieldReturnStore, compose_field_return
@@ -214,18 +215,19 @@ def main() -> int:
         assert assigned_state["status"] == "ASSIGNED_NOT_EXECUTED"
 
         assigned_field = compose(store.receiver_field_state())
-        inspect_assignment = next(
+        dispatch_door = next(
             door for door in assigned_field["nearby_doors"]
             if door["lane"] == "carried"
         )
         assert (
-            inspect_assignment["kind"]
-            == "inspect-ghot-carried-intent-assignment"
+            dispatch_door["kind"]
+            == "dispatch-ghot-carried-intent-assignment"
         )
-        assert inspect_assignment["effect"] == "none"
+        assert dispatch_door["target"]["control"] == "ghot-field-intent-dispatch"
+        assert dispatch_door["effect"] == "none"
         assert assigned_field["field_state_id"] != offer_field["field_state_id"]
 
-        after_execution_records = (
+        after_assignment_records = (
             sorted(
                 path.name for path in records.iterdir()
                 if "-task-" in path.name or "-receipt-" in path.name
@@ -233,14 +235,86 @@ def main() -> int:
             if records.is_dir()
             else []
         )
-        assert after_execution_records == before_execution_records
+        assert after_assignment_records == before_execution_records
 
-        # The receiver consequences are durable state, not execution.
+        # Dispatch is a separate explicit crossing. It must create exactly one
+        # bounded task + execution receipt and return signed consequence evidence.
+        dispatched = dispatch_field_reseed_intent(
+            assigned_state["assignment"],
+            state_dir,
+            repos,
+        )
+        assert dispatched["schema"] == "workbench.field-reseed-dispatch/v0"
+        assert dispatched["status"] == "EXECUTED"
+        assert dispatched["semantic_effect"] == "receiver-local-consequence"
+        ghot_dispatch = dispatched["ghot_dispatch"]
+        assert ghot_dispatch["status"] == "EXECUTED"
+        assert ghot_dispatch["crossing"]["schema"] == "relatte.crossing-envelope/v0"
+        assert ghot_dispatch["signed_receipt"]["schema"] == "relatte.receipt/v0"
+        assert (
+            ghot_dispatch["signed_receipt"]["crossing_id"]
+            == ghot_dispatch["crossing"]["crossing_id"]
+        )
+        task = ghot_dispatch["execution"]["task"]
+        execution_receipt = ghot_dispatch["execution"]["receipt"]
+        assert task["capability"] == "system.hash"
+        assert execution_receipt["capability"] == "system.hash"
+        assert execution_receipt["status"] == "ok"
+        assert execution_receipt["output_sha256"]
+
+        dispatched_state = store.save_dispatch(
+            stored["receipt_id"],
+            dispatched,
+        )
+        assert dispatched_state["status"] == "EXECUTED"
+
+        consequence_field = compose(store.receiver_field_state())
+        consequence = next(
+            door for door in consequence_field["nearby_doors"]
+            if door["lane"] == "carried"
+        )
+        assert consequence["kind"] == "inspect-ghot-carried-intent-consequence"
+        assert consequence["effect"] == "none"
+        assert (
+            consequence["evidence"][0]["task_id"]
+            == task["task_id"]
+        )
+        assert consequence_field["field_state_id"] != assigned_field["field_state_id"]
+
+        after_dispatch_records = (
+            sorted(
+                path.name for path in records.iterdir()
+                if "-task-" in path.name or "-receipt-" in path.name
+            )
+            if records.is_dir()
+            else []
+        )
+        assert len(after_dispatch_records) == len(after_assignment_records) + 2
+
+        # Completed dispatch replay is idempotent at GHoT: no second task.
+        replay = dispatch_field_reseed_intent(
+            assigned_state["assignment"],
+            state_dir,
+            repos,
+        )
+        assert (
+            replay["ghot_dispatch"]["dispatch_crossing_id"]
+            == ghot_dispatch["dispatch_crossing_id"]
+        )
+        assert (
+            replay["ghot_dispatch"]["execution"]["task"]["task_id"]
+            == task["task_id"]
+        )
+        replay_records = sorted(
+            path.name for path in records.iterdir()
+            if "-task-" in path.name or "-receipt-" in path.name
+        )
+        assert replay_records == after_dispatch_records
+
         assert (ghot_home / "field-reseed-inbox").is_dir()
-        assert not (ghot_home / "executions").exists()
 
         print(
-            "field reseed assignment metabolism smoke ok:",
+            "field reseed dispatch metabolism smoke ok:",
             stored["receipt_id"],
             stored["reseed"]["reseed_id"],
             crossing["relatte"]["crossing"]["crossing_id"],
@@ -249,8 +323,10 @@ def main() -> int:
             intent["intent_id"],
             ghot_offer["offer_id"],
             ghot_assignment["assignment_id"],
-            ghot_assignment["selected_node_id"],
-            ghot_assignment["capability"],
+            ghot_dispatch["dispatch_crossing_id"],
+            task["task_id"],
+            execution_receipt["receipt_id"],
+            ghot_dispatch["signed_receipt"]["receipt_id"],
         )
     return 0
 
