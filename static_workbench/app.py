@@ -37,8 +37,11 @@ from .doorhouse_phonograph import (
 )
 from .doorhouse_dogram import (
     DogramGenerationError,
+    DogramListenerError,
     dogram_generation_delta_available,
+    dogram_listener_delta_available,
     run_dogram_generation_delta,
+    run_dogram_listener_delta,
 )
 import uvicorn
 from fastapi import FastAPI, HTTPException, Query, Request
@@ -534,6 +537,7 @@ def create_app(config: WorkbenchConfig | None = None) -> FastAPI:
         broadcast = broadcast_door(config, repos)
         phonograph = phonograph_field_answer_available(repos)
         dogram = dogram_generation_delta_available(repos)
+        listener_dogram = dogram_listener_delta_available(repos)
         try:
             moments = moment_inbox.list_moments()
         except (ValueError, OSError, TypeError, UnicodeError):
@@ -545,6 +549,7 @@ def create_app(config: WorkbenchConfig | None = None) -> FastAPI:
             repos,
             phonograph=phonograph,
             dogram=dogram,
+            listener_dogram=listener_dogram,
         )
 
     @app.get("/api/doorhouse/field-station")
@@ -1157,6 +1162,146 @@ def create_app(config: WorkbenchConfig | None = None) -> FastAPI:
             raise HTTPException(
                 status_code=404,
                 detail="Dogram generation receipt is missing",
+            )
+        return FileResponse(candidate, media_type="application/json")
+
+    @app.post(
+        "/api/doorhouse/receipts/{receipt_id}/dogram/{child_window_id}/listener-delta"
+    )
+    def doorhouse_dogram_listener_delta(
+        receipt_id: str,
+        child_window_id: str,
+        request: Request,
+    ):
+        _creator_write_guard(request)
+        latest = _doorhouse_call(
+            lambda: doorhouse.latest_audio_window(receipt_id)
+        )
+        if latest["snapshot"].get("window_id") != child_window_id:
+            raise HTTPException(
+                status_code=409,
+                detail="Only the current descendant audio window may be measured",
+            )
+
+        reentry = _doorhouse_call(
+            lambda: doorhouse.phonograph_reentry(
+                receipt_id, child_window_id
+            )
+        )
+        generation = _doorhouse_call(
+            lambda: doorhouse.dogram_generation_delta(
+                receipt_id, child_window_id
+            )
+        )
+        parent_window_id = reentry.get("parent_window_id")
+        parent_pair = _doorhouse_call(
+            lambda: doorhouse.audio_look_twice_pair_for_window(
+                receipt_id, parent_window_id
+            )
+        )["snapshot"]
+        child_pair = _doorhouse_call(
+            lambda: doorhouse.audio_look_twice_pair_for_window(
+                receipt_id, child_window_id
+            )
+        )["snapshot"]
+        parent_firsts = _doorhouse_call(
+            lambda: doorhouse.audio_look_twice_first_responses(
+                receipt_id, parent_pair["pair_id"]
+            )
+        )
+        child_firsts = _doorhouse_call(
+            lambda: doorhouse.audio_look_twice_first_responses(
+                receipt_id, child_pair["pair_id"]
+            )
+        )
+        if len(parent_firsts) != 2 or len(child_firsts) != 2:
+            raise HTTPException(
+                status_code=409,
+                detail=(
+                    "LISTENER-DELTA-001 requires exactly two sealed first "
+                    "listens for both parent and descendant"
+                ),
+            )
+
+        try:
+            repos = discover_repositories(
+                config.roots, config.max_repo_depth
+            )
+            result = run_dogram_listener_delta(
+                parent_firsts,
+                child_firsts,
+                reentry,
+                generation,
+                repos,
+                config.state_dir,
+                receipt_id,
+            )
+        except DogramListenerError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+        state = _doorhouse_call(
+            lambda: doorhouse.record_dogram_listener_delta(
+                receipt_id, result
+            )
+        )
+        journal.append("doorhouse.dogram.listener_delta", {
+            "local_receipt_id": receipt_id,
+            "parent_window_id": result["parent_window_id"],
+            "child_window_id": result["child_window_id"],
+            "generation_delta_receipt_hash": result[
+                "generation_delta_receipt_hash"
+            ],
+            "dogram_receipt_hash": result["dogram_receipt_hash"],
+            "classification": result["classification"],
+            "listener_count": result["listener_count"],
+            "changed_listener_count": result[
+                "changed_listener_count"
+            ],
+            "shared_changed_axes": result["shared_changed_axes"],
+        })
+        return state
+
+    @app.get(
+        "/api/doorhouse/receipts/{receipt_id}/dogram/{child_window_id}/listener-delta.json",
+        include_in_schema=False,
+    )
+    def doorhouse_dogram_listener_delta_receipt(
+        receipt_id: str,
+        child_window_id: str,
+    ):
+        result = _doorhouse_call(
+            lambda: doorhouse.dogram_listener_delta(
+                receipt_id, child_window_id
+            )
+        )
+        raw = result.get("receipt_path")
+        if not isinstance(raw, str):
+            raise HTTPException(
+                status_code=404,
+                detail="Dogram listener receipt is unavailable",
+            )
+        candidate = Path(raw).resolve()
+        slug = hashlib.sha256(
+            child_window_id.encode("utf-8")
+        ).hexdigest()[:24]
+        expected_root = (
+            config.state_dir
+            / "doorhouse-dogram"
+            / receipt_id
+            / slug
+        ).resolve()
+        if (
+            candidate.parent != expected_root
+            or candidate.name != "listener-delta.json"
+        ):
+            raise HTTPException(
+                status_code=409,
+                detail="Dogram listener receipt escaped its bundle",
+            )
+        if not candidate.is_file():
+            raise HTTPException(
+                status_code=404,
+                detail="Dogram listener receipt is missing",
             )
         return FileResponse(candidate, media_type="application/json")
 
