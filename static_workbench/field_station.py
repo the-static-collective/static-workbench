@@ -92,6 +92,7 @@ def compose_nearby_station_doors(
     repos: list[RepoStatus],
     phonograph: dict | None = None,
     dogram: dict | None = None,
+    listener_dogram: dict | None = None,
 ) -> dict:
     """Return a deterministic, read-only station field.
 
@@ -147,6 +148,13 @@ def compose_nearby_station_doors(
         "repo_branch": None,
         "capability": None,
     }
+    listener_dogram = listener_dogram or {
+        "checkout_present": False,
+        "available": False,
+        "repo_head": None,
+        "repo_branch": None,
+        "capability": None,
+    }
     phono_answer = next(
         (
             witness
@@ -184,12 +192,49 @@ def compose_nearby_station_doors(
         ),
         None,
     )
+    parent_pair = next(
+        (
+            witness
+            for witness in witnesses
+            if str(witness.get("kind", "")).startswith(
+                "audio_look_twice_pair:"
+            )
+            and witness.get("snapshot", {}).get("window_id")
+                == parent_window_id
+        ),
+        None,
+    )
+    parent_pair_id = (
+        parent_pair.get("snapshot", {}).get("pair_id")
+        if parent_pair is not None
+        else None
+    )
+    parent_firsts = [
+        witness
+        for witness in witnesses
+        if str(witness.get("kind", "")).startswith(
+            "audio_look_twice_first:"
+        )
+        and witness.get("snapshot", {}).get("pair_id") == parent_pair_id
+    ]
     dogram_delta = next(
         (
             witness
             for witness in witnesses
             if str(witness.get("kind", "")).startswith(
                 "dogram_generation_delta:"
+            )
+            and witness.get("snapshot", {}).get("child_window_id")
+                == current_window_id
+        ),
+        None,
+    )
+    dogram_listener_delta = next(
+        (
+            witness
+            for witness in witnesses
+            if str(witness.get("kind", "")).startswith(
+                "dogram_listener_delta:"
             )
             and witness.get("snapshot", {}).get("child_window_id")
                 == current_window_id
@@ -366,10 +411,9 @@ def compose_nearby_station_doors(
             # musical answer may be requested.
             pass
 
-    # DOGRAM LANE — only after both generations have sealed radio cross-reads.
+    # DOGRAM LANE — signal first, then sealed response transform.
     if (
         current_is_phono_descendant
-        and dogram.get("available") is True
         and parent_dialogue is not None
         and audio_dialogue is not None
     ):
@@ -385,7 +429,11 @@ def compose_nearby_station_doors(
             ),
             None,
         )
-        if reentry is not None and dogram_delta is None:
+        if (
+            reentry is not None
+            and dogram_delta is None
+            and dogram.get("available") is True
+        ):
             rw = reentry.get("snapshot", {})
             doors.append(_door(
                 "measure-generation-delta",
@@ -428,12 +476,92 @@ def compose_nearby_station_doors(
                     "control": "dogram-generation-delta",
                 },
             ))
+        elif (
+            reentry is not None
+            and dogram_delta is not None
+            and dogram_listener_delta is None
+            and listener_dogram.get("available") is True
+            and len(parent_firsts) == 2
+            and len(audio_firsts) == 2
+        ):
+            gd = dogram_delta.get("snapshot", {})
+            doors.append(_door(
+                "measure-listener-delta",
+                "Measure how the sealed first responses changed",
+                "The signal transform is receipted and both generations retain exactly two sealed first listens. Dogram LISTENER-DELTA-001 can measure response structure without scoring listeners or claiming causation.",
+                lane="dogram",
+                adapter="Dogram / LISTENER-DELTA-001",
+                evidence=[
+                    {
+                        "kind": "dogram-generation-delta",
+                        "ref": gd.get("dogram_receipt_hash"),
+                        "classification": gd.get("classification"),
+                    },
+                    {
+                        "kind": "parent-first-listens",
+                        "refs": sorted(
+                            item.get("snapshot", {}).get("first_response_id")
+                            for item in parent_firsts
+                        ),
+                    },
+                    {
+                        "kind": "child-first-listens",
+                        "refs": sorted(
+                            item.get("snapshot", {}).get("first_response_id")
+                            for item in audio_firsts
+                        ),
+                    },
+                    {
+                        "kind": "capability",
+                        "ref": "listener-delta-001",
+                        "repo_head": listener_dogram.get("repo_head"),
+                        "repo_branch": listener_dogram.get("repo_branch"),
+                    },
+                ],
+                target={
+                    "receipt_id": audio_window.get("receipt_id"),
+                    "parent_window_id": parent_window_id,
+                    "child_window_id": current_window_id,
+                    "generation_delta_receipt_hash": gd.get(
+                        "dogram_receipt_hash"
+                    ),
+                    "control": "dogram-listener-delta",
+                },
+            ))
+        elif dogram_listener_delta is not None:
+            ld = dogram_listener_delta.get("snapshot", {})
+            doors.append(_door(
+                "inspect-listener-delta",
+                "Inspect the measured listener-response delta",
+                "Dogram has receipted the sealed first-response transform. The receipt measures response structure, not people, preference, or causal effect.",
+                lane="dogram",
+                adapter="Dogram / LISTENER-DELTA-001",
+                evidence=[
+                    {
+                        "kind": "dogram-listener-delta",
+                        "ref": ld.get("dogram_receipt_hash"),
+                        "classification": ld.get("classification"),
+                        "changed_listener_count": ld.get(
+                            "changed_listener_count"
+                        ),
+                        "listener_count": ld.get("listener_count"),
+                        "shared_changed_axes": ld.get(
+                            "shared_changed_axes"
+                        ),
+                    }
+                ],
+                target={
+                    "receipt_id": dogram_listener_delta.get("receipt_id"),
+                    "child_window_id": current_window_id,
+                    "artifact": "listener-delta.json",
+                },
+            ))
         elif dogram_delta is not None:
             dw = dogram_delta.get("snapshot", {})
             doors.append(_door(
                 "inspect-generation-delta",
                 "Inspect the measured generation delta",
-                "Dogram has already receipted the finite parent-to-descendant transform. The receipt is measurement, not musical verdict.",
+                "The signal transform is receipted. LISTENER-DELTA-001 is not currently available, so the Field retains the existing signal measurement door.",
                 lane="dogram",
                 adapter="Dogram / GENERATION-DELTA-001",
                 evidence=[
@@ -600,6 +728,12 @@ def compose_nearby_station_doors(
                 "dogram_generation_delta:"
             )
         ),
+        "dogram_listener_deltas": sum(
+            1 for item in witnesses
+            if str(item.get("kind", "")).startswith(
+                "dogram_listener_delta:"
+            )
+        ),
         "unresolved_house_doors": len(unresolved),
         "registered_live_moments": len(moments),
     }
@@ -688,6 +822,13 @@ def compose_nearby_station_doors(
             "repo_branch": dogram.get("repo_branch"),
             "capability": dogram.get("capability"),
         },
+        "listener_dogram_capability": {
+            "checkout_present": listener_dogram.get("checkout_present"),
+            "available": listener_dogram.get("available"),
+            "repo_head": listener_dogram.get("repo_head"),
+            "repo_branch": listener_dogram.get("repo_branch"),
+            "capability": listener_dogram.get("capability"),
+        },
         "counts": counts,
         "memory_pressures": pressures,
         "nearby_doors": doors,
@@ -705,6 +846,9 @@ def compose_nearby_station_doors(
             "DOGRAM MEASURES TRANSFORMS, NOT PEOPLE",
             "DELTA != VALUE",
             "SIGNAL DELTA != LISTENER DELTA",
+            "RESPONSE DELTA != PERSON DELTA",
+            "RESPONSE DELTA != CAUSAL EFFECT",
+            "LEXICAL OVERLAP != SEMANTIC AGREEMENT",
             "RESIDUAL != FAILURE",
         ],
     }
