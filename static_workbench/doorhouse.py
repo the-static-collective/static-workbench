@@ -177,9 +177,14 @@ class DoorHouse:
                     "letters": [], "doors": [], "receipts": [],
                     "laws": self.laws(),
                 }
-            letters = [dict(r) for r in db.execute(
+            letters = []
+            for row in db.execute(
                 "SELECT * FROM dh_letters ORDER BY rowid DESC LIMIT 30"
-            ).fetchall()]
+            ).fetchall():
+                item = dict(row)
+                if item["opened_at"] is None:
+                    item["body"] = None
+                letters.append(item)
             doors = [dict(r) for r in db.execute(
                 "SELECT * FROM dh_doors ORDER BY rowid DESC LIMIT 100"
             ).fetchall()]
@@ -230,6 +235,16 @@ class DoorHouse:
             letter = self._letter(db, door["letter_id"])
             if letter["opened_at"] is None:
                 raise DoorHouseConflict("a sealed letter cannot select a door")
+            prior = db.execute(
+                """SELECT 1 FROM dh_receipts r
+                   JOIN dh_doors d ON d.id=r.door_id
+                   WHERE d.letter_id=? LIMIT 1""",
+                (letter["id"],),
+            ).fetchone()
+            if prior is not None:
+                raise DoorHouseConflict(
+                    "that letter already produced a crossing; its other doors are historical proposals"
+                )
             if door["crossed_at"] is not None:
                 raise DoorHouseConflict("that historical door has already been crossed")
             db.execute("UPDATE dh_doors SET selected_at=NULL WHERE crossed_at IS NULL")
