@@ -49,6 +49,29 @@ jobs:
           persist-credentials: false
       - name: LIFESTREAM-002 marker to HOUSE inbox to verified Live return
         run: python scripts/smoke_lifestream_002.py
+      - name: Checkout pinned GHoT creative body runtime
+        uses: actions/checkout@v4
+        with:
+          repository: the-static-collective/GHoT
+          ref: 684c585ae620bf9037105ded6fbc5fe1e8a503b0
+          path: .compat/GHoT
+          persist-credentials: false
+      - name: Checkout pinned Haunted Toaster creative adapter
+        uses: actions/checkout@v4
+        with:
+          repository: the-static-collective/the-haunted-toaster
+          ref: 3652c2a96b6b287cda316d1c92daadf7c7417eaf
+          path: .compat/haunted-toaster
+          persist-credentials: false
+      - name: Checkout pinned Autodisco First Encounter
+        uses: actions/checkout@v4
+        with:
+          repository: the-static-collective/The-AutodiscoV.20.-question-marks-
+          ref: 2a43470eb11b84771beeab55c021381d84c4efd3
+          path: .compat/autodisco
+          persist-credentials: false
+      - name: Actual House -> GHoT -> Toaster -> Autodisco creative smoke
+        run: python scripts/smoke_doorhouse_creative.py
       - name: Browser JavaScript syntax
         run: |
           node --check static_workbench/web/lifestream.js

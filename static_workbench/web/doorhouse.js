@@ -66,6 +66,8 @@ function renderReceipts(){
   for(const receipt of state.receipts){
     const relatte=state.external_witnesses.find(w=>w.receipt_id===receipt.id&&w.kind==="relatte");
     const ghotExecution=state.external_witnesses.find(w=>w.receipt_id===receipt.id&&w.kind==="ghot_execution");
+    const autodiscoPacket=state.external_witnesses.find(w=>w.receipt_id===receipt.id&&w.kind==="autodisco_packet");
+    const autodiscoResponse=state.external_witnesses.find(w=>w.receipt_id===receipt.id&&w.kind==="autodisco_first_response");
     const ghotOffers=state.external_witnesses
       .filter(w=>w.receipt_id===receipt.id&&w.kind.startsWith("ghot_offer:"))
       .sort((a,b)=>String(b.created_at).localeCompare(String(a.created_at)));
@@ -138,6 +140,41 @@ function renderReceipts(){
         "GHoT · "+gw.executor_node_id+" · "+gw.capability+" · "+gw.status,
         "adapter-line"
       ));
+      if(gw.creative_artifact){
+        card.append(el(
+          "div",
+          "Haunted Toaster · "+gw.creative_artifact.instrument+" · SVG "+gw.creative_artifact.svg_sha256.slice(0,16)+"…",
+          "adapter-line"
+        ));
+      }
+
+      if(autodiscoResponse){
+        const aw=autodiscoResponse.snapshot;
+        card.append(el(
+          "div",
+          "Autodisco · fresh response sealed · "+aw.model_used,
+          "adapter-line"
+        ));
+      } else {
+        const listen=el(
+          "button",
+          autodiscoPacket ? "Try a real fresh listener again" : "Send returned artifact to a fresh listener"
+        );
+        listen.type="button";
+        listen.addEventListener("click",()=>mutate(
+          "/api/doorhouse/receipts/"+receipt.id+"/autodisco/first-encounter",
+          {},
+          "Autodisco preserved the isolated packet and returned only what a real listener actually produced."
+        ));
+        card.append(listen);
+        if(autodiscoPacket){
+          card.append(el(
+            "div",
+            "Autodisco · packet sealed · no simulated response",
+            "adapter-line"
+          ));
+        }
+      }
     }
 
     const details=document.createElement("details");
@@ -151,6 +188,8 @@ function renderReceipts(){
     if(relatte) evidence.relatte_witness=relatte.snapshot;
     if(ghotOffer) evidence.ghot_offer=ghotOffer.snapshot;
     if(ghotExecution) evidence.ghot_execution=ghotExecution.snapshot;
+    if(autodiscoPacket) evidence.autodisco_packet=autodiscoPacket.snapshot;
+    if(autodiscoResponse) evidence.autodisco_first_response=autodiscoResponse.snapshot;
     details.append(el("code",JSON.stringify(evidence,null,2)));
     card.append(details); root.append(card);
   }
