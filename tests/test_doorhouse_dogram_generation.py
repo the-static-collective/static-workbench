@@ -437,3 +437,229 @@ def test_direct_api_measurement_refuses_before_child_cross_read(monkeypatch, tmp
         assert response.status_code == 409
         assert "both parent and descendant" in response.json()["detail"]
         assert called["value"] is False
+
+
+
+def listener_result(tmp_path: Path, receipt_id: str, generation: dict):
+    slug = hashlib.sha256(CHILD_WINDOW.encode("utf-8")).hexdigest()[:24]
+    root = tmp_path / "doorhouse-dogram" / receipt_id / slug
+    root.mkdir(parents=True, exist_ok=True)
+    parent_firsts = encounter(
+        PARENT_WINDOW, PARENT_SHA, PARENT_PAIR
+    )["first_responses"]
+    child_firsts = encounter(
+        CHILD_WINDOW, CHILD_SHA, CHILD_PAIR
+    )["first_responses"]
+
+    listeners = {}
+    for parent, child in zip(parent_firsts, child_firsts):
+        listener_id = parent["listener"]["id"]
+        listeners[listener_id] = {
+            "listener": parent["listener"],
+            "parent": {
+                "first_response_id": parent["first_response_id"],
+            },
+            "child": {
+                "first_response_id": child["first_response_id"],
+            },
+            "delta": {
+                "classification": "MEASURED_RESPONSE_CHANGE",
+                "changed_axes": ["closing_line"],
+            },
+        }
+
+    dogram_receipt = {
+        "schema": "dogram.listener-delta-receipt/v0",
+        "specimen": "LISTENER-DELTA-001",
+        "status": "OK",
+        "transform": {
+            "relation": "ADMITTED_PROPOSAL_AS_NEW_AUDIO_SPECIMEN",
+            "human_action": "explicit-admit",
+            "parent_window_id": PARENT_WINDOW,
+            "child_window_id": CHILD_WINDOW,
+            "proposal_receipt_hash": PROPOSAL_RECEIPT,
+            "generation_delta_receipt_hash": generation[
+                "dogram_receipt_hash"
+            ],
+        },
+        "listeners": listeners,
+        "cohort": {
+            "classification": "MEASURED_RESPONSE_CHANGE",
+            "listener_count": 2,
+            "changed_listener_count": 2,
+            "shared_changed_axes": ["closing_line"],
+            "union_changed_axes": ["closing_line"],
+            "shared_appeared_tokens": [],
+            "shared_disappeared_tokens": [],
+            "shared_appeared_observations": [],
+        },
+        "residuals": [
+            "semantic_similarity_not_measured",
+            "audio_change_causality_not_established",
+        ],
+        "laws": [
+            "DOGRAM MEASURES TRANSFORMS, NOT PEOPLE",
+            "RESPONSE DELTA != PERSON DELTA",
+            "RESPONSE DELTA != CAUSAL EFFECT",
+            "SIGNAL DELTA != LISTENER DELTA",
+            "LEXICAL OVERLAP != SEMANTIC AGREEMENT",
+            "FIRST LISTEN != STABLE PREFERENCE",
+            "DELTA != VALUE",
+            "RESIDUAL != FAILURE",
+            "DO NOT DECIDE WHAT IT MEANS",
+        ],
+        "receipt_hash": "sha256:" + "4" * 64,
+    }
+    receipt_path = root / "listener-delta.json"
+    receipt_path.write_text(
+        json.dumps(
+            dogram_receipt,
+            sort_keys=True,
+            separators=(",", ":"),
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    return {
+        "schema": "workbench.dogram-listener-delta/v0",
+        "status": "measured",
+        "parent_window_id": PARENT_WINDOW,
+        "child_window_id": CHILD_WINDOW,
+        "proposal_receipt_hash": PROPOSAL_RECEIPT,
+        "generation_delta_receipt_hash": generation[
+            "dogram_receipt_hash"
+        ],
+        "dogram_receipt_hash": dogram_receipt["receipt_hash"],
+        "classification": "MEASURED_RESPONSE_CHANGE",
+        "listener_count": 2,
+        "changed_listener_count": 2,
+        "shared_changed_axes": ["closing_line"],
+        "union_changed_axes": ["closing_line"],
+        "shared_appeared_tokens": [],
+        "shared_disappeared_tokens": [],
+        "shared_appeared_observations": [],
+        "residuals": dogram_receipt["residuals"],
+        "dogram_receipt": dogram_receipt,
+        "receipt_path": str(receipt_path),
+        "laws": [
+            "DOGRAM MEASURES TRANSFORMS, NOT PEOPLE",
+            "RESPONSE DELTA != PERSON DELTA",
+            "RESPONSE DELTA != CAUSAL EFFECT",
+            "SIGNAL DELTA != LISTENER DELTA",
+            "LEXICAL OVERLAP != SEMANTIC AGREEMENT",
+            "DELTA != VALUE",
+            "RESIDUAL != FAILURE",
+            "MEASUREMENT != ADMISSION",
+        ],
+    }
+
+
+def test_house_listener_delta_binds_generation_and_sealed_first_responses(tmp_path):
+    store = DoorHouse(tmp_path / "doorhouse.sqlite3")
+    receipt = crossed_receipt(store)
+    seed_generation(store, receipt["id"], child_dialogue=True)
+    generation = dogram_result(tmp_path, receipt["id"])
+    store.record_dogram_generation_delta(receipt["id"], generation)
+    result = listener_result(tmp_path, receipt["id"], generation)
+
+    state = store.record_dogram_listener_delta(receipt["id"], result)
+
+    witness = next(
+        item for item in state["external_witnesses"]
+        if item["kind"] == "dogram_listener_delta:" + CHILD_WINDOW
+    )
+    assert witness["snapshot"]["classification"] == "MEASURED_RESPONSE_CHANGE"
+    assert witness["snapshot"]["changed_listener_count"] == 2
+    assert (
+        witness["snapshot"]["generation_delta_receipt_hash"]
+        == generation["dogram_receipt_hash"]
+    )
+    assert "DOGRAM RECEIPT != LISTENER VERDICT" in witness["snapshot"]["laws"]
+
+    tampered = listener_result(tmp_path, receipt["id"], generation)
+    tampered["dogram_receipt"]["listeners"]["static-sam"]["child"][
+        "first_response_id"
+    ] = "autodisco-audio-look-twice-response-v0:" + "f" * 64
+    with pytest.raises(
+        DoorHouseConflict,
+        match="sealed first-response identity",
+    ):
+        store.record_dogram_listener_delta(receipt["id"], tampered)
+
+
+def test_listener_delta_api_and_receipt_read_are_bounded(monkeypatch, tmp_path):
+    config = config_for(tmp_path)
+    store = DoorHouse(config.state_dir / "doorhouse.sqlite3")
+    receipt = crossed_receipt(store)
+    seed_generation(store, receipt["id"], child_dialogue=True)
+    generation = dogram_result(config.state_dir, receipt["id"])
+    store.record_dogram_generation_delta(receipt["id"], generation)
+    result = listener_result(config.state_dir, receipt["id"], generation)
+
+    monkeypatch.setattr(
+        app_module,
+        "run_dogram_listener_delta",
+        (
+            lambda parent_firsts, child_firsts, reentry, generation_delta,
+            repos, state_dir, receipt_id: result
+        ),
+    )
+
+    with TestClient(create_app(config), base_url="http://127.0.0.1") as client:
+        token = client.get("/api/bootstrap").json()["session_token"]
+        headers = {"x-workbench-session": token}
+
+        measured = client.post(
+            f"/api/doorhouse/receipts/{receipt['id']}/dogram/"
+            f"{CHILD_WINDOW}/listener-delta",
+            json={},
+            headers=headers,
+        )
+        assert measured.status_code == 200
+
+        before = client.get("/api/doorhouse/state").json()
+        read = client.get(
+            f"/api/doorhouse/receipts/{receipt['id']}/dogram/"
+            f"{CHILD_WINDOW}/listener-delta.json"
+        )
+        after = client.get("/api/doorhouse/state").json()
+
+        assert read.status_code == 200
+        payload = read.json()
+        assert payload["specimen"] == "LISTENER-DELTA-001"
+        assert (
+            payload["cohort"]["classification"]
+            == "MEASURED_RESPONSE_CHANGE"
+        )
+        assert before["world_version"] == after["world_version"]
+        assert len(before["external_witnesses"]) == len(after["external_witnesses"])
+
+
+def test_listener_delta_api_requires_generation_delta_first(monkeypatch, tmp_path):
+    config = config_for(tmp_path)
+    store = DoorHouse(config.state_dir / "doorhouse.sqlite3")
+    receipt = crossed_receipt(store)
+    seed_generation(store, receipt["id"], child_dialogue=True)
+
+    called = {"value": False}
+
+    def should_not_run(*args, **kwargs):
+        called["value"] = True
+        raise AssertionError("listener delta should not run before signal delta")
+
+    monkeypatch.setattr(
+        app_module,
+        "run_dogram_listener_delta",
+        should_not_run,
+    )
+
+    with TestClient(create_app(config), base_url="http://127.0.0.1") as client:
+        token = client.get("/api/bootstrap").json()["session_token"]
+        response = client.post(
+            f"/api/doorhouse/receipts/{receipt['id']}/dogram/"
+            f"{CHILD_WINDOW}/listener-delta",
+            json={},
+            headers={"x-workbench-session": token},
+        )
+        assert response.status_code == 404
+        assert called["value"] is False
