@@ -728,11 +728,11 @@ def compose_nearby_station_doors(
             ))
         elif receiver_status == "ASSIGNED_NOT_EXECUTED":
             doors.append(_door(
-                "inspect-ghot-carried-intent-assignment",
-                "Inspect GHoT's assignment-only receipt",
-                "GHoT has assigned the carried intent to one explicit body/capability pair. No task, adapter call, remote dispatch, or execution receipt exists from this assignment.",
+                "dispatch-ghot-carried-intent-assignment",
+                "Dispatch the assigned capability once",
+                "GHoT has a durable explicit assignment but no execution consequence. Dispatch is a new signed crossing and requires a separate human action.",
                 lane="carried",
-                adapter="GHoT / assignment-only",
+                adapter="GHoT / CARRIED INTENT DISPATCH 001",
                 evidence=[{
                     "kind": "ghot-carried-intent-assignment",
                     "field_return_id": latest_receiver.get("field_return_id"),
@@ -746,6 +746,53 @@ def compose_nearby_station_doors(
                     "field_return_id": latest_receiver.get("field_return_id"),
                     "intent_id": latest_receiver.get("intent_id"),
                     "assignment_id": latest_receiver.get("assignment_id"),
+                    "control": "ghot-field-intent-dispatch",
+                },
+            ))
+        elif receiver_status in {"EXECUTED", "EXECUTION_ERROR"}:
+            doors.append(_door(
+                "inspect-ghot-carried-intent-consequence",
+                "Inspect GHoT's signed execution consequence",
+                "The explicit dispatch crossing produced one bounded capability attempt and a signed receiver consequence receipt.",
+                lane="carried",
+                adapter="GHoT / CARRIED INTENT DISPATCH 001",
+                evidence=[{
+                    "kind": "ghot-carried-intent-dispatch",
+                    "field_return_id": latest_receiver.get("field_return_id"),
+                    "intent_id": latest_receiver.get("intent_id"),
+                    "assignment_id": latest_receiver.get("assignment_id"),
+                    "dispatch_crossing_id": latest_receiver.get("dispatch_crossing_id"),
+                    "task_id": latest_receiver.get("task_id"),
+                    "execution_receipt_id": latest_receiver.get("execution_receipt_id"),
+                    "signed_receipt_id": latest_receiver.get("signed_receipt_id"),
+                    "execution_status": latest_receiver.get("execution_status"),
+                    "output_sha256": latest_receiver.get("output_sha256"),
+                    "status": receiver_status,
+                }],
+                target={
+                    "field_return_id": latest_receiver.get("field_return_id"),
+                    "dispatch_crossing_id": latest_receiver.get("dispatch_crossing_id"),
+                    "signed_receipt_id": latest_receiver.get("signed_receipt_id"),
+                },
+            ))
+        elif receiver_status == "DISPATCH_OUTCOME_UNKNOWN":
+            doors.append(_door(
+                "inspect-ghot-carried-intent-dispatch-unknown",
+                "Inspect the ambiguous GHoT dispatch",
+                "A signed dispatch reached PREPARED state but no completed consequence can be proven. Automatic retry is disabled because the execution outcome may be unknown.",
+                lane="carried",
+                adapter="GHoT / CARRIED INTENT DISPATCH 001",
+                evidence=[{
+                    "kind": "ghot-carried-intent-dispatch-unknown",
+                    "field_return_id": latest_receiver.get("field_return_id"),
+                    "intent_id": latest_receiver.get("intent_id"),
+                    "assignment_id": latest_receiver.get("assignment_id"),
+                    "dispatch_crossing_id": latest_receiver.get("dispatch_crossing_id"),
+                    "status": receiver_status,
+                }],
+                target={
+                    "field_return_id": latest_receiver.get("field_return_id"),
+                    "dispatch_crossing_id": latest_receiver.get("dispatch_crossing_id"),
                 },
             ))
 
@@ -861,6 +908,14 @@ def compose_nearby_station_doors(
             1 for item in field_receivers
             if item.get("status") == "ASSIGNED_NOT_EXECUTED"
         ),
+        "ghot_dispatches": sum(
+            1 for item in field_receivers
+            if item.get("status") in {"EXECUTED", "EXECUTION_ERROR"}
+        ),
+        "ghot_dispatch_unknown": sum(
+            1 for item in field_receivers
+            if item.get("status") == "DISPATCH_OUTCOME_UNKNOWN"
+        ),
     }
     pressures = []
     if counts["unresolved_house_doors"]:
@@ -903,7 +958,19 @@ def compose_nearby_station_doors(
         pressures.append({
             "kind": "receiver-assignment",
             "value": counts["ghot_assignments"],
-            "effect": "surface-assignment-without-execution",
+            "effect": "surface-explicit-dispatch-crossing",
+        })
+    if counts["ghot_dispatches"]:
+        pressures.append({
+            "kind": "receiver-execution-consequence",
+            "value": counts["ghot_dispatches"],
+            "effect": "surface-signed-execution-consequence",
+        })
+    if counts["ghot_dispatch_unknown"]:
+        pressures.append({
+            "kind": "receiver-dispatch-unknown",
+            "value": counts["ghot_dispatch_unknown"],
+            "effect": "surface-ambiguity-without-retry",
         })
 
     current_episode = (
@@ -985,6 +1052,12 @@ def compose_nearby_station_doors(
                 "assignment_id": item.get("assignment_id"),
                 "selected_node_id": item.get("selected_node_id"),
                 "capability": item.get("capability"),
+                "dispatch_crossing_id": item.get("dispatch_crossing_id"),
+                "task_id": item.get("task_id"),
+                "execution_receipt_id": item.get("execution_receipt_id"),
+                "signed_receipt_id": item.get("signed_receipt_id"),
+                "execution_status": item.get("execution_status"),
+                "output_sha256": item.get("output_sha256"),
             }
             for item in field_receivers
         ],
@@ -1022,6 +1095,10 @@ def compose_nearby_station_doors(
             "ASSIGNMENT != TASK",
             "BODY AVAILABILITY != SELECTION",
             "DISPATCH REQUIRES A NEW EXPLICIT CROSSING",
+            "DISPATCH != SUCCESS",
+            "EXECUTION != RECEIPT",
+            "RECEIPT != TRUTH",
+            "AMBIGUOUS OUTCOME != SAFE RETRY",
             "RECEIVER CONSEQUENCE != DONOR CONSEQUENCE",
         ],
     }
