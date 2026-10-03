@@ -1114,6 +1114,20 @@ class DoorHouse:
         item["snapshot"] = json.loads(item["snapshot"])
         return item
 
+    def audio_window_for_id(self, receipt_id, window_id):
+        self.receipt(receipt_id)
+        kind = "audio_window:" + window_id
+        with self._db() as db:
+            row = db.execute(
+                "SELECT * FROM dh_external_witnesses WHERE receipt_id=? AND kind=?",
+                (receipt_id, kind),
+            ).fetchone()
+        if row is None:
+            raise DoorHouseMissing("audio window witness not found")
+        item = dict(row)
+        item["snapshot"] = json.loads(item["snapshot"])
+        return item
+
     def record_audio_look_twice_pair(self, receipt_id, pair):
         window_witness = self.latest_audio_window(receipt_id)
         materialized = window_witness["snapshot"]
