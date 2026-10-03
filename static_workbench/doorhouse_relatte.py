@@ -54,10 +54,11 @@ def build_relatte_request(receipt: dict, state_dir: Path) -> dict:
     except (TypeError, ValueError) as exc:
         raise RelatteApertureError("local receipt timestamp is invalid") from exc
 
-    times = [
-        (base_time + timedelta(microseconds=index)).isoformat()
-        for index in range(1, 5)
-    ]
+    times = []
+    for index in range(1, 5):
+        moment = base_time + timedelta(milliseconds=index)
+        stamp = moment.strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + "Z"
+        times.append(stamp)
     created = times[0]
     base = Path(state_dir)
     return {
