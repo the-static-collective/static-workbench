@@ -24,7 +24,8 @@ async function api(path, payload) {
 }
 function say(text, bad=false){$("status").textContent=text;$("status").style.color=bad?"var(--danger)":"var(--muted)";}
 function latestOpenLetter() {
-  return state.letters.find((letter) => letter.opened_at && state.doors.some((door) => door.letter_id === letter.id && !door.crossed_at));
+  const newest = state.letters[0];
+  return newest && newest.opened_at ? newest : null;
 }
 function renderLetters(){
   const root=$("letters"); root.replaceChildren();
