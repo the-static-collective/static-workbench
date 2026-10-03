@@ -18,7 +18,7 @@ from .repos import RepoStatus
 
 
 RELATTE_REVISION = "87006f3265103a8abe387d81597c58aeb39b0beb"
-GHOT_REVISION = "0812164737fc890a813aa965f8a5cf00701def3e"
+GHOT_REVISION = "e35dd470384d864b7b0b629a68dad570875a7df0"
 GHOT_RECEIVER_WORLD = "world:ghot:field-reseed-inbox"
 GHOT_RECEIVER_PARTICULAR = "particular:ghot:field-reseed-inbox"
 
@@ -549,5 +549,170 @@ def assign_field_reseed_intent(
             "ASSIGNMENT != TASK",
             "DISPATCH REQUIRES A NEW EXPLICIT CROSSING",
             "RECEIVER CONSEQUENCE != DONOR CONSEQUENCE",
+        ],
+    }
+
+
+
+def dispatch_field_reseed_intent(
+    assignment: dict,
+    state_dir: Path,
+    repos: list[RepoStatus],
+) -> dict:
+    if (
+        assignment.get("schema") != "workbench.field-reseed-assignment/v0"
+        or assignment.get("status") != "ASSIGNED_NOT_EXECUTED"
+        or assignment.get("semantic_effect") != "receiver-assignment-only"
+    ):
+        raise FieldReseedCrossingError(
+            "verified assignment-only receipt is required before dispatch"
+        )
+    ghot_assignment = assignment.get("ghot_assignment")
+    if (
+        not isinstance(ghot_assignment, dict)
+        or ghot_assignment.get("schema")
+        != "ghot.carried-intent-assignment/v0"
+        or ghot_assignment.get("status") != "ASSIGNED_NOT_EXECUTED"
+    ):
+        raise FieldReseedCrossingError("GHoT assignment-only receipt is invalid")
+    intent_id = assignment.get("intent_id")
+    if ghot_assignment.get("intent_id") != intent_id:
+        raise FieldReseedCrossingError(
+            "GHoT assignment is bound to another carried intent"
+        )
+
+    ghot = _find_pinned(
+        repos,
+        "GHoT",
+        GHOT_REVISION,
+        "ghot/carried_intent_dispatch.py",
+    )
+    ghot_home = Path(state_dir) / "field-reseed-ghot"
+    result = _run_json(
+        ["python3", str(ghot / "ghot" / "carried_intent_dispatch.py")],
+        ghot,
+        {
+            "action": "dispatch",
+            "intent_id": intent_id,
+            "dispatch_source": "workbench-user-explicit",
+            "timeout": 0.5,
+        },
+        {**os.environ, "LC_ALL": "C", "GHOT_HOME": str(ghot_home)},
+        "GHoT Carried Intent Dispatch",
+        timeout=45.0,
+    )
+    if (
+        result.get("schema") != "ghot.carried-intent-dispatch-result/v0"
+        or result.get("intent_id") != intent_id
+        or result.get("assignment_id") != ghot_assignment.get("assignment_id")
+        or result.get("selected_node_id")
+        != ghot_assignment.get("selected_node_id")
+        or result.get("capability") != ghot_assignment.get("capability")
+        or result.get("status") not in {"EXECUTED", "EXECUTION_ERROR"}
+        or result.get("semantic_effect") != "receiver-local-consequence"
+    ):
+        raise FieldReseedCrossingError(
+            "GHoT dispatch did not preserve the assigned execution boundary"
+        )
+    crossing = result.get("crossing")
+    receipt = result.get("signed_receipt")
+    execution = result.get("execution")
+    if (
+        not isinstance(crossing, dict)
+        or crossing.get("schema") != "relatte.crossing-envelope/v0"
+        or not isinstance(receipt, dict)
+        or receipt.get("schema") != "relatte.receipt/v0"
+        or receipt.get("crossing_id") != crossing.get("crossing_id")
+        or receipt.get("kind") != "EXECUTED"
+        or not isinstance(execution, dict)
+    ):
+        raise FieldReseedCrossingError(
+            "GHoT dispatch consequence evidence is incomplete"
+        )
+    task = execution.get("task")
+    raw_receipt = execution.get("receipt")
+    if (
+        not isinstance(task, dict)
+        or not isinstance(raw_receipt, dict)
+        or task.get("capability") != ghot_assignment.get("capability")
+        or raw_receipt.get("task_id") != task.get("task_id")
+        or raw_receipt.get("capability") != ghot_assignment.get("capability")
+    ):
+        raise FieldReseedCrossingError(
+            "GHoT execution evidence changed assigned capability identity"
+        )
+
+    return {
+        "schema": "workbench.field-reseed-dispatch/v0",
+        "field_return_id": assignment.get("field_return_id"),
+        "reseed_id": assignment.get("reseed_id"),
+        "intent_id": intent_id,
+        "assignment_id": ghot_assignment.get("assignment_id"),
+        "status": result.get("status"),
+        "semantic_effect": "receiver-local-consequence",
+        "ghot_dispatch": result,
+        "pins": {"ghot": GHOT_REVISION},
+        "laws": [
+            "ASSIGNMENT != EXECUTION",
+            "DISPATCH != SUCCESS",
+            "EXECUTION != RECEIPT",
+            "RECEIPT != TRUTH",
+            "EXECUTOR CONSEQUENCE != DONOR AUTHORITY",
+        ],
+    }
+
+
+def read_field_reseed_dispatch_status(
+    assignment: dict,
+    state_dir: Path,
+    repos: list[RepoStatus],
+) -> dict:
+    ghot_assignment = assignment.get("ghot_assignment")
+    if not isinstance(ghot_assignment, dict):
+        raise FieldReseedCrossingError("GHoT assignment-only receipt is missing")
+    intent_id = assignment.get("intent_id")
+    ghot = _find_pinned(
+        repos,
+        "GHoT",
+        GHOT_REVISION,
+        "ghot/carried_intent_dispatch.py",
+    )
+    ghot_home = Path(state_dir) / "field-reseed-ghot"
+    status = _run_json(
+        ["python3", str(ghot / "ghot" / "carried_intent_dispatch.py")],
+        ghot,
+        {
+            "action": "status",
+            "intent_id": intent_id,
+        },
+        {**os.environ, "LC_ALL": "C", "GHOT_HOME": str(ghot_home)},
+        "GHoT Carried Intent Dispatch Status",
+    )
+    if (
+        status.get("schema") != "ghot.carried-intent-dispatch-status/v0"
+        or status.get("intent_id") != intent_id
+        or status.get("assignment_id") != ghot_assignment.get("assignment_id")
+    ):
+        raise FieldReseedCrossingError("GHoT dispatch status is invalid")
+    return {
+        "schema": "workbench.field-reseed-dispatch/v0",
+        "field_return_id": assignment.get("field_return_id"),
+        "reseed_id": assignment.get("reseed_id"),
+        "intent_id": intent_id,
+        "assignment_id": ghot_assignment.get("assignment_id"),
+        "status": status.get("status"),
+        "semantic_effect": (
+            "unknown"
+            if status.get("status") == "DISPATCH_OUTCOME_UNKNOWN"
+            else "none"
+            if status.get("status") == "ASSIGNED_NOT_EXECUTED"
+            else "receiver-local-consequence"
+        ),
+        "ghot_dispatch_status": status,
+        "pins": {"ghot": GHOT_REVISION},
+        "laws": [
+            "STATUS != AUTHORITY",
+            "AMBIGUOUS OUTCOME != SAFE RETRY",
+            "ASSIGNMENT != EXECUTION",
         ],
     }
