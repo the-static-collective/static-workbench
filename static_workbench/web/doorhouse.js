@@ -409,8 +409,12 @@ function renderFieldStation(){
               offered.offer_id
             );
           });
+          const refresh=el("button","Refresh offer");
+          refresh.type="button";
+          refresh.dataset.disposition="offer";
+          refresh.addEventListener("click",()=>offerFieldIntentAssignment(receipt));
           const chooserWrap=el("div",undefined,"field-assignment-picker");
-          chooserWrap.append(chooser,assign);
+          chooserWrap.append(chooser,assign,refresh);
           card.append(chooserWrap);
         } else {
           card.append(el(
