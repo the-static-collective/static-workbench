@@ -202,6 +202,8 @@ def test_mature_field_composes_multiple_organs_without_selecting_any():
         "dogram_generation_deltas": 0,
         "unresolved_house_doors": 1,
         "registered_live_moments": 1,
+        "ghot_reseed_holds": 0,
+        "ghot_reseed_admissions": 0,
     }
     assert {
         pressure["kind"] for pressure in state["memory_pressures"]
@@ -732,3 +734,76 @@ def test_dogram_receipt_changes_field_to_inspection_and_silence_survives_cap():
     assert len(state["nearby_doors"]) == 6
     assert state["nearby_doors"][-1]["kind"] == "hold-silence"
     assert "DELTA != VALUE" in state["laws"]
+
+
+
+def test_receiver_hold_changes_field_to_explicit_admission_without_execution():
+    base = compose_nearby_station_doors(
+        empty_house(), broadcast(), [], []
+    )
+    receiver = [{
+        "stored_at": "2026-10-03T16:30:00+00:00",
+        "field_return_id": "field-return-v0:" + "1" * 64,
+        "reseed_id": "field-reseed-v0:" + "2" * 64,
+        "status": "RECEIVED_THEN_HELD",
+        "hold_id": "ghot-field-reseed-hold-v0:" + "3" * 64,
+        "admission_id": None,
+        "intent_id": None,
+    }]
+
+    held = compose_nearby_station_doors(
+        empty_house(),
+        broadcast(),
+        [],
+        [],
+        field_receivers=receiver,
+    )
+
+    carried = next(
+        door for door in held["nearby_doors"]
+        if door["lane"] == "carried"
+    )
+    assert carried["kind"] == "admit-ghot-field-reseed"
+    assert carried["effect"] == "none"
+    assert carried["target"]["control"] == "ghot-field-reseed-admit"
+    assert held["counts"]["ghot_reseed_holds"] == 1
+    assert held["counts"]["ghot_reseed_admissions"] == 0
+    assert any(
+        pressure["kind"] == "receiver-hold"
+        for pressure in held["memory_pressures"]
+    )
+    assert held["nearby_doors"][-1]["kind"] == "hold-silence"
+    assert held["field_state_id"] != base["field_state_id"]
+
+
+def test_receiver_admission_changes_field_to_inspection_not_assignment():
+    receiver = [{
+        "stored_at": "2026-10-03T16:31:00+00:00",
+        "field_return_id": "field-return-v0:" + "1" * 64,
+        "reseed_id": "field-reseed-v0:" + "2" * 64,
+        "status": "ADMITTED_NOT_ASSIGNED",
+        "hold_id": "ghot-field-reseed-hold-v0:" + "3" * 64,
+        "admission_id": "ghot-field-reseed-admission-v0:" + "4" * 64,
+        "intent_id": "ghot-carried-intent-v0:" + "5" * 64,
+    }]
+
+    admitted = compose_nearby_station_doors(
+        empty_house(),
+        broadcast(),
+        [],
+        [],
+        field_receivers=receiver,
+    )
+
+    carried = next(
+        door for door in admitted["nearby_doors"]
+        if door["lane"] == "carried"
+    )
+    assert carried["kind"] == "inspect-ghot-carried-intent"
+    assert carried["effect"] == "none"
+    assert carried["evidence"][0]["status"] == "ADMITTED_NOT_ASSIGNED"
+    assert admitted["counts"]["ghot_reseed_holds"] == 0
+    assert admitted["counts"]["ghot_reseed_admissions"] == 1
+    assert "ADMISSION != ASSIGNMENT" in admitted["laws"]
+    assert "ASSIGNMENT != EXECUTION" in admitted["laws"]
+    assert admitted["nearby_doors"][-1]["kind"] == "hold-silence"
