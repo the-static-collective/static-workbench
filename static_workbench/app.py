@@ -28,6 +28,11 @@ from .doorhouse_autodisco import (
     run_look_twice_encounters,
 )
 
+from .doorhouse_phonograph import (
+    PhonographApertureError,
+    phonograph_field_answer_available,
+    run_phonograph_field_answer,
+)
 import uvicorn
 from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.responses import FileResponse, JSONResponse
@@ -511,6 +516,7 @@ def create_app(config: WorkbenchConfig | None = None) -> FastAPI:
         house_state = doorhouse.state()
         repos = discover_repositories(config.roots, config.max_repo_depth)
         broadcast = broadcast_door(config, repos)
+        phonograph = phonograph_field_answer_available(repos)
         try:
             moments = moment_inbox.list_moments()
         except (ValueError, OSError, TypeError, UnicodeError):
@@ -520,6 +526,7 @@ def create_app(config: WorkbenchConfig | None = None) -> FastAPI:
             broadcast,
             moments,
             repos,
+            phonograph=phonograph,
         )
 
     @app.post("/api/doorhouse/enter")
@@ -921,6 +928,116 @@ def create_app(config: WorkbenchConfig | None = None) -> FastAPI:
             ),
         })
         return state
+
+    @app.post("/api/doorhouse/receipts/{receipt_id}/phonograph/field-answer")
+    def doorhouse_phonograph_field_answer(receipt_id: str, request: Request):
+        _creator_write_guard(request)
+        window = _doorhouse_call(lambda: doorhouse.latest_audio_window(receipt_id))
+        try:
+            repos = discover_repositories(config.roots, config.max_repo_depth)
+            result = run_phonograph_field_answer(
+                window["snapshot"],
+                repos,
+                config.state_dir,
+                receipt_id,
+            )
+        except PhonographApertureError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+        state = _doorhouse_call(
+            lambda: doorhouse.record_phonograph_field_answer(
+                receipt_id, result
+            )
+        )
+        journal.append("doorhouse.phonograph.field_answer", {
+            "local_receipt_id": receipt_id,
+            "window_id": result["window_id"],
+            "proposal_receipt_hash": result["proposal_receipt_hash"],
+            "proposal_hash": result["proposal_hash"],
+            "resolved_performance_hash": result["resolved_performance_hash"],
+            "audition_sha256": result["audition"]["sha256"],
+        })
+        return state
+
+    def _phonograph_answer_file(
+        receipt_id: str,
+        window_id: str,
+        field: str,
+        filename: str,
+    ) -> Path:
+        answer = _doorhouse_call(
+            lambda: doorhouse.phonograph_field_answer(receipt_id, window_id)
+        )
+        artifact = answer.get(field)
+        if not isinstance(artifact, dict) or not isinstance(artifact.get("path"), str):
+            raise HTTPException(status_code=404, detail="Phonograph artifact is unavailable")
+        candidate = Path(artifact["path"]).resolve()
+        receipt_hash = answer.get("proposal_receipt_hash")
+        if not isinstance(receipt_hash, str) or not receipt_hash.startswith("sha256:"):
+            raise HTTPException(status_code=409, detail="Phonograph receipt identity is invalid")
+        proposal_slug = receipt_hash.split(":", 1)[1][:24]
+        expected_root = (
+            config.state_dir
+            / "doorhouse-phonograph"
+            / receipt_id
+            / proposal_slug
+        ).resolve()
+        if candidate.parent != expected_root or candidate.name != filename:
+            raise HTTPException(status_code=409, detail="Phonograph artifact escaped its bundle")
+        if not candidate.is_file():
+            raise HTTPException(status_code=404, detail="Phonograph artifact is missing")
+        return candidate
+
+    @app.get(
+        "/api/doorhouse/receipts/{receipt_id}/phonograph/{window_id}/audition.wav",
+        include_in_schema=False,
+    )
+    def doorhouse_phonograph_audition(receipt_id: str, window_id: str):
+        return FileResponse(
+            _phonograph_answer_file(
+                receipt_id, window_id, "audition", "audition.wav"
+            ),
+            media_type="audio/wav",
+        )
+
+    @app.get(
+        "/api/doorhouse/receipts/{receipt_id}/phonograph/{window_id}/answer.mid",
+        include_in_schema=False,
+    )
+    def doorhouse_phonograph_midi(receipt_id: str, window_id: str):
+        return FileResponse(
+            _phonograph_answer_file(
+                receipt_id, window_id, "midi", "answer.mid"
+            ),
+            media_type="audio/midi",
+        )
+
+    @app.get(
+        "/api/doorhouse/receipts/{receipt_id}/phonograph/{window_id}/receipt.json",
+        include_in_schema=False,
+    )
+    def doorhouse_phonograph_receipt(receipt_id: str, window_id: str):
+        answer = _doorhouse_call(
+            lambda: doorhouse.phonograph_field_answer(receipt_id, window_id)
+        )
+        raw = answer.get("receipt_path")
+        if not isinstance(raw, str):
+            raise HTTPException(status_code=404, detail="Phonograph receipt is unavailable")
+        candidate = Path(raw).resolve()
+        receipt_hash = answer.get("proposal_receipt_hash")
+        if not isinstance(receipt_hash, str) or not receipt_hash.startswith("sha256:"):
+            raise HTTPException(status_code=409, detail="Phonograph receipt identity is invalid")
+        proposal_slug = receipt_hash.split(":", 1)[1][:24]
+        expected_root = (
+            config.state_dir
+            / "doorhouse-phonograph"
+            / receipt_id
+            / proposal_slug
+        ).resolve()
+        if candidate.parent != expected_root or candidate.name != "receipt.json":
+            raise HTTPException(status_code=409, detail="Phonograph receipt escaped its bundle")
+        if not candidate.is_file():
+            raise HTTPException(status_code=404, detail="Phonograph receipt is missing")
+        return FileResponse(candidate, media_type="application/json")
 
     @app.post("/api/doorhouse/receipts/{receipt_id}/radio/assemble")
     def doorhouse_radio_assemble(receipt_id: str, request: Request):
