@@ -934,10 +934,35 @@ def create_app(config: WorkbenchConfig | None = None) -> FastAPI:
     def doorhouse_phonograph_field_answer(receipt_id: str, request: Request):
         _creator_write_guard(request)
         window = _doorhouse_call(lambda: doorhouse.latest_audio_window(receipt_id))
+        materialized = window["snapshot"]
+        lineage = materialized.get("source_lineage")
+        if (
+            isinstance(lineage, dict)
+            and lineage.get("schema")
+                == "workbench.phonograph-reentry-lineage/v0"
+        ):
+            current_window_id = materialized.get("window_id")
+            house_state = doorhouse.state()
+            fresh_cross_read = any(
+                str(item.get("kind", "")).startswith(
+                    "audio_look_twice_dialogue:"
+                )
+                and item.get("snapshot", {}).get("window_id")
+                    == current_window_id
+                for item in house_state.get("external_witnesses", [])
+            )
+            if not fresh_cross_read:
+                raise HTTPException(
+                    status_code=409,
+                    detail=(
+                        "Phonograph descendant requires a fresh sealed radio "
+                        "cross-read before another musical answer"
+                    ),
+                )
         try:
             repos = discover_repositories(config.roots, config.max_repo_depth)
             result = run_phonograph_field_answer(
-                window["snapshot"],
+                materialized,
                 repos,
                 config.state_dir,
                 receipt_id,
