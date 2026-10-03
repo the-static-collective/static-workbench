@@ -15,7 +15,13 @@ from .world_entry import WorldEntry
 from .doorhouse import DoorHouse, DoorHouseConflict, DoorHouseMissing
 from .doorhouse_relatte import RelatteApertureError, run_relatte_aperture
 from .doorhouse_ghot import GHotApertureError, discover_ghot_bodies, assign_ghot_body
-from .doorhouse_autodisco import AutodiscoApertureError, run_first_encounter
+from .doorhouse_autodisco import (
+    AutodiscoApertureError,
+    prepare_look_twice,
+    run_first_encounter,
+    run_look_twice_dialogue,
+    run_look_twice_encounters,
+)
 
 import uvicorn
 from fastapi import FastAPI, HTTPException, Query, Request
@@ -646,6 +652,95 @@ def create_app(config: WorkbenchConfig | None = None) -> FastAPI:
             "status": result["status"],
             "model_used": result.get("model_used"),
             "response_sha256": result.get("response_sha256"),
+        })
+        return state
+
+    @app.post("/api/doorhouse/receipts/{receipt_id}/autodisco/look-twice/prepare")
+    def doorhouse_look_twice_prepare(receipt_id: str, request: Request):
+        _creator_write_guard(request)
+        _doorhouse_call(lambda: doorhouse.receipt(receipt_id))
+        ghot = _doorhouse_call(
+            lambda: doorhouse.external_witness(receipt_id, "ghot_execution")
+        )
+        if ghot is None:
+            raise HTTPException(
+                status_code=409,
+                detail="GHoT creative execution is required before LOOK TWICE",
+            )
+        try:
+            repos = discover_repositories(config.roots, config.max_repo_depth)
+            pair = prepare_look_twice(ghot["snapshot"], repos)
+        except AutodiscoApertureError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+        state = _doorhouse_call(
+            lambda: doorhouse.record_look_twice_pair(receipt_id, pair)
+        )
+        journal.append("doorhouse.autodisco.look_twice.prepared", {
+            "local_receipt_id": receipt_id,
+            "pair_id": pair["pair_id"],
+            "listener_ids": [
+                packet["listener"]["id"] for packet in pair["packets"]
+            ],
+        })
+        return state
+
+    @app.post("/api/doorhouse/receipts/{receipt_id}/autodisco/look-twice/encounters")
+    def doorhouse_look_twice_encounters(receipt_id: str, request: Request):
+        _creator_write_guard(request)
+        pair = _doorhouse_call(lambda: doorhouse.look_twice_pair(receipt_id))
+        try:
+            repos = discover_repositories(config.roots, config.max_repo_depth)
+            result = run_look_twice_encounters(pair, repos)
+        except AutodiscoApertureError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+        state = _doorhouse_call(
+            lambda: doorhouse.record_look_twice_encounters(receipt_id, result)
+        )
+        journal.append("doorhouse.autodisco.look_twice.encounters", {
+            "local_receipt_id": receipt_id,
+            "pair_id": pair["pair_id"],
+            "status": result["status"],
+            "first_response_ids": [
+                item["first_response_id"]
+                for item in result.get("first_responses", [])
+            ],
+            "model_used": result.get("model_used"),
+        })
+        return state
+
+    @app.post("/api/doorhouse/receipts/{receipt_id}/autodisco/look-twice/dialogue")
+    def doorhouse_look_twice_dialogue(receipt_id: str, request: Request):
+        _creator_write_guard(request)
+        pair = _doorhouse_call(lambda: doorhouse.look_twice_pair(receipt_id))
+        first_responses = _doorhouse_call(
+            lambda: doorhouse.look_twice_first_responses(receipt_id)
+        )
+        if len(first_responses) != 2:
+            raise HTTPException(
+                status_code=409,
+                detail="Two sealed first responses are required before LOOK TWICE dialogue",
+            )
+        try:
+            repos = discover_repositories(config.roots, config.max_repo_depth)
+            result = run_look_twice_dialogue(pair, first_responses, repos)
+        except AutodiscoApertureError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+        state = _doorhouse_call(
+            lambda: doorhouse.record_look_twice_dialogue(receipt_id, result)
+        )
+        journal.append("doorhouse.autodisco.look_twice.dialogue", {
+            "local_receipt_id": receipt_id,
+            "pair_id": pair["pair_id"],
+            "status": result["status"],
+            "dialogue_id": result.get("dialogue_id"),
+            "lingering_intrigue": (
+                result.get("dialogue", {}).get("lingering_intrigue")
+                if isinstance(result.get("dialogue"), dict) else None
+            ),
+            "door_seed": (
+                result.get("dialogue", {}).get("door_seed")
+                if isinstance(result.get("dialogue"), dict) else None
+            ),
         })
         return state
 
