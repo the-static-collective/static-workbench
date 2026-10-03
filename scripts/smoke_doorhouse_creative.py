@@ -23,6 +23,7 @@ from static_workbench.doorhouse_autodisco import (
     run_look_twice_encounters,
 )
 from static_workbench.doorhouse_ghot import assign_ghot_body, discover_ghot_bodies
+from static_workbench.doorhouse_dogram import run_dogram_generation_delta
 from static_workbench.doorhouse_phonograph import (
     admit_phonograph_answer_as_audio_window,
     run_phonograph_field_answer,
@@ -35,6 +36,7 @@ GHOT = ROOT / ".compat" / "GHoT"
 TOASTER = ROOT / ".compat" / "haunted-toaster"
 AUTODISCO = ROOT / ".compat" / "autodisco"
 PHONOGRAPH = ROOT / ".compat" / "haunted-phonograph"
+DOGRAM = ROOT / ".compat" / "Dogram"
 
 
 def repo(name: str, path: Path) -> RepoStatus:
@@ -179,7 +181,7 @@ def synthetic_audio_dialogue(pair: dict, firsts: list[dict]) -> dict:
 
 
 def main() -> int:
-    for path in (GHOT, TOASTER, AUTODISCO, PHONOGRAPH):
+    for path in (GHOT, TOASTER, AUTODISCO, PHONOGRAPH, DOGRAM):
         if not path.is_dir():
             raise SystemExit(f"missing integration checkout: {path}")
 
@@ -188,6 +190,7 @@ def main() -> int:
         repo("the-haunted-toaster", TOASTER),
         repo("The-AutodiscoV.20.-question-marks-", AUTODISCO),
         repo("the-haunted-phonography", PHONOGRAPH),
+        repo("Dogram", DOGRAM),
     ]
 
     with tempfile.TemporaryDirectory(prefix="doorhouse-creative-smoke-") as raw:
@@ -436,6 +439,56 @@ def main() -> int:
             for item in final["external_witnesses"]
         )
 
+        # The absence proof above stays canonical: the descendant inherited no
+        # listeners. Synthetic fixture witnesses are introduced only now so CI
+        # can exercise the downstream Dogram measurement gate.
+        child_fixture_firsts = synthetic_audio_firsts(child_pair)
+        child_fixture_encounter = {
+            "schema": "autodisco.audio-look-twice-encounter-result/v0",
+            "status": "two-first-responses-sealed",
+            "pair_id": child_pair["pair_id"],
+            "window_id": child["window_id"],
+            "first_responses": child_fixture_firsts,
+            "model_used": "ci-synthetic-model",
+            "laws": ["SYNTHETIC FIXTURE != LIVE LISTENER EVIDENCE"],
+        }
+        store.record_audio_look_twice_encounters(
+            receipt["id"], child_fixture_encounter
+        )
+        child_fixture_dialogue = synthetic_audio_dialogue(
+            child_pair, child_fixture_firsts
+        )
+        store.record_audio_look_twice_dialogue(
+            receipt["id"], child_fixture_dialogue
+        )
+
+        reentry = store.phonograph_reentry(
+            receipt["id"], child["window_id"]
+        )
+        delta = run_dogram_generation_delta(
+            audio,
+            child,
+            reentry,
+            repos,
+            state_dir,
+            receipt["id"],
+        )
+        assert delta["schema"] == "workbench.dogram-generation-delta/v0"
+        assert delta["parent_window_id"] == audio["window_id"]
+        assert delta["child_window_id"] == child["window_id"]
+        assert delta["classification"] in {
+            "MEASURED_CHANGE", "NO_MEASURED_CHANGE"
+        }
+        assert "semantic_meaning_not_measured" in delta["residuals"]
+        assert Path(delta["receipt_path"]).is_file()
+        final = store.record_dogram_generation_delta(
+            receipt["id"], delta
+        )
+        assert any(
+            item["kind"] == "dogram_generation_delta:" + child["window_id"]
+            for item in final["external_witnesses"]
+        )
+
         print(
             "creative loop smoke ok:",
             local["node_id"],
@@ -449,6 +502,8 @@ def main() -> int:
             episode["episode_digest"],
             child["window_id"],
             child_pair["pair_id"],
+            delta["dogram_receipt_hash"],
+            delta["classification"],
         )
     return 0
 
