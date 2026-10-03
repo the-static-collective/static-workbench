@@ -234,7 +234,9 @@ function renderFieldStation(){
     note.className="field-return-note";
     note.maxLength=1200;
     note.rows=2;
-    note.placeholder="Optional human note carried with this exact door…";
+    note.placeholder=door.lane==="delight"
+      ?"Optional return: what tiny thing here wants to become more "+String(door.target?.facet||"delightful")+"?"
+      :"Optional human note carried with this exact door…";
     note.setAttribute("aria-label","Optional note for "+door.label);
 
     const actions=el("div",undefined,"field-return-actions");
@@ -555,7 +557,7 @@ function renderFieldStation(){
 
   root.append(el(
     "p",
-    "The Field proposes. TAKE, crossing, admission, assignment, dispatch, execution, and receipt remain separate acts. Ambiguous dispatch is never treated as permission to retry.",
+    "The Field proposes. After witnessed consequence, Banana-Elf doors steer sideways: delightfuler, helpfuler, curiouser. They are unranked invitations, not scores. TAKE / HOLD / PASS remains the human return.",
     "field-station-law"
   ));
 }
