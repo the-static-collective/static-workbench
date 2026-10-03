@@ -67,7 +67,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: the-static-collective/The-AutodiscoV.20.-question-marks-
-          ref: 4cb5f34956090e59c0640ae0bc2675e518f69606
+          ref: 4e0b6714aaad7921961ca252f9f75f3f0f627844
           path: .compat/autodisco
           persist-credentials: false
       - name: Actual House -> GHoT -> Toaster -> Autodisco creative smoke

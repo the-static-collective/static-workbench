@@ -1,6 +1,7 @@
 "use strict";
 let token = "";
 let state = null;
+let roots = [];
 const $ = (id) => document.getElementById(id);
 
 function el(tag, text, className) {
@@ -60,6 +61,81 @@ function renderDoors(){
     actions.append(select,cross); card.append(actions); root.append(card);
   }
 }
+function renderAudioWindowForm(receipt,currentWindow){
+  const wrap=el("div",undefined,"audio-window-form");
+  const heading=el("div",currentWindow?"Cut another bounded audio window":"AUDIO WINDOW 001 · choose a bounded local specimen","audio-window-heading");
+  wrap.append(heading);
+  if(!roots.length){
+    wrap.append(el("p","No configured Workbench roots are available.","muted"));
+    return wrap;
+  }
+  const rootSelect=document.createElement("select");
+  rootSelect.setAttribute("aria-label","Workbench root");
+  for(const root of roots){
+    const option=document.createElement("option");
+    option.value=root.id;
+    option.textContent=root.id+" · "+root.path;
+    rootSelect.append(option);
+  }
+  const pathInput=document.createElement("input");
+  pathInput.type="text";
+  pathInput.placeholder="relative/path/to/song.mp3";
+  pathInput.setAttribute("aria-label","Root-relative audio path");
+
+  const currentBounds=currentWindow?.snapshot?.window?.requested_bounds||null;
+  const startInput=document.createElement("input");
+  startInput.type="number";
+  startInput.min="0";
+  startInput.step="1";
+  startInput.value=String(currentBounds?currentBounds.end_ms:0);
+  startInput.setAttribute("aria-label","Start milliseconds");
+
+  const endInput=document.createElement("input");
+  endInput.type="number";
+  endInput.min="1";
+  endInput.step="1";
+  endInput.value=String((currentBounds?currentBounds.end_ms:0)+30000);
+  endInput.setAttribute("aria-label","End milliseconds");
+
+  const labelInput=document.createElement("input");
+  labelInput.type="text";
+  labelInput.maxLength=120;
+  labelInput.value=currentWindow
+    ? String(currentWindow.snapshot.window.declared_metadata?.window_label||"window")+"-next"
+    : "window-001";
+  labelInput.setAttribute("aria-label","Opaque window label");
+
+  const cut=el("button",currentWindow?"Cut next window":"Cut bounded audio window");
+  cut.type="button";
+  cut.addEventListener("click",()=>{
+    const start=Number(startInput.value);
+    const end=Number(endInput.value);
+    const relativePath=pathInput.value.trim();
+    const label=labelInput.value.trim();
+    if(!relativePath){say("Choose a root-relative audio file path.",true);return;}
+    if(!Number.isInteger(start)||!Number.isInteger(end)||end<=start){
+      say("Audio bounds must be integer milliseconds with end > start.",true);return;
+    }
+    mutate(
+      "/api/doorhouse/receipts/"+receipt.id+"/autodisco/audio-window",
+      {
+        root_id:rootSelect.value,
+        relative_path:relativePath,
+        start_ms:start,
+        end_ms:end,
+        window_label:label
+      },
+      "The House materialized one canonical bounded audio window. No listener has heard it yet."
+    );
+  });
+
+  const fields=el("div",undefined,"audio-window-fields");
+  fields.append(rootSelect,pathInput,startInput,endInput,labelInput,cut);
+  wrap.append(fields);
+  wrap.append(el("small","root · file · start ms · end ms · opaque label","muted"));
+  return wrap;
+}
+
 function renderReceipts(){
   const root=$("receipts"); root.replaceChildren();
   if(!state.receipts.length){root.append(el("p","No crossings yet. A selection alone leaves no occurrence receipt.","muted"));return;}
@@ -72,6 +148,31 @@ function renderReceipts(){
     const lookTwiceFirsts=state.external_witnesses.filter(w=>w.receipt_id===receipt.id&&w.kind.startsWith("look_twice_first:"));
     const lookTwiceDialoguePacket=state.external_witnesses.find(w=>w.receipt_id===receipt.id&&w.kind==="look_twice_dialogue_packet");
     const lookTwiceDialogue=state.external_witnesses.find(w=>w.receipt_id===receipt.id&&w.kind==="look_twice_dialogue");
+    const audioWindows=state.external_witnesses
+      .filter(w=>w.receipt_id===receipt.id&&w.kind.startsWith("audio_window:"))
+      .sort((a,b)=>String(b.created_at).localeCompare(String(a.created_at)));
+    const audioWindow=audioWindows[0]||null;
+    const audioPairs=state.external_witnesses
+      .filter(w=>w.receipt_id===receipt.id&&w.kind.startsWith("audio_look_twice_pair:"))
+      .filter(w=>!audioWindow||w.snapshot.window_id===audioWindow.snapshot.window_id)
+      .sort((a,b)=>String(b.created_at).localeCompare(String(a.created_at)));
+    const audioPair=audioPairs[0]||null;
+    const audioPairId=audioPair?.snapshot?.pair_id||null;
+    const audioFirsts=state.external_witnesses.filter(
+      w=>w.receipt_id===receipt.id
+        && w.kind.startsWith("audio_look_twice_first:")
+        && w.snapshot.pair_id===audioPairId
+    );
+    const audioDialoguePacket=state.external_witnesses.find(
+      w=>w.receipt_id===receipt.id
+        && w.kind.startsWith("audio_look_twice_dialogue_packet:")
+        && w.snapshot.pair_id===audioPairId
+    );
+    const audioDialogue=state.external_witnesses.find(
+      w=>w.receipt_id===receipt.id
+        && w.kind.startsWith("audio_look_twice_dialogue:")
+        && w.snapshot.pair_id===audioPairId
+    );
     const ghotOffers=state.external_witnesses
       .filter(w=>w.receipt_id===receipt.id&&w.kind.startsWith("ghot_offer:"))
       .sort((a,b)=>String(b.created_at).localeCompare(String(a.created_at)));
@@ -235,6 +336,74 @@ function renderReceipts(){
       }
     }
 
+    card.append(renderAudioWindowForm(receipt,audioWindow));
+    if(audioWindow){
+      const aw=audioWindow.snapshot;
+      const bounds=aw.window.requested_bounds;
+      const duration=Math.round(aw.window.canonical_audio.duration_ms);
+      card.append(el(
+        "div",
+        "AUDIO WINDOW · "+bounds.start_ms+"–"+bounds.end_ms+" ms · "+duration+" ms canonical · "+aw.audio_sha256.slice(0,16)+"…",
+        "adapter-line"
+      ));
+
+      if(!audioPair){
+        const prepareAudio=el("button","FIRST-LISTEN RADIO · prepare two audio booths");
+        prepareAudio.type="button";
+        prepareAudio.addEventListener("click",()=>mutate(
+          "/api/doorhouse/receipts/"+receipt.id+"/autodisco/audio-look-twice/prepare",
+          {},
+          "Static Sam and Juniper now reference the same exact audio digest from separate first-listen booths."
+        ));
+        card.append(prepareAudio);
+      } else if(audioFirsts.length<2){
+        const listenTwice=el("button","Play window independently to both listeners");
+        listenTwice.type="button";
+        listenTwice.addEventListener("click",()=>mutate(
+          "/api/doorhouse/receipts/"+receipt.id+"/autodisco/audio-look-twice/encounters",
+          {},
+          "The station kept only first listens that actually occurred. Cross-read remains locked until both are sealed."
+        ));
+        card.append(listenTwice);
+        card.append(el(
+          "div",
+          "FIRST-LISTEN RADIO · "+audioFirsts.length+"/2 sealed first listens",
+          "adapter-line"
+        ));
+      } else if(!audioDialogue){
+        const crossAudio=el(
+          "button",
+          audioDialoguePacket
+            ? "Try real audio cross-read again"
+            : "Unlock audio cross-read · window stays closed"
+        );
+        crossAudio.type="button";
+        crossAudio.addEventListener("click",()=>mutate(
+          "/api/doorhouse/receipts/"+receipt.id+"/autodisco/audio-look-twice/dialogue",
+          {},
+          "The audio window stayed closed. Only the two sealed first listens entered the cross-read."
+        ));
+        card.append(crossAudio);
+        card.append(el(
+          "div",
+          audioDialoguePacket
+            ? "FIRST-LISTEN RADIO · dialogue packet sealed · no simulated exchange"
+            : "FIRST-LISTEN RADIO · 2/2 first listens sealed · cross-read unlocked",
+          "adapter-line"
+        ));
+      } else {
+        const dialogue=audioDialogue.snapshot.dialogue||{};
+        card.append(el(
+          "div",
+          "FIRST-LISTEN RADIO · cross-read sealed · lingering intrigue: "+String(Boolean(dialogue.lingering_intrigue)),
+          "adapter-line"
+        ));
+        if(dialogue.door_seed){
+          card.append(el("div","radio door seed · "+dialogue.door_seed,"adapter-line"));
+        }
+      }
+    }
+
     const details=document.createElement("details");
     details.append(el("summary","Inspect receipt + adapter truth"));
     const evidence={
@@ -252,6 +421,11 @@ function renderReceipts(){
     if(lookTwiceFirsts.length) evidence.look_twice_first_responses=lookTwiceFirsts.map(w=>w.snapshot);
     if(lookTwiceDialoguePacket) evidence.look_twice_dialogue_packet=lookTwiceDialoguePacket.snapshot;
     if(lookTwiceDialogue) evidence.look_twice_dialogue=lookTwiceDialogue.snapshot;
+    if(audioWindow) evidence.audio_window=audioWindow.snapshot;
+    if(audioPair) evidence.audio_look_twice_pair=audioPair.snapshot;
+    if(audioFirsts.length) evidence.audio_first_listens=audioFirsts.map(w=>w.snapshot);
+    if(audioDialoguePacket) evidence.audio_dialogue_packet=audioDialoguePacket.snapshot;
+    if(audioDialogue) evidence.audio_dialogue=audioDialogue.snapshot;
     details.append(el("code",JSON.stringify(evidence,null,2)));
     card.append(details); root.append(card);
   }
@@ -269,7 +443,7 @@ async function mutate(path,payload,message){
 }
 async function start(){
   try{
-    const boot=await api("/api/bootstrap"); token=boot.session_token;
+    const boot=await api("/api/bootstrap"); token=boot.session_token; roots=boot.roots||[];
     state=await api("/api/doorhouse/state"); render();
     $("enter-house").addEventListener("click",()=>mutate("/api/doorhouse/enter",{},"You entered. A sealed letter is waiting."));
     say(state.entered?"The House remembers. Nothing here chooses for you.":"The House has not been entered on this machine.");
