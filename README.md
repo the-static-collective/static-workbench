@@ -207,6 +207,12 @@ workbench receipt != project receipt
 
 Repository manifests are treated as data. Stack detection does not run install hooks, package scripts, project CLIs, or arbitrary shell commands.
 
+## Field Return 001 — the human return from a nearby door
+
+Field Station doors now support an explicit local **TAKE / HOLD / PASS** disposition. The browser binds the choice to the exact `field_state_id` the human saw; if the field changes before submission, the choice is refused as stale. Returns persist in a Workbench-owned shelf across restart without mutating DoorHouse world state.
+
+A **TAKE** produces a deterministic `workbench.field-reseed/v0` object that can be inspected, copied, or downloaded. It remains proposal-only: selection is not execution, a reseed is not admission, and no downstream project is called automatically. See [FIELD RETURN 001](docs/field-return-001.md).
+
 ## Creator Desk v0.1 — local source handoff
 
 Use **Creator Desk** in the navigator or House actions to inspect the discovered local media, research, live, and community repos through Creator Workspace-inspired workflow doors. Choose **one** discovered checkout and search its bounded Markdown/text sources. Each hit carries its configured root, repository-relative path, line, working-tree HEAD, and dirty marker; **Copy source handoff** prepares one explicitly selected excerpt for pasting into a separate Creator Workspace conversation.
