@@ -100,7 +100,20 @@ def compose_nearby_station_doors(
     repo_names = _repo_names(repos)
 
     audio_window = _latest(witnesses, "audio_window:")
-    audio_pair = _latest(witnesses, "audio_look_twice_pair:")
+    current_window_id = (
+        audio_window.get("snapshot", {}).get("window_id")
+        if audio_window is not None
+        else None
+    )
+    audio_pair = next(
+        (
+            witness
+            for witness in witnesses
+            if str(witness.get("kind", "")).startswith("audio_look_twice_pair:")
+            and witness.get("snapshot", {}).get("window_id") == current_window_id
+        ),
+        None,
+    )
     pair_id = (
         audio_pair.get("snapshot", {}).get("pair_id")
         if audio_pair is not None
