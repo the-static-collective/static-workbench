@@ -394,8 +394,16 @@ class FieldReturnStore:
                 if isinstance(admission, dict)
                 else None
             )
+            receiver_at = (
+                admit.get("admitted_at")
+                if isinstance(admit, dict)
+                else hold.get("received_at")
+                if isinstance(hold, dict)
+                else item.get("stored_at")
+            )
             summaries.append({
                 "stored_at": item.get("stored_at"),
+                "receiver_at": receiver_at,
                 "field_return_id": item.get("receipt_id"),
                 "reseed_id": crossing.get("reseed_id"),
                 "status": receiver.get("status"),
