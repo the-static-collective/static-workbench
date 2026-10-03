@@ -17,7 +17,11 @@ from .doorhouse_relatte import RelatteApertureError, run_relatte_aperture
 from .doorhouse_ghot import GHotApertureError, discover_ghot_bodies, assign_ghot_body
 from .doorhouse_autodisco import (
     AutodiscoApertureError,
+    build_audio_window,
+    prepare_audio_look_twice,
     prepare_look_twice,
+    run_audio_look_twice_dialogue,
+    run_audio_look_twice_encounters,
     run_first_encounter,
     run_look_twice_dialogue,
     run_look_twice_encounters,
@@ -110,6 +114,14 @@ class DoorHouseVersionInput(BaseModel):
 class GHotAssignmentInput(BaseModel):
     expected_offer_id: str = Field(min_length=1, max_length=200)
     selected_node_id: str = Field(min_length=1, max_length=200)
+
+
+class AudioWindowInput(BaseModel):
+    root_id: str = Field(min_length=1, max_length=64)
+    relative_path: str = Field(min_length=1, max_length=512)
+    start_ms: int = Field(ge=0, le=86_400_000)
+    end_ms: int = Field(gt=0, le=86_400_000)
+    window_label: str = Field(min_length=1, max_length=120)
 
 
 class FolioCreateInput(BaseModel):
@@ -730,6 +742,154 @@ def create_app(config: WorkbenchConfig | None = None) -> FastAPI:
         )
         journal.append("doorhouse.autodisco.look_twice.dialogue", {
             "local_receipt_id": receipt_id,
+            "pair_id": pair["pair_id"],
+            "status": result["status"],
+            "dialogue_id": result.get("dialogue_id"),
+            "lingering_intrigue": (
+                result.get("dialogue", {}).get("lingering_intrigue")
+                if isinstance(result.get("dialogue"), dict) else None
+            ),
+            "door_seed": (
+                result.get("dialogue", {}).get("door_seed")
+                if isinstance(result.get("dialogue"), dict) else None
+            ),
+        })
+        return state
+
+    @app.post("/api/doorhouse/receipts/{receipt_id}/autodisco/audio-window")
+    def doorhouse_audio_window(
+        receipt_id: str,
+        payload: AudioWindowInput,
+        request: Request,
+    ):
+        _creator_write_guard(request)
+        _doorhouse_call(lambda: doorhouse.receipt(receipt_id))
+        if payload.end_ms <= payload.start_ms:
+            raise HTTPException(status_code=400, detail="end_ms must be greater than start_ms")
+        root = _find_root(config, payload.root_id)
+        try:
+            source = resolve_under_root(root.path, payload.relative_path)
+        except (PathOutsideRoot, FileNotFoundError) as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        if not source.is_file():
+            raise HTTPException(status_code=400, detail="selected audio source is not a file")
+        try:
+            repos = discover_repositories(config.roots, config.max_repo_depth)
+            materialized = build_audio_window(
+                source,
+                receipt_id,
+                config.state_dir,
+                repos,
+                start_ms=payload.start_ms,
+                end_ms=payload.end_ms,
+                window_label=payload.window_label,
+            )
+        except AutodiscoApertureError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+        state = _doorhouse_call(
+            lambda: doorhouse.record_audio_window(receipt_id, materialized)
+        )
+        journal.append("doorhouse.autodisco.audio_window", {
+            "local_receipt_id": receipt_id,
+            "window_id": materialized["window_id"],
+            "audio_sha256": materialized["audio_sha256"],
+            "source_root": payload.root_id,
+            "source_relative_path": payload.relative_path,
+            "start_ms": payload.start_ms,
+            "end_ms": payload.end_ms,
+        })
+        return state
+
+    @app.post("/api/doorhouse/receipts/{receipt_id}/autodisco/audio-look-twice/prepare")
+    def doorhouse_audio_look_twice_prepare(receipt_id: str, request: Request):
+        _creator_write_guard(request)
+        window = _doorhouse_call(lambda: doorhouse.latest_audio_window(receipt_id))
+        try:
+            repos = discover_repositories(config.roots, config.max_repo_depth)
+            pair = prepare_audio_look_twice(window["snapshot"], repos)
+        except AutodiscoApertureError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+        state = _doorhouse_call(
+            lambda: doorhouse.record_audio_look_twice_pair(receipt_id, pair)
+        )
+        journal.append("doorhouse.autodisco.audio_look_twice.prepared", {
+            "local_receipt_id": receipt_id,
+            "window_id": pair["window_ref"]["window_id"],
+            "pair_id": pair["pair_id"],
+            "listener_ids": [
+                packet["listener"]["id"] for packet in pair["packets"]
+            ],
+        })
+        return state
+
+    @app.post("/api/doorhouse/receipts/{receipt_id}/autodisco/audio-look-twice/encounters")
+    def doorhouse_audio_look_twice_encounters(receipt_id: str, request: Request):
+        _creator_write_guard(request)
+        pair_witness = _doorhouse_call(
+            lambda: doorhouse.latest_audio_look_twice_pair(receipt_id)
+        )
+        pair = pair_witness["snapshot"]["pair"]
+        window_id = pair["window_ref"]["window_id"]
+        window = _doorhouse_call(
+            lambda: doorhouse.audio_window_for_id(receipt_id, window_id)
+        )
+        try:
+            repos = discover_repositories(config.roots, config.max_repo_depth)
+            result = run_audio_look_twice_encounters(
+                window["snapshot"],
+                pair,
+                repos,
+            )
+        except AutodiscoApertureError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+        state = _doorhouse_call(
+            lambda: doorhouse.record_audio_look_twice_encounters(
+                receipt_id, result
+            )
+        )
+        journal.append("doorhouse.autodisco.audio_look_twice.encounters", {
+            "local_receipt_id": receipt_id,
+            "window_id": window_id,
+            "pair_id": pair["pair_id"],
+            "status": result["status"],
+            "first_response_ids": [
+                item["first_response_id"]
+                for item in result.get("first_responses", [])
+            ],
+            "model_used": result.get("model_used"),
+        })
+        return state
+
+    @app.post("/api/doorhouse/receipts/{receipt_id}/autodisco/audio-look-twice/dialogue")
+    def doorhouse_audio_look_twice_dialogue(receipt_id: str, request: Request):
+        _creator_write_guard(request)
+        pair_witness = _doorhouse_call(
+            lambda: doorhouse.latest_audio_look_twice_pair(receipt_id)
+        )
+        pair = pair_witness["snapshot"]["pair"]
+        firsts = _doorhouse_call(
+            lambda: doorhouse.audio_look_twice_first_responses(
+                receipt_id, pair["pair_id"]
+            )
+        )
+        if len(firsts) != 2:
+            raise HTTPException(
+                status_code=409,
+                detail="Two sealed audio first listens are required before cross-read",
+            )
+        try:
+            repos = discover_repositories(config.roots, config.max_repo_depth)
+            result = run_audio_look_twice_dialogue(pair, firsts, repos)
+        except AutodiscoApertureError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+        state = _doorhouse_call(
+            lambda: doorhouse.record_audio_look_twice_dialogue(
+                receipt_id, result
+            )
+        )
+        journal.append("doorhouse.autodisco.audio_look_twice.dialogue", {
+            "local_receipt_id": receipt_id,
+            "window_id": pair["window_ref"]["window_id"],
             "pair_id": pair["pair_id"],
             "status": result["status"],
             "dialogue_id": result.get("dialogue_id"),
