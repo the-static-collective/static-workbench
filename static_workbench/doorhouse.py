@@ -900,6 +900,25 @@ class DoorHouse:
         if not isinstance(sealed, list) or len(sealed) != 2:
             raise DoorHouseConflict("LOOK TWICE dialogue packet lacks two sealed responses")
 
+        status = result.get("status")
+        if status == "dialogue-packet-only":
+            if result.get("dialogue") is not None or result.get("model_used") is not None:
+                raise DoorHouseConflict(
+                    "LOOK TWICE dialogue-packet-only result contains fake dialogue"
+                )
+        elif status == "dialogue-sealed":
+            dialogue = result.get("dialogue")
+            dialogue_id = result.get("dialogue_id")
+            if not isinstance(dialogue, dict) or not isinstance(dialogue_id, str):
+                raise DoorHouseConflict("LOOK TWICE sealed dialogue is incomplete")
+            if (
+                dialogue.get("lingering_intrigue") is not True
+                and dialogue.get("door_seed") is not None
+            ):
+                raise DoorHouseConflict("LOOK TWICE door seed lacks lingering intrigue")
+        else:
+            raise DoorHouseConflict("unexpected LOOK TWICE dialogue status")
+
         packet_snapshot = {
             "schema": "workbench.look-twice-dialogue-packet/v0",
             "local_receipt_id": receipt_id,
@@ -912,7 +931,7 @@ class DoorHouse:
                 if isinstance(item, dict)
             ],
             "dialogue_packet": packet,
-            "status": result.get("status"),
+            "status": status,
             "laws": [
                 "TWO SEALED FIRST RESPONSES PRECEDE DIALOGUE",
                 "ORIGINAL ARTIFACT IS NOT REOPENED",
@@ -920,6 +939,7 @@ class DoorHouse:
             ],
         }
         packet_sha = _digest(packet)
+
         with self._db() as db:
             db.execute("BEGIN IMMEDIATE")
             existing_packet = db.execute(
@@ -943,93 +963,78 @@ class DoorHouse:
                     "a different LOOK TWICE dialogue packet is already attached"
                 )
 
-            if result.get("status") == "dialogue-packet-only":
-                if result.get("dialogue") is not None or result.get("model_used") is not None:
+            if status == "dialogue-sealed":
+                dialogue = result["dialogue"]
+                dialogue_id = result["dialogue_id"]
+                snapshot = {
+                    "schema": "workbench.look-twice-dialogue/v0",
+                    "local_receipt_id": receipt_id,
+                    "pair_id": pair.get("pair_id"),
+                    "dialogue_id": dialogue_id,
+                    "dialogue_sha256": result.get("dialogue_sha256"),
+                    "model_used": result.get("model_used"),
+                    "dialogue": dialogue,
+                    "laws": [
+                        "DIALOGUE != RETROACTIVE FIRST IMPRESSION",
+                        "LINGERING INTRIGUE != SOURCE TRUTH",
+                        "DOOR SEED != CROSSING",
+                    ],
+                }
+                result_sha = _digest(result)
+                existing = db.execute(
+                    "SELECT * FROM dh_external_witnesses WHERE receipt_id=? AND kind='look_twice_dialogue'",
+                    (receipt_id,),
+                ).fetchone()
+                if existing is None:
+                    db.execute(
+                        "INSERT INTO dh_external_witnesses VALUES (?,?,?,?,?,?)",
+                        (
+                            uuid4().hex,
+                            receipt_id,
+                            "look_twice_dialogue",
+                            result_sha,
+                            _encoded(snapshot),
+                            _now(),
+                        ),
+                    )
+                    if dialogue.get("lingering_intrigue") is True:
+                        door_seed = str(dialogue.get("door_seed") or "").strip()
+                        intrigue = str(dialogue.get("intrigue_statement") or "").strip()
+                        body = (
+                            "The first responses remained sealed. Only afterward did "
+                            "Static Sam and Juniper see each other's notes."
+                        )
+                        if intrigue:
+                            body += "\n\nLINGERING — " + intrigue
+                        if door_seed:
+                            body += "\n\nDOOR SEED — " + door_seed
+                        self._create_letter(
+                            db,
+                            "They looked twice. Something was still pulling.",
+                            body,
+                            [
+                                (
+                                    door_seed or "Follow what still pulls",
+                                    "Treat the lingering intrigue as a proposal for a new bounded crossing.",
+                                    "House composition",
+                                ),
+                                (
+                                    "Carry it into sound",
+                                    "Translate the proven temporal-isolation protocol onto a bounded audio window.",
+                                    "Autodisco / First-Listen Radio",
+                                ),
+                                (
+                                    "Leave the exchange sealed",
+                                    "Preserve the dialogue without promoting its interpretation to source truth.",
+                                    "House memory",
+                                ),
+                            ],
+                            parent_crossing_id=dialogue_id,
+                        )
+                elif existing["result_sha256"] != result_sha:
                     raise DoorHouseConflict(
-                        "LOOK TWICE dialogue-packet-only result contains fake dialogue"
+                        "a different LOOK TWICE dialogue is already sealed"
                     )
-                return self.state()
-
-            if result.get("status") != "dialogue-sealed":
-                raise DoorHouseConflict("unexpected LOOK TWICE dialogue status")
-            dialogue = result.get("dialogue")
-            dialogue_id = result.get("dialogue_id")
-            if not isinstance(dialogue, dict) or not isinstance(dialogue_id, str):
-                raise DoorHouseConflict("LOOK TWICE sealed dialogue is incomplete")
-            if (
-                dialogue.get("lingering_intrigue") is not True
-                and dialogue.get("door_seed") is not None
-            ):
-                raise DoorHouseConflict("LOOK TWICE door seed lacks lingering intrigue")
-            snapshot = {
-                "schema": "workbench.look-twice-dialogue/v0",
-                "local_receipt_id": receipt_id,
-                "pair_id": pair.get("pair_id"),
-                "dialogue_id": dialogue_id,
-                "dialogue_sha256": result.get("dialogue_sha256"),
-                "model_used": result.get("model_used"),
-                "dialogue": dialogue,
-                "laws": [
-                    "DIALOGUE != RETROACTIVE FIRST IMPRESSION",
-                    "LINGERING INTRIGUE != SOURCE TRUTH",
-                    "DOOR SEED != CROSSING",
-                ],
-            }
-            result_sha = _digest(result)
-            existing = db.execute(
-                "SELECT * FROM dh_external_witnesses WHERE receipt_id=? AND kind='look_twice_dialogue'",
-                (receipt_id,),
-            ).fetchone()
-            if existing is None:
-                db.execute(
-                    "INSERT INTO dh_external_witnesses VALUES (?,?,?,?,?,?)",
-                    (
-                        uuid4().hex,
-                        receipt_id,
-                        "look_twice_dialogue",
-                        result_sha,
-                        _encoded(snapshot),
-                        _now(),
-                    ),
-                )
-                if dialogue.get("lingering_intrigue") is True:
-                    door_seed = str(dialogue.get("door_seed") or "").strip()
-                    intrigue = str(dialogue.get("intrigue_statement") or "").strip()
-                    body = (
-                        "The first responses remained sealed. Only afterward did "
-                        "Static Sam and Juniper see each other's notes."
-                    )
-                    if intrigue:
-                        body += "\n\nLINGERING — " + intrigue
-                    if door_seed:
-                        body += "\n\nDOOR SEED — " + door_seed
-                    self._create_letter(
-                        db,
-                        "They looked twice. Something was still pulling.",
-                        body,
-                        [
-                            (
-                                door_seed or "Follow what still pulls",
-                                "Treat the lingering intrigue as a proposal for a new bounded crossing.",
-                                "House composition",
-                            ),
-                            (
-                                "Carry it into sound",
-                                "Translate the proven temporal-isolation protocol onto a bounded audio window.",
-                                "Autodisco / First-Listen Radio",
-                            ),
-                            (
-                                "Leave the exchange sealed",
-                                "Preserve the dialogue without promoting its interpretation to source truth.",
-                                "House memory",
-                            ),
-                        ],
-                        parent_crossing_id=dialogue_id,
-                    )
-            elif existing["result_sha256"] != result_sha:
-                raise DoorHouseConflict(
-                    "a different LOOK TWICE dialogue is already sealed"
-                )
         return self.state()
 
     def record_relatte_witness(self, receipt_id, result):
