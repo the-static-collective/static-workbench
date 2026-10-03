@@ -395,6 +395,7 @@ class FieldReturnStore:
                 else None
             )
             summaries.append({
+                "stored_at": item.get("stored_at"),
                 "field_return_id": item.get("receipt_id"),
                 "reseed_id": crossing.get("reseed_id"),
                 "status": receiver.get("status"),
