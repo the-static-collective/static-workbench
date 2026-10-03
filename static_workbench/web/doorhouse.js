@@ -120,6 +120,7 @@ async function refreshFieldStation(){
   try{
     fieldState=await api("/api/doorhouse/field-station");
     renderFieldStation();
+    if(state?.entered) renderReceipts();
   }catch(error){
     fieldState=null;
     const root=$("field-station");
@@ -253,6 +254,19 @@ function renderReceipts(){
       .filter(w=>w.receipt_id===receipt.id&&w.kind.startsWith("audio_window:"))
       .sort((a,b)=>String(b.created_at).localeCompare(String(a.created_at)));
     const audioWindow=audioWindows[0]||null;
+    const phonographAnswer=audioWindow
+      ? state.external_witnesses.find(
+          w=>w.receipt_id===receipt.id
+            && w.kind==="phonograph_field_answer:"+audioWindow.snapshot.window_id
+        )
+      : null;
+    const phonographDoor=audioWindow
+      ? (fieldState?.nearby_doors||[]).find(
+          d=>d.kind==="ask-phonograph-answer"
+            && d.target?.receipt_id===receipt.id
+            && d.target?.window_id===audioWindow.snapshot.window_id
+        )
+      : null;
     const audioPairs=state.external_witnesses
       .filter(w=>w.receipt_id===receipt.id&&w.kind.startsWith("audio_look_twice_pair:"))
       .filter(w=>!audioWindow||w.snapshot.window_id===audioWindow.snapshot.window_id)
@@ -453,6 +467,59 @@ function renderReceipts(){
         "adapter-line"
       ));
 
+      if(phonographAnswer){
+        const pw=phonographAnswer.snapshot;
+        card.append(el(
+          "div",
+          "HAUNTED PHONOGRAPH · proposal ready · "+pw.proposal_receipt_hash.slice(0,23)+"…",
+          "adapter-line"
+        ));
+        const player=document.createElement("audio");
+        player.controls=true;
+        player.preload="metadata";
+        player.src="/api/doorhouse/receipts/"+receipt.id+"/phonograph/"
+          +encodeURIComponent(audioWindow.snapshot.window_id)+"/audition.wav";
+        player.className="phono-audition";
+        card.append(player);
+
+        const phonoActions=el("div",undefined,"door-actions");
+        const midi=document.createElement("a");
+        midi.href="/api/doorhouse/receipts/"+receipt.id+"/phonograph/"
+          +encodeURIComponent(audioWindow.snapshot.window_id)+"/answer.mid";
+        midi.target="_blank";
+        midi.rel="noopener";
+        midi.textContent="answer.mid";
+        midi.className="radio-link";
+        const phonoReceipt=document.createElement("a");
+        phonoReceipt.href="/api/doorhouse/receipts/"+receipt.id+"/phonograph/"
+          +encodeURIComponent(audioWindow.snapshot.window_id)+"/receipt.json";
+        phonoReceipt.target="_blank";
+        phonoReceipt.rel="noopener";
+        phonoReceipt.textContent="Phonograph receipt";
+        phonoReceipt.className="radio-link";
+        phonoActions.append(midi,phonoReceipt);
+        card.append(phonoActions);
+        card.append(el(
+          "div",
+          "signal facts → musical proposal · audition != admission · proposal != source evidence",
+          "adapter-line"
+        ));
+      } else if(phonographDoor){
+        const askPhono=el("button","Ask Haunted Phonograph to answer this window");
+        askPhono.type="button";
+        askPhono.addEventListener("click",()=>mutate(
+          "/api/doorhouse/receipts/"+receipt.id+"/phonograph/field-answer",
+          {},
+          "Haunted Phonograph returned one receipted musical proposal from bounded PCM facts."
+        ));
+        card.append(askPhono);
+        card.append(el(
+          "div",
+          "FIELD ANSWER 001 · signal fact != musical meaning · musical possibility != recommendation",
+          "adapter-line"
+        ));
+      }
+
       if(!audioPair){
         const prepareAudio=el("button","FIRST-LISTEN RADIO · prepare two audio booths");
         prepareAudio.type="button";
@@ -576,6 +643,7 @@ function renderReceipts(){
     if(audioFirsts.length) evidence.audio_first_listens=audioFirsts.map(w=>w.snapshot);
     if(audioDialoguePacket) evidence.audio_dialogue_packet=audioDialoguePacket.snapshot;
     if(audioDialogue) evidence.audio_dialogue=audioDialogue.snapshot;
+    if(phonographAnswer) evidence.phonograph_field_answer=phonographAnswer.snapshot;
     if(broadcastEpisode) evidence.broadcast_episode=broadcastEpisode.snapshot;
     details.append(el("code",JSON.stringify(evidence,null,2)));
     card.append(details); root.append(card);
