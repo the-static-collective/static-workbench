@@ -100,35 +100,21 @@ The persisted return still has `effect: none`. It does not mutate DoorHouse worl
 
 ## Current boundary
 
-FIELD RETURN 001 now persists **human disposition**, not project consequence.
+FIELD RETURN 001 still ends at **human disposition**. TAKE itself does not call
+another project.
 
-It still does **not**:
+A later, separately approved slice — [FIELD RESEED CROSSING 001](field-reseed-crossing-001.md) —
+can now carry an already-persisted TAKE reseed through version-pinned reLATTE
+into GHoT RECEIVE → HOLD, followed by a second explicit receiver-local
+admission action.
 
-- execute a Field target;
-- call another project merely because TAKE was chosen;
-- send a reLATTE crossing;
-- write TranchNode continuity;
-- imply that a downstream organ accepted the reseed;
-- convert HOLD or PASS into hidden scheduling or suppression behavior.
-
-Those are separate seams and should be proved separately.
-
-## Next breach
-
-The next honest native slice is one explicit receiver:
+That separation is intentional:
 
 ```text
-proposal-only field reseed
-    ↓
-version-pinned receiver boundary
-    ↓
-RECEIVE
-    ↓
-HOLD by default
-    ↓
-destination-local human admission
-    ↓
-destination-local consequence
+TAKE != CROSSING
+CROSSING != ADMISSION
+ADMISSION != EXECUTION
 ```
 
-That would turn “carry this door forward” into a genuine cross-organ crossing without making the Workbench the authority that decides what the receiving organ must do.
+HOLD and PASS never acquire hidden scheduling, transport, suppression, or
+execution behavior.

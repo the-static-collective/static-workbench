@@ -20,3 +20,7 @@
 .field-return-time{font:9px ui-monospace,monospace;color:var(--muted)}
 .field-return-human-note{margin:8px 0 0!important;color:var(--ink)!important}
 .field-door-card[data-lane="dogram"]{border-top-color:#8da1b5}
+
+.field-door-card[data-lane="carried"]{border-top-color:#c39a68;background:#15140f}
+.field-return-actions button[data-disposition="admit"]{border-color:#c39a68;color:#e4c39c}
+.field-receiver-status{margin-top:9px;border:1px solid var(--line-soft);border-radius:7px;padding:7px 9px;background:#13150f;font:10px ui-monospace,monospace;color:#d4b48e;letter-spacing:.025em}
