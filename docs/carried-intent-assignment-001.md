@@ -158,6 +158,10 @@ The smoke now proves:
 9. changed Field after assignment;
 10. no task or execution receipt.
 
-The next seam, if opened, must therefore begin from the assignment receipt and
-create a **new explicit dispatch/execution crossing**. It may not infer execution
-from assignment.
+That next seam is now implemented separately in
+[CARRIED INTENT DISPATCH 001](carried-intent-dispatch-001.md). It begins from
+the durable assignment receipt, requires a new explicit human dispatch action,
+creates a signed crossing before execution, and returns a signed consequence
+receipt.
+
+Assignment itself remains non-executing.
