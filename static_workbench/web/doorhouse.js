@@ -2,6 +2,7 @@
 let token = "";
 let state = null;
 let fieldState = null;
+let fieldReturns = [];
 let roots = [];
 const $ = (id) => document.getElementById(id);
 
@@ -25,6 +26,42 @@ async function api(path, payload) {
   return data;
 }
 function say(text, bad=false){$("status").textContent=text;$("status").style.color=bad?"var(--danger)":"var(--muted)";}
+
+async function copyJson(value){
+  const text=JSON.stringify(value,null,2);
+  await navigator.clipboard.writeText(text);
+  say("Copied exact JSON to the clipboard.");
+}
+
+function downloadJson(value, filename){
+  const blob=new Blob([JSON.stringify(value,null,2)+"\n"],{type:"application/json"});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement("a");
+  a.href=url;
+  a.download=filename;
+  document.body.append(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
+
+async function returnFieldDoor(door, disposition, noteInput){
+  try{
+    const result=await api("/api/doorhouse/field-station/returns",{
+      expected_field_state_id:fieldState.field_state_id,
+      door_id:door.door_id,
+      disposition,
+      note:noteInput.value
+    });
+    const noun=result.reseed?"Return saved; exact reseed is ready.":"Return saved.";
+    say(noun);
+    await refreshFieldStation();
+  }catch(error){
+    say(error.message,true);
+    await refreshFieldStation();
+  }
+}
+
 function latestOpenLetter() {
   const newest = state.letters[0];
   return newest && newest.opened_at ? newest : null;
@@ -106,23 +143,98 @@ function renderFieldStation(){
       laws:door.laws
     },null,2)));
     card.append(details);
+
+    const note=document.createElement("textarea");
+    note.className="field-return-note";
+    note.maxLength=1200;
+    note.rows=2;
+    note.placeholder="Optional human note carried with this exact door…";
+    note.setAttribute("aria-label","Optional note for "+door.label);
+
+    const actions=el("div",undefined,"field-return-actions");
+    for(const disposition of ["take","hold","pass"]){
+      const button=el("button",disposition.toUpperCase());
+      button.type="button";
+      button.dataset.disposition=disposition;
+      button.addEventListener("click",()=>returnFieldDoor(door,disposition,note));
+      actions.append(button);
+    }
+    card.append(note,actions);
     doors.append(card);
   }
   root.append(doors);
+
+  const shelf=el("section",undefined,"field-return-shelf");
+  shelf.append(el("div","FIELD RETURNS · HUMAN DISPOSITION","field-return-heading"));
+  if(!fieldReturns.length){
+    shelf.append(el("p","No Field returns yet. TAKE, HOLD, or PASS binds your choice to the exact field you saw.","muted"));
+  }
+  for(const receipt of fieldReturns.slice(0,12)){
+    const card=el("article",undefined,"field-return-card");
+    const lane=receipt.selected_door?.lane||"field";
+    card.dataset.disposition=receipt.disposition;
+    card.append(
+      el("small",receipt.disposition.toUpperCase()+" · "+String(lane).toUpperCase(),"field-door-lane"),
+      el("strong",receipt.selected_door?.label||receipt.door_id),
+      el("div",receipt.stored_at||"","field-return-time")
+    );
+    if(receipt.human_note){
+      card.append(el("p",receipt.human_note,"field-return-human-note"));
+    }
+
+    const exact=document.createElement("details");
+    exact.append(el("summary","Inspect exact return receipt"));
+    exact.append(el("code",JSON.stringify(receipt,null,2)));
+    card.append(exact);
+
+    const actions=el("div",undefined,"field-return-actions");
+    const copyReceipt=el("button","Copy receipt");
+    copyReceipt.type="button";
+    copyReceipt.addEventListener("click",()=>copyJson(receipt).catch(error=>say(error.message,true)));
+    actions.append(copyReceipt);
+
+    if(receipt.reseed){
+      const copySeed=el("button","Copy reseed");
+      copySeed.type="button";
+      copySeed.addEventListener("click",()=>copyJson(receipt.reseed).catch(error=>say(error.message,true)));
+      const downloadSeed=el("button","Download reseed");
+      downloadSeed.type="button";
+      downloadSeed.addEventListener("click",()=>downloadJson(
+        receipt.reseed,
+        String(receipt.reseed.reseed_id||"field-reseed").replaceAll(":","-")+".json"
+      ));
+      actions.append(copySeed,downloadSeed);
+
+      const seed=document.createElement("details");
+      seed.append(el("summary","Inspect proposal-only reseed"));
+      seed.append(el("code",JSON.stringify(receipt.reseed,null,2)));
+      card.append(seed);
+    }
+    card.append(actions);
+    shelf.append(card);
+  }
+  root.append(shelf);
+
   root.append(el(
     "p",
-    "Field doors are read-only proposals. Nothing here selects, crosses, plays, broadcasts, or mutates the House.",
+    "The Field proposes. TAKE / HOLD / PASS is human disposition, not project execution. A TAKE reseed remains proposal-only until a destination explicitly admits it.",
     "field-station-law"
   ));
 }
 
 async function refreshFieldStation(){
   try{
-    fieldState=await api("/api/doorhouse/field-station");
+    const [nextField,returnPayload]=await Promise.all([
+      api("/api/doorhouse/field-station"),
+      api("/api/doorhouse/field-station/returns")
+    ]);
+    fieldState=nextField;
+    fieldReturns=returnPayload.returns||[];
     renderFieldStation();
     if(state?.entered) renderReceipts();
   }catch(error){
     fieldState=null;
+    fieldReturns=[];
     const root=$("field-station");
     if(root){
       root.replaceChildren(el("p","Field unavailable · "+error.message,"muted"));
