@@ -64,13 +64,18 @@ function renderReceipts(){
   const root=$("receipts"); root.replaceChildren();
   if(!state.receipts.length){root.append(el("p","No crossings yet. A selection alone leaves no occurrence receipt.","muted"));return;}
   for(const receipt of state.receipts){
-    const witness=state.external_witnesses.find(w=>w.receipt_id===receipt.id&&w.kind==="relatte");
+    const relatte=state.external_witnesses.find(w=>w.receipt_id===receipt.id&&w.kind==="relatte");
+    const ghotExecution=state.external_witnesses.find(w=>w.receipt_id===receipt.id&&w.kind==="ghot_execution");
+    const ghotOffers=state.external_witnesses
+      .filter(w=>w.receipt_id===receipt.id&&w.kind.startsWith("ghot_offer:"))
+      .sort((a,b)=>String(b.created_at).localeCompare(String(a.created_at)));
+    const ghotOffer=ghotOffers[0]||null;
     const card=el("article",undefined,"receipt-card");
     card.append(el("strong","World "+receipt.world_before+" → "+receipt.world_after));
     card.append(el("div",receipt.snapshot.artifact.title));
-    if(witness){
-      const badge=el("div","reLATTE · RECEIVED → HOLD · semantic effect: none","adapter-line");
-      card.append(badge);
+
+    if(relatte){
+      card.append(el("div","reLATTE · RECEIVED → HOLD · semantic effect: none","adapter-line"));
     } else {
       const send=el("button","Cross through reLATTE → HOLD");
       send.type="button";
@@ -81,6 +86,60 @@ function renderReceipts(){
       ));
       card.append(send);
     }
+
+    if(relatte && !ghotExecution){
+      if(!ghotOffer){
+        const discover=el("button","Ask GHoT which bodies are awake");
+        discover.type="button";
+        discover.addEventListener("click",()=>mutate(
+          "/api/doorhouse/receipts/"+receipt.id+"/ghot/offers",
+          {},
+          "GHoT returned a body offer. No body has been assigned."
+        ));
+        card.append(discover);
+      } else {
+        const offer=ghotOffer.snapshot;
+        const eligible=(offer.candidates||[]).filter(candidate=>candidate.eligible===true);
+        const noun=eligible.length===1?"body":"bodies";
+        card.append(el("div",eligible.length+" "+noun+" awake and able to run "+offer.capability+".","adapter-line"));
+        const actions=el("div",undefined,"door-actions");
+        for(const candidate of eligible){
+          const label=candidate.hostname
+            ? candidate.hostname+" · "+candidate.node_id.slice(0,18)
+            : candidate.node_id;
+          const choose=el("button","Assign "+label);
+          choose.type="button";
+          choose.addEventListener("click",()=>mutate(
+            "/api/doorhouse/receipts/"+receipt.id+"/ghot/assign",
+            {expected_offer_id:offer.offer_id,selected_node_id:candidate.node_id},
+            "GHoT executed on the body you selected and returned its receipt."
+          ));
+          actions.append(choose);
+        }
+        const refresh=el("button","Refresh body offers");
+        refresh.type="button";
+        refresh.addEventListener("click",()=>mutate(
+          "/api/doorhouse/receipts/"+receipt.id+"/ghot/offers",
+          {},
+          "GHoT refreshed the body offer. No assignment was implied."
+        ));
+        actions.append(refresh);
+        card.append(actions);
+        if(!eligible.length){
+          card.append(el("p","No currently observed body is eligible. Refresh after a body wakes or offers the capability.","muted"));
+        }
+      }
+    }
+
+    if(ghotExecution){
+      const gw=ghotExecution.snapshot;
+      card.append(el(
+        "div",
+        "GHoT · "+gw.executor_node_id+" · "+gw.capability+" · "+gw.status,
+        "adapter-line"
+      ));
+    }
+
     const details=document.createElement("details");
     details.append(el("summary","Inspect receipt + adapter truth"));
     const evidence={
@@ -89,7 +148,9 @@ function renderReceipts(){
       adapters:receipt.snapshot.adapters,
       receipt_sha256:receipt.sha256
     };
-    if(witness) evidence.relatte_witness=witness.snapshot;
+    if(relatte) evidence.relatte_witness=relatte.snapshot;
+    if(ghotOffer) evidence.ghot_offer=ghotOffer.snapshot;
+    if(ghotExecution) evidence.ghot_execution=ghotExecution.snapshot;
     details.append(el("code",JSON.stringify(evidence,null,2)));
     card.append(details); root.append(card);
   }
