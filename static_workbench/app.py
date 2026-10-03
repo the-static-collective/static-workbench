@@ -12,6 +12,8 @@ from .maddloop import MaddloopStore, LoopConflict, LoopMissing
 from .machine_book import MachineBook, BookMissing, BookConflict
 from .first_door import FirstDoor, ArgConflict, ArgMissing
 from .world_entry import WorldEntry
+from .doorhouse import DoorHouse, DoorHouseConflict, DoorHouseMissing
+from .doorhouse_relatte import RelatteApertureError, run_relatte_aperture
 
 import uvicorn
 from fastapi import FastAPI, HTTPException, Query, Request
@@ -91,6 +93,10 @@ class WorldPlayInput(BaseModel):
     expected_room: Literal["threshold", "workshop", "garden", "archive"]
     target: Literal["threshold", "workshop", "garden", "archive",
                     "rule", "machine", "seed", "chronicle"]
+
+
+class DoorHouseVersionInput(BaseModel):
+    expected_world_version: int = Field(ge=0)
 
 
 class FolioCreateInput(BaseModel):
@@ -227,6 +233,7 @@ def create_app(config: WorkbenchConfig | None = None) -> FastAPI:
     machine_book = MachineBook(config.state_dir / "machine_book.sqlite3", config.state_dir / "maddloop.sqlite3")
     first_door = FirstDoor(config.state_dir / "static_arg.sqlite3")
     world_entry = WorldEntry(config.state_dir / "static_arg.sqlite3")
+    doorhouse = DoorHouse(config.state_dir / "doorhouse.sqlite3")
     session_token = secrets.token_urlsafe(32)
 
     @asynccontextmanager
@@ -264,6 +271,10 @@ def create_app(config: WorkbenchConfig | None = None) -> FastAPI:
     @app.get("/arg/world", include_in_schema=False)
     def static_arg_world_page():
         return FileResponse(web_dir / "arg-world.html")
+
+    @app.get("/doorhouse", include_in_schema=False)
+    def doorhouse_page():
+        return FileResponse(web_dir / "doorhouse.html")
 
     @app.get("/lifestream", include_in_schema=False)
     def lifestream_page():
@@ -452,6 +463,79 @@ def create_app(config: WorkbenchConfig | None = None) -> FastAPI:
         journal.append("arg.world.explored", {
             "world_id": world_id, "action": payload.action,
             "room_id": state["room_id"],
+        })
+        return state
+
+    # HOUSE-REMEMBERS-DOORS-001: local playable crossing loop.
+    def _doorhouse_call(action):
+        try:
+            return action()
+        except DoorHouseMissing as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+        except DoorHouseConflict as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+    @app.get("/api/doorhouse/state")
+    def doorhouse_state():
+        return doorhouse.state()
+
+    @app.post("/api/doorhouse/enter")
+    def doorhouse_enter(request: Request):
+        _creator_write_guard(request)
+        result = _doorhouse_call(doorhouse.enter)
+        journal.append("doorhouse.entered", {"world_version": result["world_version"]})
+        return result
+
+    @app.post("/api/doorhouse/letters/{letter_id}/open")
+    def doorhouse_open(letter_id: str, request: Request):
+        _creator_write_guard(request)
+        result = _doorhouse_call(lambda: doorhouse.open_letter(letter_id))
+        journal.append("doorhouse.letter.opened", {"letter_id": letter_id})
+        return result
+
+    @app.post("/api/doorhouse/doors/{door_id}/select")
+    def doorhouse_select(door_id: str, payload: DoorHouseVersionInput, request: Request):
+        _creator_write_guard(request)
+        result = _doorhouse_call(
+            lambda: doorhouse.select(door_id, payload.expected_world_version)
+        )
+        journal.append("doorhouse.door.selected", {
+            "door_id": door_id, "world_version": result["world_version"],
+        })
+        return result
+
+    @app.post("/api/doorhouse/doors/{door_id}/cross")
+    def doorhouse_cross(door_id: str, payload: DoorHouseVersionInput, request: Request):
+        _creator_write_guard(request)
+        result = _doorhouse_call(
+            lambda: doorhouse.cross(door_id, payload.expected_world_version)
+        )
+        receipt = result["receipts"][0]
+        journal.append("doorhouse.crossing.completed", {
+            "door_id": door_id,
+            "receipt_id": receipt["id"],
+            "world_before": receipt["world_before"],
+            "world_after": receipt["world_after"],
+        })
+        return result
+
+    @app.post("/api/doorhouse/receipts/{receipt_id}/relatte")
+    def doorhouse_relatte(receipt_id: str, request: Request):
+        _creator_write_guard(request)
+        receipt = _doorhouse_call(lambda: doorhouse.receipt(receipt_id))
+        try:
+            repos = discover_repositories(config.roots, config.max_repo_depth)
+            result = run_relatte_aperture(receipt, config.state_dir, repos)
+        except RelatteApertureError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+        state = _doorhouse_call(
+            lambda: doorhouse.record_relatte_witness(receipt_id, result)
+        )
+        journal.append("doorhouse.relatte.held", {
+            "local_receipt_id": receipt_id,
+            "crossing_id": result["crossing"]["crossing_id"],
+            "receive_receipt_id": result["receive_receipt"]["receipt_id"],
+            "hold_receipt_id": result["disposition_receipt"]["receipt_id"],
         })
         return state
 
