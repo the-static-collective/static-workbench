@@ -31,3 +31,6 @@
 .field-return-actions button[data-disposition="assign"]{border-color:#c39a68;color:#e4c39c}
 
 .field-return-actions button[data-disposition="dispatch"]{border-color:#b66d5b;color:#efb6aa}
+
+.field-door-card[data-lane="delight"]{border-top-color:#d0b85f;background:#15150d}
+.field-door-card[data-lane="delight"] .field-door-lane{color:#d8c978}
