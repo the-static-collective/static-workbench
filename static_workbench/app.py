@@ -552,7 +552,7 @@ def create_app(config: WorkbenchConfig | None = None) -> FastAPI:
         relatte = _doorhouse_call(lambda: doorhouse.require_relatte_hold(receipt_id))
         try:
             repos = discover_repositories(config.roots, config.max_repo_depth)
-            offer = discover_ghot_bodies(receipt, relatte, repos)
+            offer = discover_ghot_bodies(receipt, relatte, repos, config.state_dir)
         except GHotApertureError as exc:
             raise HTTPException(status_code=409, detail=str(exc)) from exc
         state = _doorhouse_call(
@@ -594,6 +594,7 @@ def create_app(config: WorkbenchConfig | None = None) -> FastAPI:
                 offer,
                 payload.selected_node_id,
                 repos,
+                config.state_dir,
             )
         except GHotApertureError as exc:
             raise HTTPException(status_code=409, detail=str(exc)) from exc
