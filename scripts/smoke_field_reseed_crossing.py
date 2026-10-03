@@ -10,7 +10,9 @@ from static_workbench.field_reseed_crossing import (
     GHOT_REVISION,
     RELATTE_REVISION,
     admit_field_reseed,
+    assign_field_reseed_intent,
     cross_field_reseed,
+    offer_field_reseed_assignment,
 )
 from static_workbench.field_return import FieldReturnStore, compose_field_return
 from static_workbench.field_station import compose_nearby_station_doors
@@ -139,24 +141,116 @@ def main() -> int:
             door for door in admitted_field["nearby_doors"]
             if door["lane"] == "carried"
         )
-        assert inspect["kind"] == "inspect-ghot-carried-intent"
+        assert inspect["kind"] == "offer-ghot-carried-intent-assignment"
         assert inspect["effect"] == "none"
+        assert inspect["target"]["control"] == "ghot-field-intent-offer"
         assert admitted_field["field_state_id"] != held_field["field_state_id"]
         assert admitted_field["nearby_doors"][-1]["kind"] == "hold-silence"
 
-        # The first receiver-local consequence is durable inbox state, not work.
+        # Admission remains distinct from assignment. First open the exact
+        # unranked current GHoT body/capability field.
         ghot_home = state_dir / "field-reseed-ghot"
+        records = ghot_home / "records"
+        before_execution_records = (
+            sorted(
+                path.name for path in records.iterdir()
+                if "-task-" in path.name or "-receipt-" in path.name
+            )
+            if records.is_dir()
+            else []
+        )
+
+        offered = offer_field_reseed_assignment(
+            admitted["admission"],
+            state_dir,
+            repos,
+        )
+        assert offered["status"] == "OFFER_READY"
+        assert offered["semantic_effect"] == "none"
+        assert '"score"' not in __import__("json").dumps(offered)
+        offered_state = store.save_assignment_offer(
+            stored["receipt_id"],
+            offered,
+        )
+        assert offered_state["status"] == "OFFER_READY"
+
+        offer_field = compose(store.receiver_field_state())
+        choose = next(
+            door for door in offer_field["nearby_doors"]
+            if door["lane"] == "carried"
+        )
+        assert choose["kind"] == "choose-ghot-carried-intent-assignment"
+        assert choose["target"]["control"] == "ghot-field-intent-assign"
+
+        ghot_offer = offered["ghot_offer"]
+        local = next(
+            body for body in ghot_offer["bodies"]
+            if body.get("location") == "local"
+        )
+        selected = next(
+            item for item in local["offers"]
+            if item.get("capability") == "system.hash"
+            and item.get("eligible") is True
+        )
+        assignment = assign_field_reseed_intent(
+            admitted["admission"],
+            offered,
+            local["node_id"],
+            selected["capability"],
+            state_dir,
+            repos,
+        )
+        assert assignment["status"] == "ASSIGNED_NOT_EXECUTED"
+        assert assignment["semantic_effect"] == "receiver-assignment-only"
+        ghot_assignment = assignment["ghot_assignment"]
+        assert ghot_assignment["status"] == "ASSIGNED_NOT_EXECUTED"
+        assert ghot_assignment["selected_node_id"] == local["node_id"]
+        assert ghot_assignment["capability"] == "system.hash"
+
+        assigned_state = store.save_assignment(
+            stored["receipt_id"],
+            assignment,
+        )
+        assert assigned_state["status"] == "ASSIGNED_NOT_EXECUTED"
+
+        assigned_field = compose(store.receiver_field_state())
+        inspect_assignment = next(
+            door for door in assigned_field["nearby_doors"]
+            if door["lane"] == "carried"
+        )
+        assert (
+            inspect_assignment["kind"]
+            == "inspect-ghot-carried-intent-assignment"
+        )
+        assert inspect_assignment["effect"] == "none"
+        assert assigned_field["field_state_id"] != offer_field["field_state_id"]
+
+        after_execution_records = (
+            sorted(
+                path.name for path in records.iterdir()
+                if "-task-" in path.name or "-receipt-" in path.name
+            )
+            if records.is_dir()
+            else []
+        )
+        assert after_execution_records == before_execution_records
+
+        # The receiver consequences are durable state, not execution.
         assert (ghot_home / "field-reseed-inbox").is_dir()
         assert not (ghot_home / "executions").exists()
 
         print(
-            "field reseed crossing smoke ok:",
+            "field reseed assignment metabolism smoke ok:",
             stored["receipt_id"],
             stored["reseed"]["reseed_id"],
             crossing["relatte"]["crossing"]["crossing_id"],
             crossing["ghot_hold"]["hold_id"],
             admission["ghot_admission"]["admission_id"],
             intent["intent_id"],
+            ghot_offer["offer_id"],
+            ghot_assignment["assignment_id"],
+            ghot_assignment["selected_node_id"],
+            ghot_assignment["capability"],
         )
     return 0
 
