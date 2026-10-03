@@ -23,7 +23,10 @@ from static_workbench.doorhouse_autodisco import (
     run_look_twice_encounters,
 )
 from static_workbench.doorhouse_ghot import assign_ghot_body, discover_ghot_bodies
-from static_workbench.doorhouse_dogram import run_dogram_generation_delta
+from static_workbench.doorhouse_dogram import (
+    run_dogram_generation_delta,
+    run_dogram_listener_delta,
+)
 from static_workbench.doorhouse_phonograph import (
     admit_phonograph_answer_as_audio_window,
     run_phonograph_field_answer,
@@ -100,28 +103,48 @@ def write_test_wav(path: Path, duration_seconds: float = 2.0) -> None:
         handle.writeframes(bytes(payload))
 
 
-def synthetic_audio_firsts(pair: dict) -> list[dict]:
+def synthetic_audio_firsts(
+    pair: dict,
+    generation: str = "parent",
+) -> list[dict]:
     script = r"""
 import fs from 'node:fs';
 import { sealAudioFirstResponse } from './scripts/audio-look-twice.mjs';
-const pair = JSON.parse(fs.readFileSync(0, 'utf8'));
-const make = (label) => ({
-  observations: [
-    {mode:'OBSERVED', text: label + ': a repeated pulse is audible.'},
-    {mode:'INTERPRETATION', text: label + ': the cutoff feels unresolved.'}
-  ],
-  lingering_intrigue: true,
-  closing_line: label + ': I want the next window.'
-});
+const payload = JSON.parse(fs.readFileSync(0, 'utf8'));
+const pair = payload.pair;
+const generation = payload.generation;
+const make = (label) => generation === 'child'
+  ? ({
+      observations: [
+        {mode:'OBSERVED', text: label + ': a repeated pulse is audible.'},
+        {mode:'OBSERVED', text: label + ': the cutoff lands sooner.'},
+        {mode:'DERIVED', text: label + ': the ending is more compact.'}
+      ],
+      lingering_intrigue: false,
+      closing_line: label + ': the cut now lands.'
+    })
+  : ({
+      observations: [
+        {mode:'OBSERVED', text: label + ': a repeated pulse is audible.'},
+        {mode:'INTERPRETATION', text: label + ': the cutoff feels unresolved.'}
+      ],
+      lingering_intrigue: true,
+      closing_line: label + ': I want the next window.'
+    });
 const out = pair.packets.map((packet, index) =>
-  sealAudioFirstResponse(pair, packet.packet_id, make(index === 0 ? 'Sam' : 'Juniper'), 'ci-synthetic-model')
+  sealAudioFirstResponse(
+    pair,
+    packet.packet_id,
+    make(index === 0 ? 'Sam' : 'Juniper'),
+    'ci-synthetic-model'
+  )
 );
 process.stdout.write(JSON.stringify(out));
 """
     completed = subprocess.run(
         ["node", "--input-type=module", "-e", script],
         cwd=AUTODISCO,
-        input=json.dumps(pair),
+        input=json.dumps({"pair": pair, "generation": generation}),
         text=True,
         capture_output=True,
         check=True,
@@ -442,7 +465,9 @@ def main() -> int:
         # The absence proof above stays canonical: the descendant inherited no
         # listeners. Synthetic fixture witnesses are introduced only now so CI
         # can exercise the downstream Dogram measurement gate.
-        child_fixture_firsts = synthetic_audio_firsts(child_pair)
+        child_fixture_firsts = synthetic_audio_firsts(
+            child_pair, "child"
+        )
         child_fixture_encounter = {
             "schema": "autodisco.audio-look-twice-encounter-result/v0",
             "status": "two-first-responses-sealed",
@@ -489,6 +514,46 @@ def main() -> int:
             for item in final["external_witnesses"]
         )
 
+        parent_firsts = store.audio_look_twice_first_responses(
+            receipt["id"], audio_pair["pair_id"]
+        )
+        child_firsts = store.audio_look_twice_first_responses(
+            receipt["id"], child_pair["pair_id"]
+        )
+        listener_delta = run_dogram_listener_delta(
+            parent_firsts,
+            child_firsts,
+            reentry,
+            delta,
+            repos,
+            state_dir,
+            receipt["id"],
+        )
+        assert (
+            listener_delta["schema"]
+            == "workbench.dogram-listener-delta/v0"
+        )
+        assert (
+            listener_delta["classification"]
+            == "MEASURED_RESPONSE_CHANGE"
+        )
+        assert listener_delta["listener_count"] == 2
+        assert listener_delta["changed_listener_count"] == 2
+        assert "closing_line" in listener_delta["shared_changed_axes"]
+        assert (
+            "audio_change_causality_not_established"
+            in listener_delta["residuals"]
+        )
+        assert Path(listener_delta["receipt_path"]).is_file()
+        final = store.record_dogram_listener_delta(
+            receipt["id"], listener_delta
+        )
+        assert any(
+            item["kind"]
+                == "dogram_listener_delta:" + child["window_id"]
+            for item in final["external_witnesses"]
+        )
+
         print(
             "creative loop smoke ok:",
             local["node_id"],
@@ -504,6 +569,8 @@ def main() -> int:
             child_pair["pair_id"],
             delta["dogram_receipt_hash"],
             delta["classification"],
+            listener_delta["dogram_receipt_hash"],
+            listener_delta["classification"],
         )
     return 0
 

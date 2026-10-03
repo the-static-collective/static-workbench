@@ -1128,6 +1128,26 @@ class DoorHouse:
         item["snapshot"] = json.loads(item["snapshot"])
         return item
 
+    def audio_look_twice_pair_for_window(self, receipt_id, window_id):
+        self.receipt(receipt_id)
+        with self._db() as db:
+            rows = db.execute(
+                """SELECT * FROM dh_external_witnesses
+                   WHERE receipt_id=?
+                     AND kind LIKE 'audio_look_twice_pair:%'
+                   ORDER BY rowid DESC""",
+                (receipt_id,),
+            ).fetchall()
+        for row in rows:
+            snapshot = json.loads(row["snapshot"])
+            if snapshot.get("window_id") == window_id:
+                item = dict(row)
+                item["snapshot"] = snapshot
+                return item
+        raise DoorHouseMissing(
+            "audio LOOK TWICE pair for window is not available"
+        )
+
     def record_audio_look_twice_pair(self, receipt_id, pair):
         window_witness = self.latest_audio_window(receipt_id)
         materialized = window_witness["snapshot"]
@@ -2011,6 +2031,186 @@ class DoorHouse:
         )
         if witness is None:
             raise DoorHouseMissing("Dogram generation delta is not available")
+        return witness["snapshot"]
+
+    def record_dogram_listener_delta(self, receipt_id, result):
+        receipt = self.receipt(receipt_id)
+        if (
+            not isinstance(result, dict)
+            or result.get("schema") != "workbench.dogram-listener-delta/v0"
+            or result.get("status") != "measured"
+        ):
+            raise DoorHouseConflict("invalid Dogram listener-delta result")
+
+        parent_window_id = result.get("parent_window_id")
+        child_window_id = result.get("child_window_id")
+        if (
+            not isinstance(parent_window_id, str)
+            or not isinstance(child_window_id, str)
+            or parent_window_id == child_window_id
+        ):
+            raise DoorHouseConflict("Dogram listener generation identities are invalid")
+
+        reentry = self.phonograph_reentry(receipt_id, child_window_id)
+        generation = self.dogram_generation_delta(
+            receipt_id, child_window_id
+        )
+        if (
+            reentry.get("parent_window_id") != parent_window_id
+            or reentry.get("proposal_receipt_hash")
+                != result.get("proposal_receipt_hash")
+            or generation.get("parent_window_id") != parent_window_id
+            or generation.get("child_window_id") != child_window_id
+            or generation.get("dogram_receipt_hash")
+                != result.get("generation_delta_receipt_hash")
+        ):
+            raise DoorHouseConflict(
+                "Dogram listener delta is not bound to the measured generation"
+            )
+
+        parent_pair = self.audio_look_twice_pair_for_window(
+            receipt_id, parent_window_id
+        )["snapshot"]
+        child_pair = self.audio_look_twice_pair_for_window(
+            receipt_id, child_window_id
+        )["snapshot"]
+        parent_firsts = self.audio_look_twice_first_responses(
+            receipt_id, parent_pair["pair_id"]
+        )
+        child_firsts = self.audio_look_twice_first_responses(
+            receipt_id, child_pair["pair_id"]
+        )
+        if len(parent_firsts) != 2 or len(child_firsts) != 2:
+            raise DoorHouseConflict(
+                "Dogram listener delta requires exactly two sealed first listens "
+                "for both parent and descendant"
+            )
+
+        dogram_receipt = result.get("dogram_receipt")
+        if (
+            not isinstance(dogram_receipt, dict)
+            or dogram_receipt.get("schema")
+                != "dogram.listener-delta-receipt/v0"
+            or dogram_receipt.get("specimen") != "LISTENER-DELTA-001"
+            or dogram_receipt.get("status") != "OK"
+        ):
+            raise DoorHouseConflict("Dogram listener receipt is missing")
+
+        transform = dogram_receipt.get("transform", {})
+        if (
+            transform.get("parent_window_id") != parent_window_id
+            or transform.get("child_window_id") != child_window_id
+            or transform.get("proposal_receipt_hash")
+                != result.get("proposal_receipt_hash")
+            or transform.get("generation_delta_receipt_hash")
+                != result.get("generation_delta_receipt_hash")
+        ):
+            raise DoorHouseConflict(
+                "Dogram listener receipt changed the measured lineage"
+            )
+
+        expected_parent = {
+            item.get("listener", {}).get("id"): item.get("first_response_id")
+            for item in parent_firsts
+        }
+        expected_child = {
+            item.get("listener", {}).get("id"): item.get("first_response_id")
+            for item in child_firsts
+        }
+        listeners = dogram_receipt.get("listeners")
+        if (
+            not isinstance(listeners, dict)
+            or set(listeners) != set(expected_parent)
+            or set(listeners) != set(expected_child)
+        ):
+            raise DoorHouseConflict(
+                "Dogram listener receipt changed the listener identity set"
+            )
+        for listener_id, measured in listeners.items():
+            if (
+                measured.get("parent", {}).get("first_response_id")
+                    != expected_parent[listener_id]
+                or measured.get("child", {}).get("first_response_id")
+                    != expected_child[listener_id]
+            ):
+                raise DoorHouseConflict(
+                    "Dogram listener receipt changed sealed first-response identity"
+                )
+
+        classification = result.get("classification")
+        if classification not in {
+            "MEASURED_RESPONSE_CHANGE",
+            "NO_MEASURED_RESPONSE_CHANGE",
+        }:
+            raise DoorHouseConflict("invalid Dogram listener classification")
+        changed_listener_count = result.get("changed_listener_count")
+        listener_count = result.get("listener_count")
+        if (
+            type(listener_count) is not int
+            or type(changed_listener_count) is not int
+            or listener_count != 2
+            or changed_listener_count < 0
+            or changed_listener_count > listener_count
+        ):
+            raise DoorHouseConflict("invalid Dogram listener counts")
+
+        required = {
+            "DOGRAM MEASURES TRANSFORMS, NOT PEOPLE",
+            "RESPONSE DELTA != PERSON DELTA",
+            "RESPONSE DELTA != CAUSAL EFFECT",
+            "SIGNAL DELTA != LISTENER DELTA",
+            "LEXICAL OVERLAP != SEMANTIC AGREEMENT",
+            "DELTA != VALUE",
+            "RESIDUAL != FAILURE",
+        }
+        if not required.issubset(set(result.get("laws") or [])):
+            raise DoorHouseConflict("Dogram listener result omitted required laws")
+
+        kind = "dogram_listener_delta:" + child_window_id
+        snapshot = {
+            **result,
+            "local_receipt_id": receipt_id,
+            "local_receipt_sha256": receipt["sha256"],
+            "laws": [
+                *result.get("laws", []),
+                "DOGRAM RECEIPT != LISTENER VERDICT",
+                "RESPONSE CHANGE != PREFERENCE",
+                "MEASUREMENT != SELECTION",
+            ],
+        }
+        result_sha = _digest(snapshot)
+        with self._db() as db:
+            db.execute("BEGIN IMMEDIATE")
+            existing = db.execute(
+                "SELECT * FROM dh_external_witnesses WHERE receipt_id=? AND kind=?",
+                (receipt_id, kind),
+            ).fetchone()
+            if existing is None:
+                db.execute(
+                    "INSERT INTO dh_external_witnesses VALUES (?,?,?,?,?,?)",
+                    (
+                        uuid4().hex,
+                        receipt_id,
+                        kind,
+                        result_sha,
+                        _encoded(snapshot),
+                        _now(),
+                    ),
+                )
+            elif existing["result_sha256"] != result_sha:
+                raise DoorHouseConflict(
+                    "a different Dogram listener delta already measures "
+                    "this descendant"
+                )
+        return self.state()
+
+    def dogram_listener_delta(self, receipt_id, child_window_id):
+        self.receipt(receipt_id)
+        witness = self.external_witness(
+            receipt_id, "dogram_listener_delta:" + child_window_id
+        )
+        if witness is None:
+            raise DoorHouseMissing("Dogram listener delta is not available")
         return witness["snapshot"]
 
     def record_relatte_witness(self, receipt_id, result):

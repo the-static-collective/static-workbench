@@ -207,6 +207,10 @@ workbench receipt != project receipt
 
 Repository manifests are treated as data. Stack detection does not run install hooks, package scripts, project CLIs, or arbitrary shell commands.
 
+## Listener Delta 001 — compare the encounter without grading the listener
+
+After an admitted Phonograph descendant has fresh sealed radio witness, the Field's Dogram lane now advances from **GENERATION-DELTA-001** to **LISTENER-DELTA-001**. The second instrument binds the exact two parent and two descendant first-response receipts and measures only declared response structure: observation persistence/appearance/disappearance, mode migrations, intrigue transitions, closing-line structure, lexical deltas, and model continuity. It does not score listeners, infer preference, or claim that the signal change caused the response change. See [LISTENER DELTA 001](docs/LISTENER-DELTA-001.md).
+
 ## Field Return 001 — the human return from a nearby door
 
 Field Station doors now support an explicit local **TAKE / HOLD / PASS** disposition. The browser binds the choice to the exact `field_state_id` the human saw; if the field changes before submission, the choice is refused as stale. Returns persist in a Workbench-owned shelf across restart without mutating DoorHouse world state.

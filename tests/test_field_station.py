@@ -200,6 +200,7 @@ def test_mature_field_composes_multiple_organs_without_selecting_any():
         "phonograph_answers": 0,
         "phonograph_reentries": 0,
         "dogram_generation_deltas": 0,
+        "dogram_listener_deltas": 0,
         "unresolved_house_doors": 1,
         "registered_live_moments": 1,
         "ghot_reseed_holds": 0,
@@ -852,3 +853,150 @@ def test_active_receiver_boundary_survives_dense_field_cap():
         1 for door in state["nearby_doors"]
         if door["lane"] == "carried"
     ) == 1
+
+
+def test_dogram_lane_advances_from_signal_delta_to_listener_delta():
+    house, parent_window_id, child_window_id = _generation_house_with_both_cross_reads()
+    generation_hash = "sha256:" + "9" * 64
+    house["external_witnesses"].insert(
+        0,
+        witness(
+            "dogram_generation_delta:" + child_window_id,
+            {
+                "schema": "workbench.dogram-generation-delta/v0",
+                "status": "measured",
+                "parent_window_id": parent_window_id,
+                "child_window_id": child_window_id,
+                "proposal_receipt_hash": "sha256:" + "f" * 64,
+                "dogram_receipt_hash": generation_hash,
+                "classification": "MEASURED_CHANGE",
+                "changed_axes": ["peak_q15"],
+            },
+            41,
+        ),
+    )
+    listener_capability = {
+        "checkout_present": True,
+        "available": True,
+        "repo_head": "551b5f9",
+        "repo_branch": "main",
+        "capability": "listener-delta-001",
+    }
+
+    state = compose_nearby_station_doors(
+        house,
+        broadcast(),
+        [],
+        [repo("Dogram")],
+        dogram={
+            "checkout_present": True,
+            "available": True,
+            "repo_head": "551b5f9",
+            "repo_branch": "main",
+            "capability": "generation-delta-001",
+        },
+        listener_dogram=listener_capability,
+    )
+    dogram_door = next(
+        door for door in state["nearby_doors"]
+        if door["lane"] == "dogram"
+    )
+    assert dogram_door["kind"] == "measure-listener-delta"
+    assert dogram_door["target"]["parent_window_id"] == parent_window_id
+    assert dogram_door["target"]["child_window_id"] == child_window_id
+    assert (
+        dogram_door["target"]["generation_delta_receipt_hash"]
+        == generation_hash
+    )
+    assert dogram_door["effect"] == "none"
+    assert state["listener_dogram_capability"]["capability"] == "listener-delta-001"
+
+    house["external_witnesses"].insert(
+        0,
+        witness(
+            "dogram_listener_delta:" + child_window_id,
+            {
+                "schema": "workbench.dogram-listener-delta/v0",
+                "status": "measured",
+                "parent_window_id": parent_window_id,
+                "child_window_id": child_window_id,
+                "generation_delta_receipt_hash": generation_hash,
+                "dogram_receipt_hash": "sha256:" + "8" * 64,
+                "classification": "MEASURED_RESPONSE_CHANGE",
+                "listener_count": 2,
+                "changed_listener_count": 2,
+                "shared_changed_axes": ["closing_line"],
+            },
+            42,
+        ),
+    )
+    inspected = compose_nearby_station_doors(
+        house,
+        broadcast(),
+        [],
+        [repo("Dogram")],
+        dogram={
+            "checkout_present": True,
+            "available": True,
+            "repo_head": "551b5f9",
+            "repo_branch": "main",
+            "capability": "generation-delta-001",
+        },
+        listener_dogram=listener_capability,
+    )
+    inspect_door = next(
+        door for door in inspected["nearby_doors"]
+        if door["lane"] == "dogram"
+    )
+    assert inspect_door["kind"] == "inspect-listener-delta"
+    assert (
+        inspect_door["evidence"][0]["classification"]
+        == "MEASURED_RESPONSE_CHANGE"
+    )
+    assert inspect_door["evidence"][0]["changed_listener_count"] == 2
+    assert inspected["counts"]["dogram_generation_deltas"] == 1
+    assert inspected["counts"]["dogram_listener_deltas"] == 1
+    assert "RESPONSE DELTA != PERSON DELTA" in inspected["laws"]
+    assert "RESPONSE DELTA != CAUSAL EFFECT" in inspected["laws"]
+
+
+def test_listener_delta_capability_is_not_inferred_from_generation_delta():
+    house, parent_window_id, child_window_id = _generation_house_with_both_cross_reads()
+    house["external_witnesses"].insert(
+        0,
+        witness(
+            "dogram_generation_delta:" + child_window_id,
+            {
+                "schema": "workbench.dogram-generation-delta/v0",
+                "status": "measured",
+                "parent_window_id": parent_window_id,
+                "child_window_id": child_window_id,
+                "dogram_receipt_hash": "sha256:" + "9" * 64,
+                "classification": "MEASURED_CHANGE",
+                "changed_axes": ["peak_q15"],
+            },
+            43,
+        ),
+    )
+    state = compose_nearby_station_doors(
+        house,
+        broadcast(),
+        [],
+        [repo("Dogram")],
+        dogram={
+            "checkout_present": True,
+            "available": True,
+            "repo_head": "551b5f9",
+            "repo_branch": "main",
+            "capability": "generation-delta-001",
+        },
+    )
+    dogram_door = next(
+        door for door in state["nearby_doors"]
+        if door["lane"] == "dogram"
+    )
+    assert dogram_door["kind"] == "inspect-generation-delta"
+    assert not any(
+        door["kind"] == "measure-listener-delta"
+        for door in state["nearby_doors"]
+    )

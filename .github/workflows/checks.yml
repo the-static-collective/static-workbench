@@ -91,11 +91,11 @@ jobs:
           ref: 038b7101ecff781ee2ae17a22a1323ca28740d06
           path: .compat/haunted-phonograph
           persist-credentials: false
-      - name: Checkout pinned Dogram GENERATION DELTA
+      - name: Checkout pinned Dogram signal + listener deltas
         uses: actions/checkout@v4
         with:
           repository: the-static-collective/Dogram
-          ref: f352fe50bde594f9e88ebb37a58b58fbf3aeaedd
+          ref: 551b5f9df18f17ec69b452ddcdff01718e0ff771
           path: .compat/Dogram
           persist-credentials: false
       - name: Actual House -> GHoT -> Toaster -> Autodisco creative smoke
