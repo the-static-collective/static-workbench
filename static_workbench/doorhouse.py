@@ -476,6 +476,181 @@ class DoorHouse:
                 )
         return self.state()
 
+    def record_autodisco_first_encounter(self, receipt_id, result):
+        receipt = self.receipt(receipt_id)
+        ghot = self.external_witness(receipt_id, "ghot_execution")
+        if ghot is None:
+            raise DoorHouseConflict("GHoT creative execution is required before first encounter")
+        creative = ghot["snapshot"].get("creative_artifact")
+        if not isinstance(creative, dict):
+            raise DoorHouseConflict("GHoT witness has no creative artifact")
+
+        if (
+            not isinstance(result, dict)
+            or result.get("schema") != "autodisco.first-encounter-result/v0"
+            or result.get("status") not in {"packet-only", "responded"}
+        ):
+            raise DoorHouseConflict("invalid Autodisco first-encounter result")
+        packet = result.get("packet")
+        if not isinstance(packet, dict):
+            raise DoorHouseConflict("Autodisco first-encounter packet is missing")
+        packet_id = packet.get("packet_id")
+        source = packet.get("source")
+        if (
+            not isinstance(packet_id, str)
+            or not packet_id.startswith("autodisco-first-encounter-v0:")
+            or not isinstance(source, dict)
+            or source.get("sha256") != creative.get("svg_sha256")
+        ):
+            raise DoorHouseConflict("Autodisco packet is not bound to the returned SVG")
+
+        packet_snapshot = {
+            "schema": "workbench.autodisco-first-encounter-packet/v0",
+            "local_receipt_id": receipt_id,
+            "local_receipt_sha256": receipt["sha256"],
+            "packet_id": packet_id,
+            "source": source,
+            "listener": packet.get("listener"),
+            "prohibitions": packet.get("prohibitions"),
+            "status": result.get("status"),
+            "laws": [
+                "STATION MEMORY != LISTENER MEMORY",
+                "PACKET != RESPONSE",
+                "SIMULATION != FIRST ENCOUNTER",
+            ],
+        }
+        packet_sha = _digest(packet)
+
+        with self._db() as db:
+            db.execute("BEGIN IMMEDIATE")
+            existing_packet = db.execute(
+                "SELECT * FROM dh_external_witnesses WHERE receipt_id=? AND kind='autodisco_packet'",
+                (receipt_id,),
+            ).fetchone()
+            if existing_packet is None:
+                db.execute(
+                    "INSERT INTO dh_external_witnesses VALUES (?,?,?,?,?,?)",
+                    (
+                        uuid4().hex,
+                        receipt_id,
+                        "autodisco_packet",
+                        packet_sha,
+                        _encoded(packet_snapshot),
+                        _now(),
+                    ),
+                )
+                if result.get("status") == "packet-only":
+                    self._create_letter(
+                        db,
+                        "The packet reached the booth. The microphone stayed dark.",
+                        (
+                            "Autodisco prepared an isolated first-encounter packet, "
+                            "but no real listener model was available. No simulated "
+                            "response was substituted."
+                        ),
+                        [
+                            (
+                                "Try a real listener later",
+                                "Re-run the same isolated packet when a real listener is available.",
+                                "Autodisco / First Encounter",
+                            ),
+                            (
+                                "Inspect the packet",
+                                "Read only the bounded packet and its isolation laws.",
+                                "Autodisco",
+                            ),
+                            (
+                                "Leave it sealed",
+                                "Preserve the unanswered packet without inventing an answer.",
+                                "House memory",
+                            ),
+                        ],
+                        parent_crossing_id=packet_id,
+                    )
+            elif existing_packet["result_sha256"] != packet_sha:
+                raise DoorHouseConflict(
+                    "a different Autodisco packet is already attached to this artifact"
+                )
+
+            if result.get("status") == "responded":
+                response = result.get("response")
+                response_sha = result.get("response_sha256")
+                model_used = result.get("model_used")
+                if (
+                    not isinstance(response, dict)
+                    or not isinstance(response_sha, str)
+                    or not isinstance(model_used, str)
+                    or not model_used
+                ):
+                    raise DoorHouseConflict("Autodisco first response is incomplete")
+                response_snapshot = {
+                    "schema": "workbench.autodisco-first-response/v0",
+                    "local_receipt_id": receipt_id,
+                    "packet_id": packet_id,
+                    "response_sha256": response_sha,
+                    "model_used": model_used,
+                    "response": response,
+                    "laws": [
+                        "FIRST RESPONSE PRECEDES DIALOGUE",
+                        "OBSERVATION != INTERPRETATION",
+                        "FIRST ENCOUNTER != AUTHORITY",
+                    ],
+                }
+                response_result_sha = _digest(response_snapshot)
+                existing_response = db.execute(
+                    "SELECT * FROM dh_external_witnesses WHERE receipt_id=? AND kind='autodisco_first_response'",
+                    (receipt_id,),
+                ).fetchone()
+                if existing_response is None:
+                    db.execute(
+                        "INSERT INTO dh_external_witnesses VALUES (?,?,?,?,?,?)",
+                        (
+                            uuid4().hex,
+                            receipt_id,
+                            "autodisco_first_response",
+                            response_result_sha,
+                            _encoded(response_snapshot),
+                            _now(),
+                        ),
+                    )
+                    observations = response.get("observations") or []
+                    body_lines = [
+                        f"{item.get('mode')} — {item.get('text')}"
+                        for item in observations
+                        if isinstance(item, dict)
+                    ]
+                    closing = response.get("closing_line")
+                    if isinstance(closing, str) and closing.strip():
+                        body_lines.append("CLOSING — " + closing.strip())
+                    self._create_letter(
+                        db,
+                        "Someone looked without knowing us.",
+                        "\n\n".join(body_lines),
+                        [
+                            (
+                                "Answer back",
+                                "Begin dialogue only after the sealed first response has been preserved.",
+                                "Autodisco dialogue",
+                            ),
+                            (
+                                "Follow the lingering intrigue",
+                                "Use the first response as a new proposal, not as source authority.",
+                                "National Treasure / composition",
+                            ),
+                            (
+                                "Make another thing",
+                                "Let what lingered seed a new bounded creative crossing.",
+                                "House / GHoT / Haunted Toaster",
+                            ),
+                        ],
+                        parent_crossing_id=response_sha,
+                    )
+                elif existing_response["result_sha256"] != response_result_sha:
+                    raise DoorHouseConflict(
+                        "a different first response is already sealed for this packet"
+                    )
+        return self.state()
+
     def record_relatte_witness(self, receipt_id, result):
         receipt = self.receipt(receipt_id)
         if not isinstance(result, dict) or result.get("schema") != "relatte.opaque-roundtrip-result/v0":
