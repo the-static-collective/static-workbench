@@ -64,17 +64,33 @@ function renderReceipts(){
   const root=$("receipts"); root.replaceChildren();
   if(!state.receipts.length){root.append(el("p","No crossings yet. A selection alone leaves no occurrence receipt.","muted"));return;}
   for(const receipt of state.receipts){
+    const witness=state.external_witnesses.find(w=>w.receipt_id===receipt.id&&w.kind==="relatte");
     const card=el("article",undefined,"receipt-card");
     card.append(el("strong","World "+receipt.world_before+" → "+receipt.world_after));
     card.append(el("div",receipt.snapshot.artifact.title));
+    if(witness){
+      const badge=el("div","reLATTE · RECEIVED → HOLD · semantic effect: none","adapter-line");
+      card.append(badge);
+    } else {
+      const send=el("button","Cross through reLATTE → HOLD");
+      send.type="button";
+      send.addEventListener("click",()=>mutate(
+        "/api/doorhouse/receipts/"+receipt.id+"/relatte",
+        {},
+        "reLATTE verified the crossing, RECEIVED it, and returned a signed HOLD receipt."
+      ));
+      card.append(send);
+    }
     const details=document.createElement("details");
     details.append(el("summary","Inspect receipt + adapter truth"));
-    details.append(el("code",JSON.stringify({
+    const evidence={
       execution:receipt.snapshot.execution,
       perturbation:receipt.snapshot.envelope.perturbation,
       adapters:receipt.snapshot.adapters,
       receipt_sha256:receipt.sha256
-    },null,2)));
+    };
+    if(witness) evidence.relatte_witness=witness.snapshot;
+    details.append(el("code",JSON.stringify(evidence,null,2)));
     card.append(details); root.append(card);
   }
 }
