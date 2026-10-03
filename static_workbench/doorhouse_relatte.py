@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 import os
 import subprocess
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from .repos import RepoStatus
@@ -11,10 +11,6 @@ from .repos import RepoStatus
 
 class RelatteApertureError(RuntimeError):
     pass
-
-
-def _now() -> str:
-    return datetime.now(timezone.utc).isoformat()
 
 
 def _find_relatte(repos: list[RepoStatus]) -> Path:
@@ -50,7 +46,19 @@ def build_relatte_request(receipt: dict, state_dir: Path) -> dict:
     if not isinstance(receipt_sha, str) or len(receipt_sha) != 64:
         raise RelatteApertureError("invalid local receipt digest")
 
-    created = _now()
+    try:
+        base_time = datetime.fromisoformat(str(receipt.get("created_at")))
+        if base_time.tzinfo is None:
+            base_time = base_time.replace(tzinfo=timezone.utc)
+        base_time = base_time.astimezone(timezone.utc)
+    except (TypeError, ValueError) as exc:
+        raise RelatteApertureError("local receipt timestamp is invalid") from exc
+
+    times = [
+        (base_time + timedelta(microseconds=index)).isoformat()
+        for index in range(1, 5)
+    ]
+    created = times[0]
     base = Path(state_dir)
     return {
         "schema": "relatte.opaque-roundtrip-request/v0",
@@ -96,9 +104,9 @@ def build_relatte_request(receipt: dict, state_dir: Path) -> dict:
         "bundle_path": str(base / "doorhouse-relatte-bundles" / f"{receipt_id}.json"),
         "result_path": str(base / "doorhouse-relatte-results" / f"{receipt_id}.json"),
         "disposition": "HOLD",
-        "transport_created_at": _now(),
-        "received_at": _now(),
-        "disposed_at": _now(),
+        "transport_created_at": times[1],
+        "received_at": times[2],
+        "disposed_at": times[3],
         "route_note": "Static Workbench DoorHouse -> generic reLATTE local receiver",
     }
 
