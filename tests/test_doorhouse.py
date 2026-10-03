@@ -41,7 +41,8 @@ def test_complete_loop_keeps_selection_crossing_and_adapter_truth_separate(tmp_p
     assert state["world_version"] == 1
     receipt = state["receipts"][0]
     assert receipt["snapshot"]["execution"]["mode"] == "REAL_LOCAL_TRANSFORM"
-    assert receipt["snapshot"]["adapters"]["relatte"] == "STUB_NOT_CONNECTED"
+    assert receipt["snapshot"]["adapters"]["relatte"] == "AVAILABLE_AFTER_LOCAL_CROSSING"
+    assert len(receipt["snapshot"]["artifact_sha256"]) == 64
     assert receipt["snapshot"]["adapters"]["ghot"] == "LOCAL_BODY_ONLY_NOT_GHOT_ASSIGNMENT"
     assert receipt["world_before"] == 0 and receipt["world_after"] == 1
     assert any(letter["parent_crossing_id"] == receipt["id"] for letter in state["letters"])
