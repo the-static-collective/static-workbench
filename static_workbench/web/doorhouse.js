@@ -1,6 +1,7 @@
 "use strict";
 let token = "";
 let state = null;
+let fieldState = null;
 let roots = [];
 const $ = (id) => document.getElementById(id);
 
@@ -28,6 +29,106 @@ function latestOpenLetter() {
   const newest = state.letters[0];
   return newest && newest.opened_at ? newest : null;
 }
+function renderFieldStation(){
+  const root=$("field-station");
+  if(!root) return;
+  root.replaceChildren();
+  if(!fieldState){
+    root.append(el("p","Reading the field…","muted"));
+    return;
+  }
+
+  const head=el("div",undefined,"field-station-head");
+  const summary=el("div");
+  if(fieldState.present?.kind==="static-live"){
+    const event=fieldState.present.event?.title||"local event";
+    summary.append(
+      el("div","PRESENT · STATIC LIVE · "+event,"field-station-present"),
+      el(
+        "small",
+        String(fieldState.present.state||"unknown")
+          +" · recording "+String(Boolean(fieldState.present.recording))
+          +" · stream "+String(Boolean(fieldState.present.stream)),
+        "muted"
+      )
+    );
+  } else if(fieldState.present?.kind==="lifestream-moment"){
+    summary.append(
+      el("div","PRESENT · LIFESTREAM MOMENT","field-station-present"),
+      el("small",String(fieldState.present.moment_id||""),"muted")
+    );
+  } else {
+    summary.append(
+      el("div","PRESENT · QUIET","field-station-present"),
+      el("small","No reachable live broadcast occurrence is being claimed.","muted")
+    );
+  }
+  head.append(summary);
+  if(fieldState.current_episode){
+    const current=el("div",undefined,"field-station-current");
+    current.append(
+      el("small","PLAYABLE ARTIFACT"),
+      el("strong",fieldState.current_episode.title||fieldState.current_episode.episode_id)
+    );
+    head.append(current);
+  }
+  root.append(head);
+
+  const pressures=el("div",undefined,"field-pressure-strip");
+  for(const pressure of fieldState.memory_pressures||[]){
+    pressures.append(el(
+      "span",
+      pressure.kind+" · "+pressure.value,
+      "field-pressure"
+    ));
+  }
+  if(!pressures.childElementCount){
+    pressures.append(el("span","no explicit memory pressure","field-pressure"));
+  }
+  root.append(pressures);
+
+  const doors=el("div",undefined,"field-door-grid");
+  for(const door of fieldState.nearby_doors||[]){
+    const card=el("article",undefined,"field-door-card");
+    card.dataset.lane=door.lane;
+    card.append(
+      el("small",String(door.lane||"field").toUpperCase()+" · "+door.adapter,"field-door-lane"),
+      el("h3",door.label),
+      el("p",door.why)
+    );
+    const details=document.createElement("details");
+    details.append(el("summary","Why this door is here"));
+    details.append(el("code",JSON.stringify({
+      door_id:door.door_id,
+      evidence:door.evidence,
+      target:door.target,
+      effect:door.effect,
+      laws:door.laws
+    },null,2)));
+    card.append(details);
+    doors.append(card);
+  }
+  root.append(doors);
+  root.append(el(
+    "p",
+    "Field doors are read-only proposals. Nothing here selects, crosses, plays, broadcasts, or mutates the House.",
+    "field-station-law"
+  ));
+}
+
+async function refreshFieldStation(){
+  try{
+    fieldState=await api("/api/doorhouse/field-station");
+    renderFieldStation();
+  }catch(error){
+    fieldState=null;
+    const root=$("field-station");
+    if(root){
+      root.replaceChildren(el("p","Field unavailable · "+error.message,"muted"));
+    }
+  }
+}
+
 function renderLetters(){
   const root=$("letters"); root.replaceChildren();
   for(const letter of state.letters.slice(0,8)){
@@ -485,16 +586,27 @@ function render(){
   $("play-panel").classList.toggle("doorhouse-hidden",!state.entered);
   $("world-version").textContent=state.entered?String(state.world_version):"—";
   const laws=$("laws"); laws.replaceChildren(); for(const law of state.laws) laws.append(el("span",law,"law-chip"));
-  if(state.entered){renderLetters();renderDoors();renderReceipts();}
+  if(state.entered){renderFieldStation();renderLetters();renderDoors();renderReceipts();}
 }
 async function mutate(path,payload,message){
-  try{state=await api(path,payload);render();say(message);}
-  catch(error){say(error.message,true); state=await api("/api/doorhouse/state"); render();}
+  try{
+    state=await api(path,payload);
+    render();
+    await refreshFieldStation();
+    say(message);
+  }catch(error){
+    say(error.message,true);
+    state=await api("/api/doorhouse/state");
+    render();
+    await refreshFieldStation();
+  }
 }
 async function start(){
   try{
     const boot=await api("/api/bootstrap"); token=boot.session_token; roots=boot.roots||[];
-    state=await api("/api/doorhouse/state"); render();
+    state=await api("/api/doorhouse/state");
+    render();
+    if(state.entered) await refreshFieldStation();
     $("enter-house").addEventListener("click",()=>mutate("/api/doorhouse/enter",{},"You entered. A sealed letter is waiting."));
     say(state.entered?"The House remembers. Nothing here chooses for you.":"The House has not been entered on this machine.");
   }catch(error){say(error.message,true);}
