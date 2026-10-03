@@ -266,6 +266,19 @@ function renderReceipts(){
             && w.kind==="phonograph_reentry:"+audioWindow.snapshot.window_id
         )
       : null;
+    const dogramGeneration=audioWindow
+      ? state.external_witnesses.find(
+          w=>w.receipt_id===receipt.id
+            && w.kind==="dogram_generation_delta:"+audioWindow.snapshot.window_id
+        )
+      : null;
+    const dogramDoor=audioWindow
+      ? (fieldState?.nearby_doors||[]).find(
+          d=>d.kind==="measure-generation-delta"
+            && d.target?.receipt_id===receipt.id
+            && d.target?.child_window_id===audioWindow.snapshot.window_id
+        )
+      : null;
     const phonographDoor=audioWindow
       ? (fieldState?.nearby_doors||[]).find(
           d=>d.kind==="ask-phonograph-answer"
@@ -482,6 +495,46 @@ function renderReceipts(){
         ));
       }
 
+      if(dogramGeneration){
+        const dg=dogramGeneration.snapshot;
+        card.append(el(
+          "div",
+          "DOGRAM · "+dg.classification+" · changed axes: "
+            +(dg.changed_axes||[]).join(", "),
+          "adapter-line"
+        ));
+        const dActions=el("div",undefined,"door-actions");
+        const receiptLink=document.createElement("a");
+        receiptLink.href="/api/doorhouse/receipts/"+receipt.id+"/dogram/"
+          +encodeURIComponent(audioWindow.snapshot.window_id)+"/generation-delta.json";
+        receiptLink.target="_blank";
+        receiptLink.rel="noopener";
+        receiptLink.textContent="Generation delta receipt";
+        receiptLink.className="radio-link";
+        dActions.append(receiptLink);
+        card.append(dActions);
+        card.append(el(
+          "div",
+          "Dogram measures the declared transform · delta != value · residual != failure",
+          "adapter-line"
+        ));
+      } else if(dogramDoor){
+        const measure=el("button","MEASURE PARENT → DESCENDANT");
+        measure.type="button";
+        measure.addEventListener("click",()=>mutate(
+          "/api/doorhouse/receipts/"+receipt.id+"/dogram/"
+            +encodeURIComponent(audioWindow.snapshot.window_id)+"/generation-delta",
+          {},
+          "Dogram measured the admitted parent-to-descendant transform and kept semantic/listener effects residual."
+        ));
+        card.append(measure);
+        card.append(el(
+          "div",
+          "GENERATION-DELTA-001 · both generations witnessed · measurement != verdict",
+          "adapter-line"
+        ));
+      }
+
       if(phonographAnswer){
         const pw=phonographAnswer.snapshot;
         card.append(el(
@@ -668,6 +721,7 @@ function renderReceipts(){
     if(audioDialogue) evidence.audio_dialogue=audioDialogue.snapshot;
     if(phonographAnswer) evidence.phonograph_field_answer=phonographAnswer.snapshot;
     if(phonographReentry) evidence.phonograph_reentry=phonographReentry.snapshot;
+    if(dogramGeneration) evidence.dogram_generation_delta=dogramGeneration.snapshot;
     if(broadcastEpisode) evidence.broadcast_episode=broadcastEpisode.snapshot;
     details.append(el("code",JSON.stringify(evidence,null,2)));
     card.append(details); root.append(card);
