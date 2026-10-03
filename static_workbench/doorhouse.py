@@ -1669,6 +1669,92 @@ class DoorHouse:
             raise DoorHouseMissing("broadcast episode is not assembled")
         return witness["snapshot"]
 
+    def record_phonograph_field_answer(self, receipt_id, answer):
+        receipt = self.receipt(receipt_id)
+        window_witness = self.latest_audio_window(receipt_id)
+        window = window_witness["snapshot"]
+        if (
+            not isinstance(answer, dict)
+            or answer.get("schema") != "workbench.phonograph-field-answer/v0"
+            or answer.get("status") != "proposal-ready"
+        ):
+            raise DoorHouseConflict("invalid Haunted Phonograph field answer")
+        window_id = answer.get("window_id")
+        if (
+            window_id != window.get("window_id")
+            or answer.get("audio_sha256") != window.get("audio_sha256")
+        ):
+            raise DoorHouseConflict(
+                "Haunted Phonograph answer is not bound to the latest audio window"
+            )
+        receipt_hash = answer.get("proposal_receipt_hash")
+        proposal = answer.get("proposal")
+        signal_profile = answer.get("signal_profile")
+        if (
+            not isinstance(receipt_hash, str)
+            or not receipt_hash.startswith("sha256:")
+            or not isinstance(proposal, dict)
+            or proposal.get("authority") != "proposal"
+            or not isinstance(signal_profile, dict)
+            or signal_profile.get("authority") != "evidence"
+        ):
+            raise DoorHouseConflict(
+                "Haunted Phonograph answer lost evidence/proposal authority split"
+            )
+        required = {
+            "SIGNAL FACT != MUSICAL MEANING",
+            "PROPOSAL != SOURCE EVIDENCE",
+            "AUDITION != ADMISSION",
+            "FIELD ANSWER != HOUSE CROSSING",
+        }
+        if not required.issubset(set(answer.get("laws") or [])):
+            raise DoorHouseConflict("Haunted Phonograph answer omitted required laws")
+
+        kind = "phonograph_field_answer:" + window_id
+        result_sha = _digest(answer)
+        snapshot = {
+            **answer,
+            "local_receipt_id": receipt_id,
+            "local_receipt_sha256": receipt["sha256"],
+            "laws": [
+                *answer.get("laws", []),
+                "PHONOGRAPH PROPOSAL != HOUSE ADMISSION",
+                "AUDITION PLAYBACK != CROSSING",
+            ],
+        }
+        with self._db() as db:
+            db.execute("BEGIN IMMEDIATE")
+            existing = db.execute(
+                "SELECT * FROM dh_external_witnesses WHERE receipt_id=? AND kind=?",
+                (receipt_id, kind),
+            ).fetchone()
+            if existing is None:
+                db.execute(
+                    "INSERT INTO dh_external_witnesses VALUES (?,?,?,?,?,?)",
+                    (
+                        uuid4().hex,
+                        receipt_id,
+                        kind,
+                        result_sha,
+                        _encoded(snapshot),
+                        _now(),
+                    ),
+                )
+            elif existing["result_sha256"] != result_sha:
+                raise DoorHouseConflict(
+                    "a different Phonograph proposal already answers this window"
+                )
+        return self.state()
+
+    def phonograph_field_answer(self, receipt_id, window_id):
+        self.receipt(receipt_id)
+        witness = self.external_witness(
+            receipt_id, "phonograph_field_answer:" + window_id
+        )
+        if witness is None:
+            raise DoorHouseMissing("Haunted Phonograph field answer is not available")
+        return witness["snapshot"]
+
     def record_relatte_witness(self, receipt_id, result):
         receipt = self.receipt(receipt_id)
         if not isinstance(result, dict) or result.get("schema") != "relatte.opaque-roundtrip-result/v0":

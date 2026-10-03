@@ -197,6 +197,7 @@ def test_mature_field_composes_multiple_organs_without_selecting_any():
     assert state["counts"] == {
         "audio_windows": 1,
         "broadcast_episodes": 1,
+        "phonograph_answers": 0,
         "unresolved_house_doors": 1,
         "registered_live_moments": 1,
     }
@@ -322,3 +323,90 @@ def test_field_station_api_is_read_only(tmp_path):
         assert len(before["letters"]) == len(after["letters"])
         assert len(before["doors"]) == len(after["doors"])
         assert len(before["external_witnesses"]) == len(after["external_witnesses"])
+
+
+def test_phonograph_door_requires_actual_capability_not_repo_presence():
+    house = mature_house()
+    unavailable = compose_nearby_station_doors(
+        house,
+        broadcast(),
+        [],
+        [repo("the-haunted-phonography")],
+        phonograph={
+            "checkout_present": True,
+            "available": False,
+            "repo_head": "old",
+            "repo_branch": "main",
+            "capability": None,
+        },
+    )
+    assert not any(
+        door["lane"] == "phono" for door in unavailable["nearby_doors"]
+    )
+
+    available = compose_nearby_station_doors(
+        house,
+        broadcast(),
+        [],
+        [repo("the-haunted-phonography")],
+        phonograph={
+            "checkout_present": True,
+            "available": True,
+            "repo_head": "038b710",
+            "repo_branch": "main",
+            "capability": "field-answer-001",
+        },
+    )
+    phono = next(
+        door for door in available["nearby_doors"]
+        if door["lane"] == "phono"
+    )
+    assert phono["kind"] == "ask-phonograph-answer"
+    assert phono["effect"] == "none"
+    assert phono["evidence"][1]["kind"] == "capability"
+
+
+def test_phonograph_answer_changes_field_door_to_audition_without_admission():
+    house = mature_house()
+    window_id = next(
+        item["snapshot"]["window_id"]
+        for item in house["external_witnesses"]
+        if item["kind"].startswith("audio_window:")
+    )
+    house["external_witnesses"].insert(
+        0,
+        witness(
+            "phonograph_field_answer:" + window_id,
+            {
+                "schema": "workbench.phonograph-field-answer/v0",
+                "status": "proposal-ready",
+                "window_id": window_id,
+                "audio_sha256": "a" * 64,
+                "proposal_receipt_hash": "sha256:" + "f" * 64,
+                "proposal_hash": "sha256:" + "e" * 64,
+                "audition": {"sha256": "sha256:" + "d" * 64},
+            },
+            10,
+        ),
+    )
+    state = compose_nearby_station_doors(
+        house,
+        broadcast(),
+        [],
+        [repo("the-haunted-phonography")],
+        phonograph={
+            "checkout_present": True,
+            "available": True,
+            "repo_head": "038b710",
+            "repo_branch": "main",
+            "capability": "field-answer-001",
+        },
+    )
+    phono = next(
+        door for door in state["nearby_doors"]
+        if door["lane"] == "phono"
+    )
+    assert phono["kind"] == "audition-phonograph-answer"
+    assert phono["effect"] == "none"
+    assert phono["target"]["artifact"] == "audition.wav"
+    assert state["counts"]["phonograph_answers"] == 1
