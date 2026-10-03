@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="color-scheme" content="dark">
+  <title>The House That Remembers Doors</title>
+  <link rel="stylesheet" href="/assets/styles.css">
+  <link rel="stylesheet" href="/assets/doorhouse.css">
+</head>
+<body class="doorhouse-body">
+  <main class="doorhouse-shell">
+    <header class="doorhouse-header">
+      <a href="/">← Static Workbench</a>
+      <span>HOUSE-REMEMBERS-DOORS-001 / LOCAL TRUTH FLOOR</span>
+    </header>
+
+    <section class="doorhouse-hero">
+      <div>
+        <div class="eyebrow">THE HOUSE THAT REMEMBERS DOORS</div>
+        <h1>A playable crossing loop.</h1>
+        <p>Open a sealed letter. Select a proposed door. Cross it. Keep the receipt. Return to a world that is now different.</p>
+      </div>
+      <div class="world-counter">
+        <small>WORLD</small>
+        <strong id="world-version">—</strong>
+      </div>
+    </section>
+
+    <div id="status" class="doorhouse-status" role="status" aria-live="polite"></div>
+    <section id="entry-panel" class="doorhouse-panel">
+      <h2>The porch</h2>
+      <p>This experiment writes only to the local Workbench state database. External organs remain explicit unopened adapters.</p>
+      <button id="enter-house" type="button">Enter the House</button>
+    </section>
+
+    <section id="play-panel" class="doorhouse-hidden">
+      <div class="doorhouse-grid">
+        <section class="doorhouse-panel">
+          <div class="eyebrow">MAIL TABLE</div>
+          <div id="letters"></div>
+        </section>
+        <section class="doorhouse-panel">
+          <div class="eyebrow">REACHABLE DOORS</div>
+          <div id="doors"></div>
+        </section>
+      </div>
+
+      <section class="doorhouse-panel receipt-panel">
+        <div class="eyebrow">THE ROOM REMEMBERS</div>
+        <h2>Agency receipts</h2>
+        <div id="receipts"></div>
+      </section>
+
+      <section class="law-panel">
+        <div class="eyebrow">HOUSE LAW</div>
+        <div id="laws" class="law-strip"></div>
+      </section>
+    </section>
+  </main>
+  <script src="/assets/doorhouse.js" defer></script>
+</body>
+</html>
