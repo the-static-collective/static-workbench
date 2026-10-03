@@ -29,3 +29,5 @@
 .field-assignment-select{min-width:0;width:100%;border:1px solid var(--line-soft);border-radius:7px;background:#10120f;color:var(--ink);padding:7px 9px;font:11px ui-monospace,monospace}
 .field-return-actions button[data-disposition="offer"]{border-color:#8b9f75}
 .field-return-actions button[data-disposition="assign"]{border-color:#c39a68;color:#e4c39c}
+
+.field-return-actions button[data-disposition="dispatch"]{border-color:#b66d5b;color:#efb6aa}
