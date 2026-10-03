@@ -161,6 +161,11 @@ encounter
 → changed field
 ```
 
-The next seam, if earned, is not automatic execution. It is a receiver-local
-instrument for explicitly assigning an admitted carried intent to one declared
-capability/body under GHoT's own authority.
+The receiver-local assignment seam is now implemented separately in
+[CARRIED INTENT ASSIGNMENT 001](carried-intent-assignment-001.md). It opens an
+unranked body/capability offer and records one explicit assignment while still
+stopping before execution.
+
+The next unproved seam is therefore dispatch/execution, and it must begin from
+the assignment receipt as a new explicit crossing rather than treating
+assignment as permission to run.
