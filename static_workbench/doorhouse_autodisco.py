@@ -640,3 +640,167 @@ def run_audio_look_twice_dialogue(
             "audio LOOK TWICE door seed lacks lingering intrigue"
         )
     return result
+
+
+def assemble_broadcast_episode(
+    materialized: dict,
+    pair: dict,
+    first_responses: list[dict],
+    dialogue_packet_witness: dict,
+    dialogue_witness: dict,
+    repos: list[RepoStatus],
+    state_dir: Path,
+    receipt_id: str,
+) -> dict:
+    window = inflate_audio_window(materialized)
+    if (
+        not isinstance(pair, dict)
+        or pair.get("schema") != "autodisco.audio-look-twice-pair/v0"
+    ):
+        raise AutodiscoApertureError("audio LOOK TWICE pair is required for assembly")
+    if len(first_responses) != 2:
+        raise AutodiscoApertureError(
+            "two sealed audio first listens are required for assembly"
+        )
+    if (
+        not isinstance(dialogue_packet_witness, dict)
+        or dialogue_packet_witness.get("schema")
+            != "workbench.audio-look-twice-dialogue-packet/v0"
+    ):
+        raise AutodiscoApertureError("sealed audio dialogue packet is required")
+    if (
+        not isinstance(dialogue_witness, dict)
+        or dialogue_witness.get("schema")
+            != "workbench.audio-look-twice-dialogue/v0"
+    ):
+        raise AutodiscoApertureError("sealed audio dialogue is required")
+
+    pair_id = pair.get("pair_id")
+    window_id = pair.get("window_ref", {}).get("window_id")
+    if (
+        pair_id != dialogue_packet_witness.get("pair_id")
+        or pair_id != dialogue_witness.get("pair_id")
+        or window_id != materialized.get("window_id")
+        or window_id != dialogue_packet_witness.get("window_id")
+        or window_id != dialogue_witness.get("window_id")
+    ):
+        raise AutodiscoApertureError("broadcast evidence does not share one pair/window")
+
+    dialogue_packet = dialogue_packet_witness.get("dialogue_packet")
+    dialogue = dialogue_witness.get("dialogue")
+    if not isinstance(dialogue_packet, dict) or not isinstance(dialogue, dict):
+        raise AutodiscoApertureError("broadcast dialogue evidence is incomplete")
+
+    dialogue_result = {
+        "schema": "autodisco.audio-look-twice-dialogue-result/v0",
+        "status": "dialogue-sealed",
+        "dialogue_packet": dialogue_packet,
+        "dialogue": dialogue,
+        "dialogue_sha256": dialogue_witness.get("dialogue_sha256"),
+        "model_used": dialogue_witness.get("model_used"),
+        "laws": dialogue_witness.get("laws", []),
+        "dialogue_id": dialogue_witness.get("dialogue_id"),
+    }
+
+    suffix = hashlib.sha256(pair_id.encode("utf-8")).hexdigest()[:12]
+    episode_id = f"first-signal-{suffix}"
+    label = str(
+        window.get("declared_metadata", {}).get("window_label") or "window"
+    ).strip()
+    title = f"First Signal · {label}"
+
+    output_root = (
+        Path(state_dir)
+        / "doorhouse-radio"
+        / str(receipt_id)
+    )
+    result = _run_autodisco_json(
+        repos,
+        "broadcast-assembly.mjs",
+        {
+            "action": "bundle",
+            "request": {
+                "schema": "autodisco.broadcast-bundle-request/v0",
+                "assembly": {
+                    "schema": "autodisco.broadcast-assembly-request/v0",
+                    "station": {"name": "Static Collective Radio"},
+                    "episode": {
+                        "id": episode_id,
+                        "title": title,
+                    },
+                    "window": window,
+                    "pair": pair,
+                    "first_responses": first_responses,
+                    "dialogue_result": dialogue_result,
+                },
+                "output_dir": str(output_root),
+                "basename": episode_id,
+            },
+        },
+        timeout=90.0,
+    )
+    if result.get("schema") != "autodisco.broadcast-bundle-result/v0":
+        raise AutodiscoApertureError("unexpected Autodisco broadcast bundle result")
+    if (
+        result.get("episode_id") != episode_id
+        or result.get("audio_sha256") != materialized.get("audio_sha256")
+    ):
+        raise AutodiscoApertureError("broadcast bundle changed episode/audio identity")
+
+    expected_dir = (output_root / episode_id).resolve()
+    for key in ("bundle_dir", "manifest_path", "audio_path", "html_path"):
+        raw = result.get(key)
+        if not isinstance(raw, str):
+            raise AutodiscoApertureError(f"broadcast bundle missing {key}")
+        resolved = Path(raw).resolve()
+        if key == "bundle_dir":
+            if resolved != expected_dir:
+                raise AutodiscoApertureError("broadcast bundle escaped House state")
+        elif expected_dir not in resolved.parents:
+            raise AutodiscoApertureError("broadcast bundle file escaped House state")
+        if key != "bundle_dir" and not resolved.is_file():
+            raise AutodiscoApertureError(f"broadcast bundle file missing: {key}")
+
+    audio_bytes = Path(result["audio_path"]).read_bytes()
+    if hashlib.sha256(audio_bytes).hexdigest() != materialized.get("audio_sha256"):
+        raise AutodiscoApertureError("assembled radio audio changed the witnessed WAV")
+
+    manifest_text = Path(result["manifest_path"]).read_text(encoding="utf-8")
+    html_text = Path(result["html_path"]).read_text(encoding="utf-8")
+    if hashlib.sha256(manifest_text.encode("utf-8")).hexdigest() != result.get(
+        "manifest_sha256"
+    ):
+        raise AutodiscoApertureError("broadcast manifest changed after assembly")
+    if hashlib.sha256(html_text.encode("utf-8")).hexdigest() != result.get(
+        "html_sha256"
+    ):
+        raise AutodiscoApertureError("broadcast player changed after assembly")
+
+    return {
+        "schema": "workbench.broadcast-episode-materialized/v0",
+        "episode_id": episode_id,
+        "episode_digest": result.get("episode_digest"),
+        "title": title,
+        "station_name": "Static Collective Radio",
+        "window_id": window_id,
+        "audio_sha256": materialized.get("audio_sha256"),
+        "pair_id": pair_id,
+        "first_response_ids": [
+            item.get("first_response_id") for item in first_responses
+        ],
+        "dialogue_id": dialogue_witness.get("dialogue_id"),
+        "bundle_dir": result["bundle_dir"],
+        "manifest_path": result["manifest_path"],
+        "manifest_sha256": result["manifest_sha256"],
+        "audio_path": result["audio_path"],
+        "html_path": result["html_path"],
+        "html_sha256": result["html_sha256"],
+        "laws": [
+            "ASSEMBLY != FIRST LISTEN",
+            "ASSEMBLY != DIALOGUE",
+            "ASSEMBLY != VOICE RENDER",
+            "BROWSER VOICE != SEALED LISTENER",
+            "EPISODE != BROADCAST OCCURRENCE",
+            "PLAYBACK != REMOTE DELIVERY",
+        ],
+    }
