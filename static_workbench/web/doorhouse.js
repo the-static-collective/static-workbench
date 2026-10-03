@@ -384,9 +384,22 @@ function renderReceipts(){
             && w.kind==="dogram_generation_delta:"+audioWindow.snapshot.window_id
         )
       : null;
+    const dogramListener=audioWindow
+      ? state.external_witnesses.find(
+          w=>w.receipt_id===receipt.id
+            && w.kind==="dogram_listener_delta:"+audioWindow.snapshot.window_id
+        )
+      : null;
     const dogramDoor=audioWindow
       ? (fieldState?.nearby_doors||[]).find(
           d=>d.kind==="measure-generation-delta"
+            && d.target?.receipt_id===receipt.id
+            && d.target?.child_window_id===audioWindow.snapshot.window_id
+        )
+      : null;
+    const listenerDogramDoor=audioWindow
+      ? (fieldState?.nearby_doors||[]).find(
+          d=>d.kind==="measure-listener-delta"
             && d.target?.receipt_id===receipt.id
             && d.target?.child_window_id===audioWindow.snapshot.window_id
         )
@@ -611,7 +624,7 @@ function renderReceipts(){
         const dg=dogramGeneration.snapshot;
         card.append(el(
           "div",
-          "DOGRAM · "+dg.classification+" · changed axes: "
+          "DOGRAM SIGNAL · "+dg.classification+" · changed axes: "
             +(dg.changed_axes||[]).join(", "),
           "adapter-line"
         ));
@@ -625,11 +638,6 @@ function renderReceipts(){
         receiptLink.className="radio-link";
         dActions.append(receiptLink);
         card.append(dActions);
-        card.append(el(
-          "div",
-          "Dogram measures the declared transform · delta != value · residual != failure",
-          "adapter-line"
-        ));
       } else if(dogramDoor){
         const measure=el("button","MEASURE PARENT → DESCENDANT");
         measure.type="button";
@@ -637,12 +645,68 @@ function renderReceipts(){
           "/api/doorhouse/receipts/"+receipt.id+"/dogram/"
             +encodeURIComponent(audioWindow.snapshot.window_id)+"/generation-delta",
           {},
-          "Dogram measured the admitted parent-to-descendant transform and kept semantic/listener effects residual."
+          "Dogram measured the admitted parent-to-descendant signal transform and kept listener effects residual."
         ));
         card.append(measure);
         card.append(el(
           "div",
           "GENERATION-DELTA-001 · both generations witnessed · measurement != verdict",
+          "adapter-line"
+        ));
+      }
+
+      if(dogramListener){
+        const dl=dogramListener.snapshot;
+        card.append(el(
+          "div",
+          "DOGRAM LISTENERS · "+dl.classification+" · "
+            +String(dl.changed_listener_count)+"/"+String(dl.listener_count)
+            +" listeners changed on declared response axes",
+          "adapter-line"
+        ));
+        if((dl.shared_changed_axes||[]).length){
+          card.append(el(
+            "div",
+            "shared changed axes · "+dl.shared_changed_axes.join(", "),
+            "adapter-line"
+          ));
+        }
+        const lActions=el("div",undefined,"door-actions");
+        const listenerReceipt=document.createElement("a");
+        listenerReceipt.href="/api/doorhouse/receipts/"+receipt.id+"/dogram/"
+          +encodeURIComponent(audioWindow.snapshot.window_id)+"/listener-delta.json";
+        listenerReceipt.target="_blank";
+        listenerReceipt.rel="noopener";
+        listenerReceipt.textContent="Listener delta receipt";
+        listenerReceipt.className="radio-link";
+        lActions.append(listenerReceipt);
+        card.append(lActions);
+        card.append(el(
+          "div",
+          "response delta != person delta · response delta != causal effect · lexical overlap != semantic agreement",
+          "adapter-line"
+        ));
+      } else if(listenerDogramDoor){
+        const measureListeners=el("button","MEASURE LISTENER RESPONSE DELTA");
+        measureListeners.type="button";
+        measureListeners.addEventListener("click",()=>mutate(
+          "/api/doorhouse/receipts/"+receipt.id+"/dogram/"
+            +encodeURIComponent(audioWindow.snapshot.window_id)+"/listener-delta",
+          {},
+          "Dogram measured the sealed first-response transform without scoring listeners or claiming the audio change caused it."
+        ));
+        card.append(measureListeners);
+        card.append(el(
+          "div",
+          "LISTENER-DELTA-001 · exact sealed responses · response delta != person delta",
+          "adapter-line"
+        ));
+      }
+
+      if(dogramGeneration || dogramListener){
+        card.append(el(
+          "div",
+          "Dogram measures declared transforms · delta != value · residual != failure",
           "adapter-line"
         ));
       }
@@ -834,6 +898,7 @@ function renderReceipts(){
     if(phonographAnswer) evidence.phonograph_field_answer=phonographAnswer.snapshot;
     if(phonographReentry) evidence.phonograph_reentry=phonographReentry.snapshot;
     if(dogramGeneration) evidence.dogram_generation_delta=dogramGeneration.snapshot;
+    if(dogramListener) evidence.dogram_listener_delta=dogramListener.snapshot;
     if(broadcastEpisode) evidence.broadcast_episode=broadcastEpisode.snapshot;
     details.append(el("code",JSON.stringify(evidence,null,2)));
     card.append(details); root.append(card);
