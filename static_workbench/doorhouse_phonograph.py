@@ -6,9 +6,14 @@ import hashlib
 import json
 import os
 import subprocess
+import wave
 from pathlib import Path
 
-from .doorhouse_autodisco import AutodiscoApertureError, inflate_audio_window
+from .doorhouse_autodisco import (
+    AutodiscoApertureError,
+    build_audio_window,
+    inflate_audio_window,
+)
 from .repos import RepoStatus
 
 
@@ -279,3 +284,119 @@ def run_phonograph_field_answer(
             "MUSICAL POSSIBILITY != RECOMMENDATION",
         ],
     }
+
+
+def admit_phonograph_answer_as_audio_window(
+    answer: dict,
+    repos: list[RepoStatus],
+    state_dir: Path,
+    receipt_id: str,
+) -> dict:
+    if (
+        not isinstance(answer, dict)
+        or answer.get("schema") != "workbench.phonograph-field-answer/v0"
+        or answer.get("status") != "proposal-ready"
+    ):
+        raise PhonographApertureError(
+            "a receipted Haunted Phonograph proposal is required for admission"
+        )
+
+    audition = answer.get("audition")
+    if not isinstance(audition, dict) or not isinstance(audition.get("path"), str):
+        raise PhonographApertureError("Phonograph audition artifact is missing")
+    audition_path = Path(audition["path"]).resolve()
+    if not audition_path.is_file():
+        raise PhonographApertureError("Phonograph audition WAV is missing")
+    expected_sha = audition.get("sha256")
+    if not isinstance(expected_sha, str) or not expected_sha.startswith("sha256:"):
+        raise PhonographApertureError("Phonograph audition digest is missing")
+    audition_bytes = audition_path.read_bytes()
+    if "sha256:" + _sha256_bytes(audition_bytes) != expected_sha:
+        raise PhonographApertureError(
+            "Phonograph audition no longer matches its receipted digest"
+        )
+
+    try:
+        with wave.open(str(audition_path), "rb") as wav:
+            channels = wav.getnchannels()
+            sample_width = wav.getsampwidth()
+            sample_rate = wav.getframerate()
+            frame_count = wav.getnframes()
+            compression = wav.getcomptype()
+    except (wave.Error, OSError) as exc:
+        raise PhonographApertureError(
+            "Phonograph audition is not a readable PCM WAV"
+        ) from exc
+
+    if (
+        channels != 2
+        or sample_width != 2
+        or sample_rate != 44_100
+        or compression != "NONE"
+        or frame_count <= 0
+    ):
+        raise PhonographApertureError(
+            "Phonograph re-entry requires canonical 44.1kHz stereo 16-bit PCM WAV"
+        )
+
+    # AUDIO WINDOW v0 accepts integer-millisecond bounds. Use the largest
+    # complete integer-millisecond prefix so re-entry never claims bytes past EOF.
+    end_ms = (frame_count * 1000) // sample_rate
+    if end_ms <= 0:
+        raise PhonographApertureError("Phonograph audition is too short to re-enter")
+
+    parent_window_id = answer.get("window_id")
+    proposal_receipt_hash = answer.get("proposal_receipt_hash")
+    if (
+        not isinstance(parent_window_id, str)
+        or not parent_window_id.startswith("autodisco-audio-window-v0:")
+        or not isinstance(proposal_receipt_hash, str)
+        or not proposal_receipt_hash.startswith("sha256:")
+    ):
+        raise PhonographApertureError("Phonograph proposal lineage is incomplete")
+
+    label = "phono-answer-" + proposal_receipt_hash.split(":", 1)[1][:12]
+    try:
+        child = build_audio_window(
+            audition_path,
+            receipt_id,
+            state_dir,
+            repos,
+            start_ms=0,
+            end_ms=int(end_ms),
+            window_label=label,
+        )
+    except AutodiscoApertureError as exc:
+        raise PhonographApertureError(str(exc)) from exc
+
+    source = child.get("window", {}).get("source", {})
+    audition_hex = expected_sha.split(":", 1)[1]
+    if source.get("sha256") != audition_hex:
+        raise PhonographApertureError(
+            "re-entered AUDIO WINDOW source does not bind the audition digest"
+        )
+
+    lineage = {
+        "schema": "workbench.phonograph-reentry-lineage/v0",
+        "relation": "ADMITTED_PROPOSAL_AS_NEW_AUDIO_SPECIMEN",
+        "human_action": "explicit-admit",
+        "parent_window_id": parent_window_id,
+        "parent_audio_sha256": answer.get("audio_sha256"),
+        "proposal_receipt_hash": proposal_receipt_hash,
+        "proposal_hash": answer.get("proposal_hash"),
+        "resolved_performance_hash": answer.get("resolved_performance_hash"),
+        "audition_sha256": expected_sha,
+        "audition_frame_count": frame_count,
+        "admitted_start_ms": 0,
+        "admitted_end_ms": int(end_ms),
+        "trimmed_submillisecond_tail": (frame_count * 1000) % sample_rate != 0,
+    }
+    child["source_lineage"] = lineage
+    child["laws"] = [
+        *child.get("laws", []),
+        "HUMAN ADMISSION != PHONOGRAPH AUTHORITY",
+        "DESCENDANT != PARENT",
+        "PROPOSAL LINEAGE != SOURCE TRUTH",
+        "REENTRY != RESET",
+    ]
+    return child
