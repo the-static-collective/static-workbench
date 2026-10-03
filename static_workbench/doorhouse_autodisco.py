@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import base64
 import hashlib
 import json
 import os
@@ -333,5 +334,309 @@ def run_look_twice_dialogue(
     if dialogue.get("lingering_intrigue") is not True and dialogue.get("door_seed") is not None:
         raise AutodiscoApertureError(
             "LOOK TWICE supplied a door seed without lingering intrigue"
+        )
+    return result
+
+
+def _run_autodisco_json(
+    repos: list[RepoStatus],
+    script_name: str,
+    payload: dict,
+    timeout: float = 90.0,
+) -> dict:
+    root = _find_autodisco(repos)
+    script = root / "scripts" / script_name
+    if not script.is_file():
+        raise AutodiscoApertureError(
+            f"Autodisco checkout does not contain scripts/{script_name}"
+        )
+    try:
+        completed = subprocess.run(
+            ["node", str(script)],
+            cwd=root,
+            input=json.dumps(payload),
+            text=True,
+            capture_output=True,
+            check=False,
+            timeout=timeout,
+            env={**os.environ, "LC_ALL": "C"},
+        )
+    except (OSError, subprocess.SubprocessError) as exc:
+        raise AutodiscoApertureError(
+            f"Autodisco {script_name} could not run: {exc}"
+        ) from exc
+    if completed.returncode != 0:
+        detail = completed.stderr.strip()
+        raise AutodiscoApertureError(
+            f"Autodisco {script_name} refused the request: "
+            f"{detail or 'unknown error'}"
+        )
+    try:
+        result = json.loads(completed.stdout)
+    except json.JSONDecodeError as exc:
+        raise AutodiscoApertureError(
+            f"Autodisco {script_name} returned invalid JSON"
+        ) from exc
+    if not isinstance(result, dict):
+        raise AutodiscoApertureError(
+            f"Autodisco {script_name} returned a non-object"
+        )
+    return result
+
+
+def build_audio_window(
+    source_path: Path,
+    receipt_id: str,
+    state_dir: Path,
+    repos: list[RepoStatus],
+    *,
+    start_ms: int,
+    end_ms: int,
+    window_label: str,
+) -> dict:
+    source_path = Path(source_path)
+    if not source_path.is_file():
+        raise AutodiscoApertureError("selected audio source is not a file")
+
+    result = _run_autodisco_json(
+        repos,
+        "audio-window.mjs",
+        {
+            "schema": "autodisco.audio-window-request/v0",
+            "source_path": str(source_path),
+            "start_ms": start_ms,
+            "end_ms": end_ms,
+            "declared_metadata": {
+                "window_label": window_label,
+            },
+        },
+    )
+    if result.get("schema") != "autodisco.audio-window/v0":
+        raise AutodiscoApertureError("unexpected Autodisco audio-window schema")
+
+    window_id = result.get("window_id")
+    canonical = result.get("canonical_audio")
+    if (
+        not isinstance(window_id, str)
+        or not window_id.startswith("autodisco-audio-window-v0:")
+        or not isinstance(canonical, dict)
+        or canonical.get("media_type") != "audio/wav"
+    ):
+        raise AutodiscoApertureError("Autodisco audio-window result is incomplete")
+    encoded = canonical.get("base64")
+    expected_sha = canonical.get("sha256")
+    expected_size = canonical.get("size_bytes")
+    if (
+        not isinstance(encoded, str)
+        or not isinstance(expected_sha, str)
+        or not isinstance(expected_size, int)
+    ):
+        raise AutodiscoApertureError("Autodisco audio-window bytes are missing")
+    try:
+        audio_bytes = base64.b64decode(encoded, validate=True)
+    except (ValueError, TypeError) as exc:
+        raise AutodiscoApertureError("Autodisco audio-window base64 is invalid") from exc
+    if len(audio_bytes) != expected_size:
+        raise AutodiscoApertureError("Autodisco audio-window size changed in transit")
+    if hashlib.sha256(audio_bytes).hexdigest() != expected_sha:
+        raise AutodiscoApertureError("Autodisco audio-window digest changed in transit")
+
+    target = (
+        Path(state_dir)
+        / "doorhouse-audio"
+        / receipt_id
+        / (window_id.replace(":", "-") + ".wav")
+    )
+    target.parent.mkdir(parents=True, exist_ok=True)
+    if target.exists():
+        existing = target.read_bytes()
+        if hashlib.sha256(existing).hexdigest() != expected_sha:
+            raise AutodiscoApertureError(
+                "existing House audio materialization conflicts with window digest"
+            )
+    else:
+        target.write_bytes(audio_bytes)
+
+    stored_window = json.loads(json.dumps(result))
+    stored_window["canonical_audio"].pop("base64", None)
+    stored_window["canonical_audio"]["base64_sha256"] = hashlib.sha256(
+        encoded.encode("utf-8")
+    ).hexdigest()
+
+    return {
+        "schema": "workbench.audio-window-materialized/v0",
+        "window_id": window_id,
+        "source_path": str(source_path),
+        "audio_path": str(target),
+        "audio_sha256": expected_sha,
+        "audio_size_bytes": expected_size,
+        "window": stored_window,
+        "laws": [
+            "LOCAL SOURCE PATH != LISTENER CONTEXT",
+            "MATERIALIZED WAV != WHOLE TRACK",
+            "WINDOW DIGEST BINDS HEARD BYTES",
+        ],
+    }
+
+
+def inflate_audio_window(materialized: dict) -> dict:
+    if (
+        not isinstance(materialized, dict)
+        or materialized.get("schema") != "workbench.audio-window-materialized/v0"
+    ):
+        raise AutodiscoApertureError("invalid materialized audio-window witness")
+    stored = materialized.get("window")
+    audio_path = materialized.get("audio_path")
+    if not isinstance(stored, dict) or not isinstance(audio_path, str):
+        raise AutodiscoApertureError("materialized audio-window witness is incomplete")
+    path = Path(audio_path)
+    if not path.is_file():
+        raise AutodiscoApertureError("materialized audio window is missing from House state")
+    audio_bytes = path.read_bytes()
+    audio_sha = hashlib.sha256(audio_bytes).hexdigest()
+    if (
+        audio_sha != materialized.get("audio_sha256")
+        or len(audio_bytes) != materialized.get("audio_size_bytes")
+    ):
+        raise AutodiscoApertureError(
+            "materialized audio window no longer matches its House witness"
+        )
+    result = json.loads(json.dumps(stored))
+    encoded = base64.b64encode(audio_bytes).decode("ascii")
+    expected_b64_sha = result.get("canonical_audio", {}).pop("base64_sha256", None)
+    if (
+        not isinstance(expected_b64_sha, str)
+        or hashlib.sha256(encoded.encode("utf-8")).hexdigest() != expected_b64_sha
+    ):
+        raise AutodiscoApertureError(
+            "materialized audio window transport identity changed"
+        )
+    result["canonical_audio"]["base64"] = encoded
+    return result
+
+
+def prepare_audio_look_twice(
+    materialized: dict,
+    repos: list[RepoStatus],
+) -> dict:
+    window = inflate_audio_window(materialized)
+    pair = _run_autodisco_json(
+        repos,
+        "audio-look-twice.mjs",
+        {
+            "action": "prepare",
+            "request": {
+                "schema": "autodisco.audio-look-twice-prepare-request/v0",
+                "window": window,
+            },
+        },
+    )
+    if pair.get("schema") != "autodisco.audio-look-twice-pair/v0":
+        raise AutodiscoApertureError("unexpected audio LOOK TWICE pair schema")
+    ref = pair.get("window_ref")
+    if (
+        not isinstance(ref, dict)
+        or ref.get("window_id") != materialized.get("window_id")
+        or ref.get("audio_sha256") != materialized.get("audio_sha256")
+    ):
+        raise AutodiscoApertureError("audio LOOK TWICE pair changed window identity")
+    packets = pair.get("packets")
+    if not isinstance(packets, list) or len(packets) != 2:
+        raise AutodiscoApertureError("audio LOOK TWICE did not prepare two booths")
+    return pair
+
+
+def run_audio_look_twice_encounters(
+    materialized: dict,
+    pair: dict,
+    repos: list[RepoStatus],
+) -> dict:
+    window = inflate_audio_window(materialized)
+    result = _run_autodisco_json(
+        repos,
+        "audio-look-twice.mjs",
+        {
+            "action": "encounter",
+            "request": {
+                "schema": "autodisco.audio-look-twice-encounter-request/v0",
+                "pair": pair,
+                "window": window,
+            },
+        },
+        timeout=120.0,
+    )
+    if result.get("schema") != "autodisco.audio-look-twice-encounter-result/v0":
+        raise AutodiscoApertureError("unexpected audio LOOK TWICE encounter schema")
+    if (
+        result.get("pair_id") != pair.get("pair_id")
+        or result.get("window_id") != materialized.get("window_id")
+    ):
+        raise AutodiscoApertureError("audio LOOK TWICE encounter changed identity")
+    if result.get("status") == "packets-only":
+        if result.get("first_responses") != [] or result.get("model_used") is not None:
+            raise AutodiscoApertureError(
+                "audio packets-only result contains simulated first listens"
+            )
+        return result
+    if result.get("status") != "two-first-responses-sealed":
+        raise AutodiscoApertureError("unexpected audio LOOK TWICE encounter status")
+    firsts = result.get("first_responses")
+    if not isinstance(firsts, list) or len(firsts) != 2:
+        raise AutodiscoApertureError("audio LOOK TWICE did not seal two first listens")
+    listener_ids = {
+        item.get("listener", {}).get("id")
+        for item in firsts
+        if isinstance(item, dict)
+    }
+    if len(listener_ids) != 2 or None in listener_ids:
+        raise AutodiscoApertureError("audio LOOK TWICE listeners are not distinct")
+    return result
+
+
+def run_audio_look_twice_dialogue(
+    pair: dict,
+    first_responses: list[dict],
+    repos: list[RepoStatus],
+) -> dict:
+    result = _run_autodisco_json(
+        repos,
+        "audio-look-twice.mjs",
+        {
+            "action": "dialogue",
+            "request": {
+                "schema": "autodisco.audio-look-twice-dialogue-request/v0",
+                "pair": pair,
+                "first_responses": first_responses,
+            },
+        },
+        timeout=120.0,
+    )
+    if result.get("schema") != "autodisco.audio-look-twice-dialogue-result/v0":
+        raise AutodiscoApertureError("unexpected audio LOOK TWICE dialogue schema")
+    packet = result.get("dialogue_packet")
+    if not isinstance(packet, dict) or packet.get("pair_id") != pair.get("pair_id"):
+        raise AutodiscoApertureError("audio LOOK TWICE dialogue changed pair identity")
+    serialized = json.dumps(packet, sort_keys=True, separators=(",", ":"))
+    if '"base64"' in serialized or "UklGR" in serialized:
+        raise AutodiscoApertureError(
+            "audio LOOK TWICE dialogue reopened the audio window"
+        )
+    if result.get("status") == "dialogue-packet-only":
+        if result.get("dialogue") is not None or result.get("model_used") is not None:
+            raise AutodiscoApertureError(
+                "audio dialogue-packet-only result contains simulated dialogue"
+            )
+        return result
+    if result.get("status") != "dialogue-sealed":
+        raise AutodiscoApertureError("unexpected audio LOOK TWICE dialogue status")
+    dialogue = result.get("dialogue")
+    if not isinstance(dialogue, dict):
+        raise AutodiscoApertureError("audio LOOK TWICE dialogue is missing")
+    if (
+        dialogue.get("lingering_intrigue") is not True
+        and dialogue.get("door_seed") is not None
+    ):
+        raise AutodiscoApertureError(
+            "audio LOOK TWICE door seed lacks lingering intrigue"
         )
     return result
