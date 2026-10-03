@@ -1037,6 +1037,481 @@ class DoorHouse:
                     )
         return self.state()
 
+    def record_audio_window(self, receipt_id, materialized):
+        receipt = self.receipt(receipt_id)
+        if (
+            not isinstance(materialized, dict)
+            or materialized.get("schema") != "workbench.audio-window-materialized/v0"
+        ):
+            raise DoorHouseConflict("invalid materialized audio window")
+        window_id = materialized.get("window_id")
+        audio_sha = materialized.get("audio_sha256")
+        window = materialized.get("window")
+        if (
+            not isinstance(window_id, str)
+            or not window_id.startswith("autodisco-audio-window-v0:")
+            or not isinstance(audio_sha, str)
+            or len(audio_sha) != 64
+            or not isinstance(window, dict)
+            or window.get("window_id") != window_id
+        ):
+            raise DoorHouseConflict("audio window identity is incomplete")
+        canonical = window.get("canonical_audio")
+        if (
+            not isinstance(canonical, dict)
+            or canonical.get("sha256") != audio_sha
+            or "base64" in canonical
+        ):
+            raise DoorHouseConflict("audio window witness must store metadata, not inline bytes")
+
+        kind = "audio_window:" + window_id
+        result_sha = _digest(materialized)
+        snapshot = {
+            **materialized,
+            "local_receipt_id": receipt_id,
+            "local_receipt_sha256": receipt["sha256"],
+            "laws": [
+                *materialized.get("laws", []),
+                "AUDIO WINDOW != WHOLE TRACK",
+                "WINDOW WITNESS != FIRST LISTEN",
+                "SOURCE PATH != LISTENER CONTEXT",
+            ],
+        }
+        with self._db() as db:
+            db.execute("BEGIN IMMEDIATE")
+            existing = db.execute(
+                "SELECT * FROM dh_external_witnesses WHERE receipt_id=? AND kind=?",
+                (receipt_id, kind),
+            ).fetchone()
+            if existing is None:
+                db.execute(
+                    "INSERT INTO dh_external_witnesses VALUES (?,?,?,?,?,?)",
+                    (
+                        uuid4().hex,
+                        receipt_id,
+                        kind,
+                        result_sha,
+                        _encoded(snapshot),
+                        _now(),
+                    ),
+                )
+            elif existing["result_sha256"] != result_sha:
+                raise DoorHouseConflict("audio window id collided with different content")
+        return self.state()
+
+    def latest_audio_window(self, receipt_id):
+        self.receipt(receipt_id)
+        with self._db() as db:
+            row = db.execute(
+                """SELECT * FROM dh_external_witnesses
+                   WHERE receipt_id=? AND kind LIKE 'audio_window:%'
+                   ORDER BY rowid DESC LIMIT 1""",
+                (receipt_id,),
+            ).fetchone()
+        if row is None:
+            raise DoorHouseMissing("no audio window has been admitted")
+        item = dict(row)
+        item["snapshot"] = json.loads(item["snapshot"])
+        return item
+
+    def record_audio_look_twice_pair(self, receipt_id, pair):
+        window_witness = self.latest_audio_window(receipt_id)
+        materialized = window_witness["snapshot"]
+        if (
+            not isinstance(pair, dict)
+            or pair.get("schema") != "autodisco.audio-look-twice-pair/v0"
+        ):
+            raise DoorHouseConflict("invalid audio LOOK TWICE pair")
+        pair_id = pair.get("pair_id")
+        ref = pair.get("window_ref")
+        packets = pair.get("packets")
+        if (
+            not isinstance(pair_id, str)
+            or not pair_id.startswith("autodisco-audio-look-twice-pair-v0:")
+            or not isinstance(ref, dict)
+            or ref.get("window_id") != materialized.get("window_id")
+            or ref.get("audio_sha256") != materialized.get("audio_sha256")
+            or not isinstance(packets, list)
+            or len(packets) != 2
+        ):
+            raise DoorHouseConflict("audio LOOK TWICE pair is not bound to the latest window")
+        listener_ids = {
+            packet.get("listener", {}).get("id")
+            for packet in packets
+            if isinstance(packet, dict)
+        }
+        if len(listener_ids) != 2 or None in listener_ids:
+            raise DoorHouseConflict("audio LOOK TWICE pair lacks two listeners")
+        kind = "audio_look_twice_pair:" + pair_id
+        snapshot = {
+            "schema": "workbench.audio-look-twice-pair/v0",
+            "local_receipt_id": receipt_id,
+            "window_id": materialized.get("window_id"),
+            "audio_sha256": materialized.get("audio_sha256"),
+            "pair_id": pair_id,
+            "pair": pair,
+            "laws": [
+                "SAME AUDIO WINDOW != SHARED CONTEXT",
+                "PAIR != FIRST LISTEN",
+                "FIRST LISTEN PRECEDES CROSS-READ",
+            ],
+        }
+        result_sha = _digest(pair)
+        with self._db() as db:
+            db.execute("BEGIN IMMEDIATE")
+            existing = db.execute(
+                "SELECT * FROM dh_external_witnesses WHERE receipt_id=? AND kind=?",
+                (receipt_id, kind),
+            ).fetchone()
+            if existing is None:
+                db.execute(
+                    "INSERT INTO dh_external_witnesses VALUES (?,?,?,?,?,?)",
+                    (
+                        uuid4().hex,
+                        receipt_id,
+                        kind,
+                        result_sha,
+                        _encoded(snapshot),
+                        _now(),
+                    ),
+                )
+            elif existing["result_sha256"] != result_sha:
+                raise DoorHouseConflict("audio LOOK TWICE pair id collided")
+        return self.state()
+
+    def latest_audio_look_twice_pair(self, receipt_id):
+        self.receipt(receipt_id)
+        with self._db() as db:
+            row = db.execute(
+                """SELECT * FROM dh_external_witnesses
+                   WHERE receipt_id=? AND kind LIKE 'audio_look_twice_pair:%'
+                   ORDER BY rowid DESC LIMIT 1""",
+                (receipt_id,),
+            ).fetchone()
+        if row is None:
+            raise DoorHouseMissing("audio LOOK TWICE pair has not been prepared")
+        item = dict(row)
+        item["snapshot"] = json.loads(item["snapshot"])
+        return item
+
+    def audio_look_twice_first_responses(self, receipt_id, pair_id):
+        self.receipt(receipt_id)
+        prefix = "audio_look_twice_first:" + pair_id + ":%"
+        with self._db() as db:
+            rows = db.execute(
+                """SELECT * FROM dh_external_witnesses
+                   WHERE receipt_id=? AND kind LIKE ?
+                   ORDER BY kind""",
+                (receipt_id, prefix),
+            ).fetchall()
+        responses = []
+        for row in rows:
+            snapshot = json.loads(row["snapshot"])
+            sealed = snapshot.get("sealed_response")
+            if isinstance(sealed, dict):
+                responses.append(sealed)
+        return responses
+
+    def record_audio_look_twice_encounters(self, receipt_id, result):
+        pair_witness = self.latest_audio_look_twice_pair(receipt_id)
+        pair = pair_witness["snapshot"]["pair"]
+        if (
+            not isinstance(result, dict)
+            or result.get("schema") != "autodisco.audio-look-twice-encounter-result/v0"
+            or result.get("pair_id") != pair.get("pair_id")
+            or result.get("window_id") != pair.get("window_ref", {}).get("window_id")
+        ):
+            raise DoorHouseConflict("invalid audio LOOK TWICE encounter result")
+        status = result.get("status")
+        responses = result.get("first_responses")
+        if status == "packets-only":
+            if responses != [] or result.get("model_used") is not None:
+                raise DoorHouseConflict(
+                    "audio LOOK TWICE packets-only result contains fake first listens"
+                )
+            return self.state()
+        if status != "two-first-responses-sealed":
+            raise DoorHouseConflict("unexpected audio LOOK TWICE encounter status")
+        if not isinstance(responses, list) or len(responses) != 2:
+            raise DoorHouseConflict("audio LOOK TWICE did not return two first listens")
+
+        pair_id = pair["pair_id"]
+        packet_ids = {
+            packet.get("packet_id")
+            for packet in pair.get("packets", [])
+            if isinstance(packet, dict)
+        }
+        seen_packets = set()
+        seen_listeners = set()
+        with self._db() as db:
+            db.execute("BEGIN IMMEDIATE")
+            inserted = 0
+            for sealed in responses:
+                if not isinstance(sealed, dict):
+                    raise DoorHouseConflict("audio sealed first listen is malformed")
+                packet_id = sealed.get("packet_id")
+                listener = sealed.get("listener")
+                listener_id = listener.get("id") if isinstance(listener, dict) else None
+                first_id = sealed.get("first_response_id")
+                if (
+                    sealed.get("schema") != "autodisco.audio-look-twice-first-response/v0"
+                    or sealed.get("pair_id") != pair_id
+                    or sealed.get("window_id") != pair.get("window_ref", {}).get("window_id")
+                    or sealed.get("audio_sha256") != pair.get("window_ref", {}).get("audio_sha256")
+                    or packet_id not in packet_ids
+                    or packet_id in seen_packets
+                    or not isinstance(listener_id, str)
+                    or listener_id in seen_listeners
+                    or not isinstance(first_id, str)
+                    or not first_id.startswith("autodisco-audio-look-twice-response-v0:")
+                ):
+                    raise DoorHouseConflict("audio first-listen binding is invalid")
+                seen_packets.add(packet_id)
+                seen_listeners.add(listener_id)
+                kind = f"audio_look_twice_first:{pair_id}:{listener_id}"
+                result_sha = _digest(sealed)
+                snapshot = {
+                    "schema": "workbench.audio-look-twice-first-response/v0",
+                    "local_receipt_id": receipt_id,
+                    "pair_id": pair_id,
+                    "window_id": sealed.get("window_id"),
+                    "audio_sha256": sealed.get("audio_sha256"),
+                    "listener": listener,
+                    "packet_id": packet_id,
+                    "first_response_id": first_id,
+                    "model_used": sealed.get("model_used"),
+                    "sealed_response": sealed,
+                    "laws": [
+                        "FIRST LISTEN PRECEDES CROSS-READ",
+                        "SEALED != SHARED",
+                        "HEARD != INTERPRETED",
+                    ],
+                }
+                existing = db.execute(
+                    "SELECT * FROM dh_external_witnesses WHERE receipt_id=? AND kind=?",
+                    (receipt_id, kind),
+                ).fetchone()
+                if existing is None:
+                    db.execute(
+                        "INSERT INTO dh_external_witnesses VALUES (?,?,?,?,?,?)",
+                        (
+                            uuid4().hex,
+                            receipt_id,
+                            kind,
+                            result_sha,
+                            _encoded(snapshot),
+                            _now(),
+                        ),
+                    )
+                    inserted += 1
+                elif existing["result_sha256"] != result_sha:
+                    raise DoorHouseConflict(
+                        "a different audio first listen is already sealed for this listener"
+                    )
+            total = db.execute(
+                """SELECT COUNT(*) AS n FROM dh_external_witnesses
+                   WHERE receipt_id=? AND kind LIKE ?""",
+                (receipt_id, "audio_look_twice_first:" + pair_id + ":%"),
+            ).fetchone()["n"]
+            if total != 2:
+                raise DoorHouseConflict(
+                    "audio LOOK TWICE requires exactly two sealed first listens"
+                )
+            if inserted:
+                parent = "audio-firsts:" + pair_id
+                prior = db.execute(
+                    "SELECT 1 FROM dh_letters WHERE parent_crossing_id=? LIMIT 1",
+                    (parent,),
+                ).fetchone()
+                if prior is None:
+                    self._create_letter(
+                        db,
+                        "Two strangers heard the same slice. Neither heard the other.",
+                        (
+                            "Static Sam and Juniper now have independently sealed first "
+                            "listens to the exact same bounded audio window. The audio "
+                            "digest is shared; their context is not."
+                        ),
+                        [
+                            (
+                                "Let them compare notes",
+                                "Unlock a short cross-read over the two sealed first listens without reopening the audio.",
+                                "Autodisco / Audio LOOK TWICE",
+                            ),
+                            (
+                                "Move the window",
+                                "Choose a neighboring bounded time range as a new specimen.",
+                                "Autodisco / Audio Window",
+                            ),
+                            (
+                                "Keep the listens separate",
+                                "Preserve both first listens without introducing dialogue.",
+                                "House memory",
+                            ),
+                        ],
+                        parent_crossing_id=parent,
+                    )
+        return self.state()
+
+    def record_audio_look_twice_dialogue(self, receipt_id, result):
+        pair_witness = self.latest_audio_look_twice_pair(receipt_id)
+        pair = pair_witness["snapshot"]["pair"]
+        pair_id = pair["pair_id"]
+        first_responses = self.audio_look_twice_first_responses(
+            receipt_id, pair_id
+        )
+        if len(first_responses) != 2:
+            raise DoorHouseConflict(
+                "two sealed audio first listens are required before cross-read"
+            )
+        if (
+            not isinstance(result, dict)
+            or result.get("schema") != "autodisco.audio-look-twice-dialogue-result/v0"
+        ):
+            raise DoorHouseConflict("invalid audio LOOK TWICE dialogue result")
+        packet = result.get("dialogue_packet")
+        if (
+            not isinstance(packet, dict)
+            or packet.get("pair_id") != pair_id
+            or packet.get("window_ref", {}).get("window_id")
+                != pair.get("window_ref", {}).get("window_id")
+        ):
+            raise DoorHouseConflict("audio LOOK TWICE dialogue changed window identity")
+        packet_text = _encoded(packet)
+        if '"base64"' in packet_text or "UklGR" in packet_text:
+            raise DoorHouseConflict("audio LOOK TWICE dialogue reopened the audio")
+        sealed = packet.get("sealed_first_responses")
+        if not isinstance(sealed, list) or len(sealed) != 2:
+            raise DoorHouseConflict("audio dialogue packet lacks two sealed first listens")
+
+        status = result.get("status")
+        if status == "dialogue-packet-only":
+            if result.get("dialogue") is not None or result.get("model_used") is not None:
+                raise DoorHouseConflict("audio dialogue packet contains fake exchange")
+        elif status == "dialogue-sealed":
+            dialogue = result.get("dialogue")
+            if not isinstance(dialogue, dict) or not isinstance(result.get("dialogue_id"), str):
+                raise DoorHouseConflict("audio sealed dialogue is incomplete")
+            if (
+                dialogue.get("lingering_intrigue") is not True
+                and dialogue.get("door_seed") is not None
+            ):
+                raise DoorHouseConflict("audio door seed lacks lingering intrigue")
+        else:
+            raise DoorHouseConflict("unexpected audio LOOK TWICE dialogue status")
+
+        packet_kind = "audio_look_twice_dialogue_packet:" + pair_id
+        packet_sha = _digest(packet)
+        packet_snapshot = {
+            "schema": "workbench.audio-look-twice-dialogue-packet/v0",
+            "local_receipt_id": receipt_id,
+            "pair_id": pair_id,
+            "window_id": pair.get("window_ref", {}).get("window_id"),
+            "audio_sha256": pair.get("window_ref", {}).get("audio_sha256"),
+            "dialogue_packet_id": packet.get("dialogue_packet_id"),
+            "status": status,
+            "dialogue_packet": packet,
+            "laws": [
+                "TWO SEALED FIRST LISTENS PRECEDE CROSS-READ",
+                "AUDIO WINDOW IS NOT REOPENED",
+                "PACKET != EXCHANGE",
+            ],
+        }
+        with self._db() as db:
+            db.execute("BEGIN IMMEDIATE")
+            existing_packet = db.execute(
+                "SELECT * FROM dh_external_witnesses WHERE receipt_id=? AND kind=?",
+                (receipt_id, packet_kind),
+            ).fetchone()
+            if existing_packet is None:
+                db.execute(
+                    "INSERT INTO dh_external_witnesses VALUES (?,?,?,?,?,?)",
+                    (
+                        uuid4().hex,
+                        receipt_id,
+                        packet_kind,
+                        packet_sha,
+                        _encoded(packet_snapshot),
+                        _now(),
+                    ),
+                )
+            elif existing_packet["result_sha256"] != packet_sha:
+                raise DoorHouseConflict("audio dialogue packet changed after sealing")
+
+            if status == "dialogue-sealed":
+                dialogue = result["dialogue"]
+                dialogue_id = result["dialogue_id"]
+                kind = "audio_look_twice_dialogue:" + pair_id
+                result_sha = _digest(result)
+                snapshot = {
+                    "schema": "workbench.audio-look-twice-dialogue/v0",
+                    "local_receipt_id": receipt_id,
+                    "pair_id": pair_id,
+                    "window_id": pair.get("window_ref", {}).get("window_id"),
+                    "dialogue_id": dialogue_id,
+                    "dialogue_sha256": result.get("dialogue_sha256"),
+                    "model_used": result.get("model_used"),
+                    "dialogue": dialogue,
+                    "laws": [
+                        "AUDIO DIALOGUE != RETROACTIVE FIRST LISTEN",
+                        "LINGERING INTRIGUE != SOURCE TRUTH",
+                        "DOOR SEED != CROSSING",
+                    ],
+                }
+                existing = db.execute(
+                    "SELECT * FROM dh_external_witnesses WHERE receipt_id=? AND kind=?",
+                    (receipt_id, kind),
+                ).fetchone()
+                if existing is None:
+                    db.execute(
+                        "INSERT INTO dh_external_witnesses VALUES (?,?,?,?,?,?)",
+                        (
+                            uuid4().hex,
+                            receipt_id,
+                            kind,
+                            result_sha,
+                            _encoded(snapshot),
+                            _now(),
+                        ),
+                    )
+                    if dialogue.get("lingering_intrigue") is True:
+                        intrigue = str(dialogue.get("intrigue_statement") or "").strip()
+                        door_seed = str(dialogue.get("door_seed") or "").strip()
+                        body = (
+                            "The exact audio window closed before the conversation began. "
+                            "Static Sam and Juniper compared only their already sealed first listens."
+                        )
+                        if intrigue:
+                            body += "\n\nLINGERING — " + intrigue
+                        if door_seed:
+                            body += "\n\nDOOR SEED — " + door_seed
+                        self._create_letter(
+                            db,
+                            "They heard it twice. Something was still ringing.",
+                            body,
+                            [
+                                (
+                                    door_seed or "Follow what still rings",
+                                    "Treat the surviving intrigue as a proposal for a new bounded crossing.",
+                                    "House composition",
+                                ),
+                                (
+                                    "Move thirty seconds down the road",
+                                    "Choose a neighboring audio window and repeat first-listen isolation.",
+                                    "Autodisco / Audio Window",
+                                ),
+                                (
+                                    "Cut the first radio interstitial",
+                                    "Turn the sealed first-listen evidence into a broadcast assembly proposal.",
+                                    "Autodisco / Static Collective Radio",
+                                ),
+                            ],
+                            parent_crossing_id=dialogue_id,
+                        )
+                elif existing["result_sha256"] != result_sha:
+                    raise DoorHouseConflict("a different audio dialogue is already sealed")
+        return self.state()
+
     def record_relatte_witness(self, receipt_id, result):
         receipt = self.receipt(receipt_id)
         if not isinstance(result, dict) or result.get("schema") != "relatte.opaque-roundtrip-result/v0":
