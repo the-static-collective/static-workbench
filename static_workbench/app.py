@@ -59,6 +59,11 @@ from .native_maxhinal import preview_fuels, spin, FuelConflict
 from .broadcast import broadcast_door
 from .field_station import compose_nearby_station_doors
 from .field_return import FieldReturnStore, compose_field_return
+from .field_reseed_crossing import (
+    FieldReseedCrossingError,
+    admit_field_reseed,
+    cross_field_reseed,
+)
 from .lifestream_inbox import MomentInbox
 from .journal import Journal, SenseFieldRecord
 from .house import build_house_status
@@ -545,6 +550,7 @@ def create_app(config: WorkbenchConfig | None = None) -> FastAPI:
             repos,
             phonograph=phonograph,
             dogram=dogram,
+            field_receivers=field_returns.receiver_field_state(),
         )
 
     @app.get("/api/doorhouse/field-station")
@@ -586,6 +592,69 @@ def create_app(config: WorkbenchConfig | None = None) -> FastAPI:
             ),
         })
         return stored
+
+    @app.post("/api/doorhouse/field-station/returns/{receipt_id}/ghot/receive")
+    def doorhouse_field_reseed_receive(receipt_id: str, request: Request):
+        _creator_write_guard(request)
+        try:
+            stored = field_returns.get(receipt_id)
+        except ValueError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+        try:
+            repos = discover_repositories(config.roots, config.max_repo_depth)
+            crossing = cross_field_reseed(
+                stored,
+                config.state_dir,
+                repos,
+            )
+            receiver = field_returns.save_crossing(receipt_id, crossing)
+        except FieldReseedCrossingError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        relatte = crossing["relatte"]
+        hold = crossing["ghot_hold"]
+        journal.append("field.reseed.received_held", {
+            "field_return_id": receipt_id,
+            "reseed_id": crossing["reseed_id"],
+            "crossing_id": relatte["crossing"]["crossing_id"],
+            "receive_receipt_id": relatte["receive_receipt"]["receipt_id"],
+            "hold_receipt_id": relatte["disposition_receipt"]["receipt_id"],
+            "ghot_hold_id": hold["hold_id"],
+            "relatte_revision": crossing["pins"]["relatte"],
+            "ghot_revision": crossing["pins"]["ghot"],
+        })
+        return receiver
+
+    @app.post("/api/doorhouse/field-station/returns/{receipt_id}/ghot/admit")
+    def doorhouse_field_reseed_admit(receipt_id: str, request: Request):
+        _creator_write_guard(request)
+        try:
+            receiver = field_returns.receiver(receipt_id)
+            if receiver is None or not isinstance(receiver.get("crossing"), dict):
+                raise ValueError("field reseed HOLD is required before admission")
+            repos = discover_repositories(config.roots, config.max_repo_depth)
+            admission = admit_field_reseed(
+                receiver["crossing"],
+                config.state_dir,
+                repos,
+            )
+            receiver = field_returns.save_admission(receipt_id, admission)
+        except FieldReseedCrossingError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        ghot = admission["ghot_admission"]
+        journal.append("field.reseed.ghot_admitted", {
+            "field_return_id": receipt_id,
+            "reseed_id": admission["reseed_id"],
+            "admission_id": ghot["admission_id"],
+            "intent_id": ghot["intent"]["intent_id"],
+            "status": admission["status"],
+            "semantic_effect": admission["semantic_effect"],
+            "ghot_revision": admission["pins"]["ghot"],
+        })
+        return receiver
 
     @app.post("/api/doorhouse/enter")
     def doorhouse_enter(request: Request):
