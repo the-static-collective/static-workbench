@@ -76,6 +76,15 @@ class DoorHouse:
                     sha256 TEXT NOT NULL,
                     created_at TEXT NOT NULL
                 );
+                CREATE TABLE IF NOT EXISTS dh_external_witnesses (
+                    id TEXT PRIMARY KEY,
+                    receipt_id TEXT NOT NULL,
+                    kind TEXT NOT NULL,
+                    result_sha256 TEXT NOT NULL,
+                    snapshot TEXT NOT NULL,
+                    created_at TEXT NOT NULL,
+                    UNIQUE(receipt_id, kind)
+                );
             """)
 
     @contextmanager
@@ -175,6 +184,7 @@ class DoorHouse:
                     "entered": False,
                     "world_version": None,
                     "letters": [], "doors": [], "receipts": [],
+                    "external_witnesses": [],
                     "laws": self.laws(),
                 }
             letters = []
@@ -195,6 +205,13 @@ class DoorHouse:
                 item = dict(row)
                 item["snapshot"] = json.loads(item["snapshot"])
                 receipts.append(item)
+            external_witnesses = []
+            for row in db.execute(
+                "SELECT * FROM dh_external_witnesses ORDER BY rowid DESC LIMIT 30"
+            ).fetchall():
+                item = dict(row)
+                item["snapshot"] = json.loads(item["snapshot"])
+                external_witnesses.append(item)
             return {
                 "entered": True,
                 "entered_at": world["entered_at"],
@@ -202,6 +219,7 @@ class DoorHouse:
                 "letters": letters,
                 "doors": doors,
                 "receipts": receipts,
+                "external_witnesses": external_witnesses,
                 "laws": self.laws(),
             }
 
@@ -251,6 +269,94 @@ class DoorHouse:
             db.execute("UPDATE dh_doors SET selected_at=? WHERE id=?", (_now(), door_id))
         return self.state()
 
+    def receipt(self, receipt_id):
+        with self._db() as db:
+            row = db.execute(
+                "SELECT * FROM dh_receipts WHERE id=?", (receipt_id,)
+            ).fetchone()
+        if row is None:
+            raise DoorHouseMissing("local crossing receipt not found")
+        item = dict(row)
+        item["snapshot"] = json.loads(item["snapshot"])
+        return item
+
+    def record_relatte_witness(self, receipt_id, result):
+        receipt = self.receipt(receipt_id)
+        if not isinstance(result, dict) or result.get("schema") != "relatte.opaque-roundtrip-result/v0":
+            raise DoorHouseConflict("invalid reLATTE round-trip result")
+
+        crossing = result.get("crossing")
+        received = result.get("receive_receipt")
+        disposition = result.get("disposition_receipt")
+        if not all(isinstance(item, dict) for item in (crossing, received, disposition)):
+            raise DoorHouseConflict("incomplete reLATTE round-trip result")
+        crossing_id = crossing.get("crossing_id")
+        if not isinstance(crossing_id, str) or crossing_id == "":
+            raise DoorHouseConflict("reLATTE crossing id is missing")
+        if received.get("crossing_id") != crossing_id or received.get("kind") != "RECEIVED":
+            raise DoorHouseConflict("reLATTE RECEIVE receipt mismatch")
+        if disposition.get("crossing_id") != crossing_id or disposition.get("kind") != "R3_HOLD":
+            raise DoorHouseConflict("reLATTE HOLD receipt mismatch")
+
+        donor_claims = (
+            crossing.get("extensions", {})
+            .get("organ_adapter", {})
+            .get("donor_claims", {})
+        )
+        if donor_claims.get("local_receipt_id") != receipt_id:
+            raise DoorHouseConflict("reLATTE result does not witness this local receipt")
+        if donor_claims.get("local_receipt_sha256") != receipt["sha256"]:
+            raise DoorHouseConflict("reLATTE result does not preserve local receipt digest")
+
+        result_sha = _digest(result)
+        snapshot = {
+            "schema": "workbench.relatte-witness/v0",
+            "local_receipt_id": receipt_id,
+            "local_receipt_sha256": receipt["sha256"],
+            "relatte_request_id": result.get("request_id"),
+            "crossing_id": crossing_id,
+            "transport_id": result.get("transport_frame", {}).get("transport_id"),
+            "receive_receipt_id": received.get("receipt_id"),
+            "hold_receipt_id": disposition.get("receipt_id"),
+            "receiver_world": received.get("world_id"),
+            "receiver_state_ref": result.get("receiver_snapshot", {}).get("state_ref"),
+            "status": "RECEIVED_THEN_HELD",
+            "semantic_effect": "none",
+            "laws": [
+                "LOCAL CROSSING != reLATTE CROSSING",
+                "DELIVERY != ADMISSION",
+                "RECEIVED != ADMITTED",
+                "HOLD != INTERPRETATION",
+                "RETURNED RECEIPT != NEW AUTHORITY",
+            ],
+        }
+        witness_id = uuid4().hex
+        with self._db() as db:
+            db.execute("BEGIN IMMEDIATE")
+            existing = db.execute(
+                "SELECT * FROM dh_external_witnesses WHERE receipt_id=? AND kind='relatte'",
+                (receipt_id,),
+            ).fetchone()
+            if existing is None:
+                db.execute(
+                    "INSERT INTO dh_external_witnesses VALUES (?,?,?,?,?,?)",
+                    (
+                        witness_id,
+                        receipt_id,
+                        "relatte",
+                        result_sha,
+                        _encoded(snapshot),
+                        _now(),
+                    ),
+                )
+            else:
+                prior = dict(existing)
+                if prior["result_sha256"] != result_sha:
+                    raise DoorHouseConflict(
+                        "a different reLATTE witness is already attached to this receipt"
+                    )
+        return self.state()
+
     def cross(self, door_id, expected_world_version):
         with self._db() as db:
             db.execute("BEGIN IMMEDIATE")
@@ -290,13 +396,14 @@ class DoorHouse:
             snapshot = {
                 "envelope": envelope,
                 "artifact": artifact,
+                "artifact_sha256": artifact_sha,
                 "execution": {
                     "body": "static-workbench/local",
                     "mode": "REAL_LOCAL_TRANSFORM",
                 },
                 "adapters": {
                     "dogram": "STRUCTURED_PERTURBATION_RECORDED",
-                    "relatte": "STUB_NOT_CONNECTED",
+                    "relatte": "AVAILABLE_AFTER_LOCAL_CROSSING",
                     "ghot": "LOCAL_BODY_ONLY_NOT_GHOT_ASSIGNMENT",
                     "tranchnode": "LOCAL_WITNESS_ONLY",
                     "autodisco": "STUB_NOT_CONNECTED",
