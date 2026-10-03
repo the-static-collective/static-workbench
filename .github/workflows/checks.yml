@@ -70,6 +70,13 @@ jobs:
           ref: 7ad77a46debc7e8c05fc7434c9091f3e36870651
           path: .compat/autodisco
           persist-credentials: false
+      - name: Checkout pinned Haunted Phonograph FIELD ANSWER
+        uses: actions/checkout@v4
+        with:
+          repository: the-static-collective/the-haunted-phonography
+          ref: 038b7101ecff781ee2ae17a22a1323ca28740d06
+          path: .compat/haunted-phonograph
+          persist-credentials: false
       - name: Actual House -> GHoT -> Toaster -> Autodisco creative smoke
         run: python scripts/smoke_doorhouse_creative.py
       - name: Browser JavaScript syntax
