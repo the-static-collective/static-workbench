@@ -174,10 +174,23 @@ class FieldReturnStore:
                 CREATE TABLE IF NOT EXISTS field_return_receivers (
                     receipt_id TEXT PRIMARY KEY,
                     crossing_json TEXT,
-                    admission_json TEXT
+                    admission_json TEXT,
+                    assignment_offer_json TEXT,
+                    assignment_json TEXT
                 )
                 """
             )
+            columns = {
+                str(row["name"])
+                for row in db.execute(
+                    "PRAGMA table_info(field_return_receivers)"
+                ).fetchall()
+            }
+            for name in ("assignment_offer_json", "assignment_json"):
+                if name not in columns:
+                    db.execute(
+                        f"ALTER TABLE field_return_receivers ADD COLUMN {name} TEXT"
+                    )
 
     def save(self, receipt: dict) -> dict:
         if receipt.get("schema") != "workbench.field-return/v0":
@@ -240,7 +253,8 @@ class FieldReturnStore:
         with self._connect() as db:
             row = db.execute(
                 """
-                SELECT crossing_json, admission_json
+                SELECT crossing_json, admission_json,
+                       assignment_offer_json, assignment_json
                 FROM field_return_receivers
                 WHERE receipt_id = ?
                 """,
@@ -258,11 +272,27 @@ class FieldReturnStore:
             if row["admission_json"] is not None
             else None
         )
+        assignment_offer = (
+            json.loads(str(row["assignment_offer_json"]))
+            if row["assignment_offer_json"] is not None
+            else None
+        )
+        assignment = (
+            json.loads(str(row["assignment_json"]))
+            if row["assignment_json"] is not None
+            else None
+        )
         return {
             "crossing": crossing,
             "admission": admission,
+            "assignment_offer": assignment_offer,
+            "assignment": assignment,
             "status": (
-                "ADMITTED_NOT_ASSIGNED"
+                "ASSIGNED_NOT_EXECUTED"
+                if assignment is not None
+                else "OFFER_READY"
+                if assignment_offer is not None
+                else "ADMITTED_NOT_ASSIGNED"
                 if admission is not None
                 else "RECEIVED_THEN_HELD"
                 if crossing is not None
@@ -336,12 +366,84 @@ class FieldReturnStore:
             raise RuntimeError("field reseed admission did not persist")
         return result
 
+    def save_assignment_offer(self, receipt_id: str, offered: dict) -> dict:
+        receiver = self.receiver(receipt_id)
+        if receiver is None or not isinstance(receiver.get("admission"), dict):
+            raise ValueError("field reseed admission is required before assignment offer")
+        if receiver.get("assignment") is not None:
+            raise ValueError("field reseed intent is already assigned")
+        if offered.get("schema") != "workbench.field-reseed-assignment-offer/v0":
+            raise ValueError("unsupported field reseed assignment offer schema")
+        if offered.get("field_return_id") != receipt_id:
+            raise ValueError("assignment offer is bound to another return")
+        admission = receiver["admission"]
+        if offered.get("reseed_id") != admission.get("reseed_id"):
+            raise ValueError("assignment offer changed reseed identity")
+        intent = admission.get("ghot_admission", {}).get("intent", {})
+        if offered.get("intent_id") != intent.get("intent_id"):
+            raise ValueError("assignment offer changed carried intent identity")
+        payload = _canonical(offered)
+        with self._connect() as db:
+            db.execute(
+                """
+                UPDATE field_return_receivers
+                SET assignment_offer_json = ?
+                WHERE receipt_id = ?
+                """,
+                (payload, receipt_id),
+            )
+        result = self.receiver(receipt_id)
+        if result is None or result["assignment_offer"] is None:
+            raise RuntimeError("field reseed assignment offer did not persist")
+        return result
+
+    def save_assignment(self, receipt_id: str, assignment: dict) -> dict:
+        receiver = self.receiver(receipt_id)
+        if (
+            receiver is None
+            or not isinstance(receiver.get("admission"), dict)
+            or not isinstance(receiver.get("assignment_offer"), dict)
+        ):
+            raise ValueError("current assignment offer is required before assignment")
+        if assignment.get("schema") != "workbench.field-reseed-assignment/v0":
+            raise ValueError("unsupported field reseed assignment schema")
+        if assignment.get("field_return_id") != receipt_id:
+            raise ValueError("assignment is bound to another return")
+        if assignment.get("intent_id") != receiver["assignment_offer"].get("intent_id"):
+            raise ValueError("assignment changed carried intent identity")
+        if assignment.get("status") != "ASSIGNED_NOT_EXECUTED":
+            raise ValueError("assignment crossed into execution")
+        payload = _canonical(assignment)
+        with self._connect() as db:
+            row = db.execute(
+                "SELECT assignment_json FROM field_return_receivers WHERE receipt_id = ?",
+                (receipt_id,),
+            ).fetchone()
+            if row is not None and row["assignment_json"] is not None:
+                if str(row["assignment_json"]) != payload:
+                    raise ValueError("a different assignment is already stored for this return")
+            else:
+                db.execute(
+                    """
+                    UPDATE field_return_receivers
+                    SET assignment_json = ?
+                    WHERE receipt_id = ?
+                    """,
+                    (payload, receipt_id),
+                )
+        result = self.receiver(receipt_id)
+        if result is None or result["assignment"] is None:
+            raise RuntimeError("field reseed assignment did not persist")
+        return result
+
     def latest(self, limit: int = 50) -> list[dict]:
         bounded = max(1, min(int(limit), 200))
         with self._connect() as db:
             rows = db.execute(
                 """
-                SELECT r.stored_at, r.receipt_json, x.crossing_json, x.admission_json
+                SELECT r.stored_at, r.receipt_json,
+                       x.crossing_json, x.admission_json,
+                       x.assignment_offer_json, x.assignment_json
                 FROM field_returns r
                 LEFT JOIN field_return_receivers x ON x.receipt_id = r.receipt_id
                 ORDER BY r.stored_at DESC, r.receipt_id DESC
@@ -365,15 +467,36 @@ class FieldReturnStore:
                 if row["admission_json"] is not None
                 else None
             )
-            if crossing is not None or admission is not None:
+            assignment_offer = (
+                json.loads(str(row["assignment_offer_json"]))
+                if row["assignment_offer_json"] is not None
+                else None
+            )
+            assignment = (
+                json.loads(str(row["assignment_json"]))
+                if row["assignment_json"] is not None
+                else None
+            )
+            if any(
+                value is not None
+                for value in (
+                    crossing, admission, assignment_offer, assignment
+                )
+            ):
                 item["receiver"] = {
                     "status": (
-                        "ADMITTED_NOT_ASSIGNED"
+                        "ASSIGNED_NOT_EXECUTED"
+                        if assignment is not None
+                        else "OFFER_READY"
+                        if assignment_offer is not None
+                        else "ADMITTED_NOT_ASSIGNED"
                         if admission is not None
                         else "RECEIVED_THEN_HELD"
                     ),
                     "crossing": crossing,
                     "admission": admission,
+                    "assignment_offer": assignment_offer,
+                    "assignment": assignment,
                 }
             result.append(item)
         return result
@@ -386,6 +509,8 @@ class FieldReturnStore:
                 continue
             crossing = receiver.get("crossing")
             admission = receiver.get("admission")
+            assignment_offer = receiver.get("assignment_offer")
+            assignment = receiver.get("assignment")
             if not isinstance(crossing, dict):
                 continue
             hold = crossing.get("ghot_hold")
@@ -394,8 +519,22 @@ class FieldReturnStore:
                 if isinstance(admission, dict)
                 else None
             )
+            offer = (
+                assignment_offer.get("ghot_offer")
+                if isinstance(assignment_offer, dict)
+                else None
+            )
+            assigned = (
+                assignment.get("ghot_assignment")
+                if isinstance(assignment, dict)
+                else None
+            )
             receiver_at = (
-                admit.get("admitted_at")
+                assigned.get("assigned_at")
+                if isinstance(assigned, dict)
+                else offer.get("observed_at")
+                if isinstance(offer, dict)
+                else admit.get("admitted_at")
                 if isinstance(admit, dict)
                 else hold.get("received_at")
                 if isinstance(hold, dict)
@@ -416,6 +555,26 @@ class FieldReturnStore:
                 "intent_id": (
                     admit.get("intent", {}).get("intent_id")
                     if isinstance(admit, dict)
+                    else None
+                ),
+                "assignment_offer_id": (
+                    offer.get("offer_id")
+                    if isinstance(offer, dict)
+                    else None
+                ),
+                "assignment_id": (
+                    assigned.get("assignment_id")
+                    if isinstance(assigned, dict)
+                    else None
+                ),
+                "selected_node_id": (
+                    assigned.get("selected_node_id")
+                    if isinstance(assigned, dict)
+                    else None
+                ),
+                "capability": (
+                    assigned.get("capability")
+                    if isinstance(assigned, dict)
                     else None
                 ),
             })
