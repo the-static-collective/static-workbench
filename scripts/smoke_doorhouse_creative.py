@@ -8,7 +8,11 @@ import tempfile
 from pathlib import Path
 
 from static_workbench.doorhouse import DoorHouse
-from static_workbench.doorhouse_autodisco import run_first_encounter
+from static_workbench.doorhouse_autodisco import (
+    prepare_look_twice,
+    run_first_encounter,
+    run_look_twice_encounters,
+)
 from static_workbench.doorhouse_ghot import assign_ghot_body, discover_ghot_bodies
 from static_workbench.repos import RepoStatus
 
@@ -136,11 +140,33 @@ def main() -> int:
         )
         assert final["letters"][0]["body"] is None
 
+        pair = prepare_look_twice(ghot["snapshot"], repos)
+        assert pair["schema"] == "autodisco.look-twice-pair/v0"
+        assert len(pair["packets"]) == 2
+        assert {
+            item["listener"]["id"] for item in pair["packets"]
+        } == {"static-sam", "juniper"}
+        store.record_look_twice_pair(receipt["id"], pair)
+
+        twice = run_look_twice_encounters(pair, repos)
+        assert twice["status"] == "packets-only"
+        assert twice["first_responses"] == []
+        final = store.record_look_twice_encounters(receipt["id"], twice)
+        assert any(
+            item["kind"] == "look_twice_pair"
+            for item in final["external_witnesses"]
+        )
+        assert not any(
+            item["kind"].startswith("look_twice_first:")
+            for item in final["external_witnesses"]
+        )
+
         print(
             "creative loop smoke ok:",
             local["node_id"],
             creative["svg_sha256"],
             encounter["packet"]["packet_id"],
+            pair["pair_id"],
         )
     return 0
 
