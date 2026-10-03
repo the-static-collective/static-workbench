@@ -18,7 +18,7 @@ from .repos import RepoStatus
 
 
 RELATTE_REVISION = "87006f3265103a8abe387d81597c58aeb39b0beb"
-GHOT_REVISION = "fa3a2d81b5cebc3532c9f7f6b950039186cc37c3"
+GHOT_REVISION = "0812164737fc890a813aa965f8a5cf00701def3e"
 GHOT_RECEIVER_WORLD = "world:ghot:field-reseed-inbox"
 GHOT_RECEIVER_PARTICULAR = "particular:ghot:field-reseed-inbox"
 
@@ -378,6 +378,176 @@ def admit_field_reseed(
         "laws": [
             "ADMISSION != ASSIGNMENT",
             "ASSIGNMENT != EXECUTION",
+            "RECEIVER CONSEQUENCE != DONOR CONSEQUENCE",
+        ],
+    }
+
+
+
+def offer_field_reseed_assignment(
+    admission: dict,
+    state_dir: Path,
+    repos: list[RepoStatus],
+) -> dict:
+    if (
+        admission.get("schema") != "workbench.field-reseed-admission/v0"
+        or admission.get("status") != "ADMITTED_NOT_ASSIGNED"
+    ):
+        raise FieldReseedCrossingError(
+            "verified admitted carried intent is required before assignment offer"
+        )
+    ghot_admission = admission.get("ghot_admission")
+    intent = (
+        ghot_admission.get("intent")
+        if isinstance(ghot_admission, dict)
+        else None
+    )
+    if (
+        not isinstance(intent, dict)
+        or intent.get("schema") != "ghot.carried-intent/v0"
+        or intent.get("status") != "admitted-not-assigned"
+    ):
+        raise FieldReseedCrossingError("GHoT carried intent is unavailable")
+
+    ghot = _find_pinned(
+        repos,
+        "GHoT",
+        GHOT_REVISION,
+        "ghot/carried_intent_assignment.py",
+    )
+    ghot_home = Path(state_dir) / "field-reseed-ghot"
+    offered = _run_json(
+        ["python3", str(ghot / "ghot" / "carried_intent_assignment.py")],
+        ghot,
+        {
+            "action": "offer",
+            "intent_id": intent.get("intent_id"),
+            "timeout": 0.5,
+        },
+        {**os.environ, "LC_ALL": "C", "GHOT_HOME": str(ghot_home)},
+        "GHoT Carried Intent Assignment",
+    )
+    if (
+        offered.get("schema")
+        != "ghot.carried-intent-assignment-offer/v0"
+        or offered.get("intent_id") != intent.get("intent_id")
+        or not isinstance(offered.get("offer_id"), str)
+        or not isinstance(offered.get("bodies"), list)
+    ):
+        raise FieldReseedCrossingError("GHoT assignment offer is invalid")
+    if "selected" in offered or '"score"' in _canonical(offered):
+        raise FieldReseedCrossingError(
+            "GHoT assignment offer silently ranked or selected a receiver"
+        )
+
+    return {
+        "schema": "workbench.field-reseed-assignment-offer/v0",
+        "field_return_id": admission.get("field_return_id"),
+        "reseed_id": admission.get("reseed_id"),
+        "intent_id": intent.get("intent_id"),
+        "status": "OFFER_READY",
+        "semantic_effect": "none",
+        "ghot_offer": offered,
+        "pins": {"ghot": GHOT_REVISION},
+        "laws": [
+            "ADMISSION != ASSIGNMENT",
+            "OFFER != ASSIGNMENT",
+            "BODY AVAILABILITY != SELECTION",
+            "NO SCORE != NO INFORMATION",
+        ],
+    }
+
+
+def assign_field_reseed_intent(
+    admission: dict,
+    assignment_offer: dict,
+    selected_node_id: str,
+    capability: str,
+    state_dir: Path,
+    repos: list[RepoStatus],
+) -> dict:
+    if (
+        admission.get("schema") != "workbench.field-reseed-admission/v0"
+        or admission.get("status") != "ADMITTED_NOT_ASSIGNED"
+    ):
+        raise FieldReseedCrossingError(
+            "verified admitted carried intent is required before assignment"
+        )
+    if (
+        assignment_offer.get("schema")
+        != "workbench.field-reseed-assignment-offer/v0"
+        or assignment_offer.get("status") != "OFFER_READY"
+        or assignment_offer.get("semantic_effect") != "none"
+    ):
+        raise FieldReseedCrossingError(
+            "verified GHoT assignment offer is required before assignment"
+        )
+
+    ghot_admission = admission.get("ghot_admission")
+    intent = (
+        ghot_admission.get("intent")
+        if isinstance(ghot_admission, dict)
+        else None
+    )
+    if not isinstance(intent, dict):
+        raise FieldReseedCrossingError("GHoT carried intent is unavailable")
+    intent_id = intent.get("intent_id")
+    if assignment_offer.get("intent_id") != intent_id:
+        raise FieldReseedCrossingError(
+            "assignment offer is bound to another carried intent"
+        )
+    ghot_offer = assignment_offer.get("ghot_offer")
+    if not isinstance(ghot_offer, dict):
+        raise FieldReseedCrossingError("GHoT assignment offer payload is missing")
+
+    ghot = _find_pinned(
+        repos,
+        "GHoT",
+        GHOT_REVISION,
+        "ghot/carried_intent_assignment.py",
+    )
+    ghot_home = Path(state_dir) / "field-reseed-ghot"
+    assigned = _run_json(
+        ["python3", str(ghot / "ghot" / "carried_intent_assignment.py")],
+        ghot,
+        {
+            "action": "assign",
+            "intent_id": intent_id,
+            "offer": ghot_offer,
+            "selected_node_id": str(selected_node_id),
+            "capability": str(capability),
+            "selection_source": "workbench-user-explicit",
+            "timeout": 0.5,
+        },
+        {**os.environ, "LC_ALL": "C", "GHOT_HOME": str(ghot_home)},
+        "GHoT Carried Intent Assignment",
+    )
+    if (
+        assigned.get("schema") != "ghot.carried-intent-assignment/v0"
+        or assigned.get("intent_id") != intent_id
+        or assigned.get("status") != "ASSIGNED_NOT_EXECUTED"
+        or assigned.get("semantic_effect") != "assignment-only"
+        or assigned.get("selected_node_id") != selected_node_id
+        or assigned.get("capability") != capability
+    ):
+        raise FieldReseedCrossingError(
+            "GHoT assignment did not preserve assignment-only boundary"
+        )
+
+    return {
+        "schema": "workbench.field-reseed-assignment/v0",
+        "field_return_id": admission.get("field_return_id"),
+        "reseed_id": admission.get("reseed_id"),
+        "intent_id": intent_id,
+        "status": "ASSIGNED_NOT_EXECUTED",
+        "semantic_effect": "receiver-assignment-only",
+        "ghot_assignment": assigned,
+        "pins": {"ghot": GHOT_REVISION},
+        "laws": [
+            "OFFER != ASSIGNMENT",
+            "ASSIGNMENT != EXECUTION",
+            "ASSIGNMENT != TASK",
+            "DISPATCH REQUIRES A NEW EXPLICIT CROSSING",
             "RECEIVER CONSEQUENCE != DONOR CONSEQUENCE",
         ],
     }

@@ -205,6 +205,8 @@ def test_mature_field_composes_multiple_organs_without_selecting_any():
         "registered_live_moments": 1,
         "ghot_reseed_holds": 0,
         "ghot_reseed_admissions": 0,
+        "ghot_assignment_offers": 0,
+        "ghot_assignments": 0,
     }
     assert {
         pressure["kind"] for pressure in state["memory_pressures"]
@@ -777,7 +779,7 @@ def test_receiver_hold_changes_field_to_explicit_admission_without_execution():
     assert held["field_state_id"] != base["field_state_id"]
 
 
-def test_receiver_admission_changes_field_to_inspection_not_assignment():
+def test_receiver_admission_changes_field_to_assignment_offer_aperture():
     receiver = [{
         "stored_at": "2026-10-03T16:31:00+00:00",
         "field_return_id": "field-return-v0:" + "1" * 64,
@@ -800,11 +802,14 @@ def test_receiver_admission_changes_field_to_inspection_not_assignment():
         door for door in admitted["nearby_doors"]
         if door["lane"] == "carried"
     )
-    assert carried["kind"] == "inspect-ghot-carried-intent"
+    assert carried["kind"] == "offer-ghot-carried-intent-assignment"
     assert carried["effect"] == "none"
+    assert carried["target"]["control"] == "ghot-field-intent-offer"
     assert carried["evidence"][0]["status"] == "ADMITTED_NOT_ASSIGNED"
     assert admitted["counts"]["ghot_reseed_holds"] == 0
     assert admitted["counts"]["ghot_reseed_admissions"] == 1
+    assert admitted["counts"]["ghot_assignment_offers"] == 0
+    assert admitted["counts"]["ghot_assignments"] == 0
     assert "ADMISSION != ASSIGNMENT" in admitted["laws"]
     assert "ASSIGNMENT != EXECUTION" in admitted["laws"]
     assert admitted["nearby_doors"][-1]["kind"] == "hold-silence"
@@ -1000,3 +1005,71 @@ def test_listener_delta_capability_is_not_inferred_from_generation_delta():
         door["kind"] == "measure-listener-delta"
         for door in state["nearby_doors"]
     )
+
+
+
+def test_assignment_offer_changes_field_to_explicit_pair_choice():
+    receiver = [{
+        "stored_at": "2026-10-03T16:31:00+00:00",
+        "receiver_at": "2026-10-03T16:32:00+00:00",
+        "field_return_id": "field-return-v0:" + "1" * 64,
+        "reseed_id": "field-reseed-v0:" + "2" * 64,
+        "status": "OFFER_READY",
+        "hold_id": "ghot-field-reseed-hold-v0:" + "3" * 64,
+        "admission_id": "ghot-field-reseed-admission-v0:" + "4" * 64,
+        "intent_id": "ghot-carried-intent-v0:" + "5" * 64,
+        "assignment_offer_id": "ghot-carried-intent-offer-v0:" + "6" * 64,
+        "assignment_id": None,
+        "selected_node_id": None,
+        "capability": None,
+    }]
+    state = compose_nearby_station_doors(
+        empty_house(), broadcast(), [], [], field_receivers=receiver
+    )
+    carried = next(
+        door for door in state["nearby_doors"]
+        if door["lane"] == "carried"
+    )
+    assert carried["kind"] == "choose-ghot-carried-intent-assignment"
+    assert carried["target"]["control"] == "ghot-field-intent-assign"
+    assert carried["target"]["offer_id"] == receiver[0]["assignment_offer_id"]
+    assert carried["effect"] == "none"
+    assert state["counts"]["ghot_assignment_offers"] == 1
+    assert state["counts"]["ghot_assignments"] == 0
+    assert any(
+        pressure["kind"] == "receiver-assignment-offer"
+        for pressure in state["memory_pressures"]
+    )
+
+
+def test_assignment_receipt_changes_field_to_inspection_without_execution():
+    receiver = [{
+        "stored_at": "2026-10-03T16:31:00+00:00",
+        "receiver_at": "2026-10-03T16:33:00+00:00",
+        "field_return_id": "field-return-v0:" + "1" * 64,
+        "reseed_id": "field-reseed-v0:" + "2" * 64,
+        "status": "ASSIGNED_NOT_EXECUTED",
+        "hold_id": "ghot-field-reseed-hold-v0:" + "3" * 64,
+        "admission_id": "ghot-field-reseed-admission-v0:" + "4" * 64,
+        "intent_id": "ghot-carried-intent-v0:" + "5" * 64,
+        "assignment_offer_id": "ghot-carried-intent-offer-v0:" + "6" * 64,
+        "assignment_id": "ghot-carried-intent-assignment-v0:" + "7" * 64,
+        "selected_node_id": "node-local",
+        "capability": "system.hash",
+    }]
+    state = compose_nearby_station_doors(
+        empty_house(), broadcast(), [], [], field_receivers=receiver
+    )
+    carried = next(
+        door for door in state["nearby_doors"]
+        if door["lane"] == "carried"
+    )
+    assert carried["kind"] == "inspect-ghot-carried-intent-assignment"
+    assert carried["effect"] == "none"
+    assert carried["evidence"][0]["selected_node_id"] == "node-local"
+    assert carried["evidence"][0]["capability"] == "system.hash"
+    assert state["counts"]["ghot_assignment_offers"] == 0
+    assert state["counts"]["ghot_assignments"] == 1
+    assert "ASSIGNMENT != TASK" in state["laws"]
+    assert "DISPATCH REQUIRES A NEW EXPLICIT CROSSING" in state["laws"]
+    assert state["nearby_doors"][-1]["kind"] == "hold-silence"

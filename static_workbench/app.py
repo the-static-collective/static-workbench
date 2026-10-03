@@ -65,7 +65,9 @@ from .field_return import FieldReturnStore, compose_field_return
 from .field_reseed_crossing import (
     FieldReseedCrossingError,
     admit_field_reseed,
+    assign_field_reseed_intent,
     cross_field_reseed,
+    offer_field_reseed_assignment,
 )
 from .lifestream_inbox import MomentInbox
 from .journal import Journal, SenseFieldRecord
@@ -144,6 +146,12 @@ class FieldReturnInput(BaseModel):
 class GHotAssignmentInput(BaseModel):
     expected_offer_id: str = Field(min_length=1, max_length=200)
     selected_node_id: str = Field(min_length=1, max_length=200)
+
+
+class GHotCarriedIntentAssignmentInput(BaseModel):
+    expected_offer_id: str = Field(min_length=1, max_length=200)
+    selected_node_id: str = Field(min_length=1, max_length=200)
+    capability: str = Field(min_length=1, max_length=200)
 
 
 class AudioWindowInput(BaseModel):
@@ -658,6 +666,112 @@ def create_app(config: WorkbenchConfig | None = None) -> FastAPI:
             "status": admission["status"],
             "semantic_effect": admission["semantic_effect"],
             "ghot_revision": admission["pins"]["ghot"],
+        })
+        return receiver
+
+    @app.post(
+        "/api/doorhouse/field-station/returns/{receipt_id}/ghot/assignment-offer"
+    )
+    def doorhouse_field_reseed_assignment_offer(
+        receipt_id: str,
+        request: Request,
+    ):
+        _creator_write_guard(request)
+        try:
+            receiver = field_returns.receiver(receipt_id)
+            if receiver is None or not isinstance(receiver.get("admission"), dict):
+                raise ValueError(
+                    "field reseed admission is required before assignment offer"
+                )
+            repos = discover_repositories(config.roots, config.max_repo_depth)
+            offered = offer_field_reseed_assignment(
+                receiver["admission"],
+                config.state_dir,
+                repos,
+            )
+            receiver = field_returns.save_assignment_offer(
+                receipt_id,
+                offered,
+            )
+        except FieldReseedCrossingError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        ghot_offer = offered["ghot_offer"]
+        eligible = sum(
+            1
+            for body in ghot_offer.get("bodies", [])
+            for item in body.get("offers", [])
+            if item.get("eligible") is True
+        )
+        journal.append("field.reseed.ghot_assignment_offered", {
+            "field_return_id": receipt_id,
+            "intent_id": offered["intent_id"],
+            "offer_id": ghot_offer["offer_id"],
+            "body_count": len(ghot_offer.get("bodies", [])),
+            "eligible_pair_count": eligible,
+            "ghot_revision": offered["pins"]["ghot"],
+        })
+        return receiver
+
+    @app.post(
+        "/api/doorhouse/field-station/returns/{receipt_id}/ghot/assign"
+    )
+    def doorhouse_field_reseed_assign(
+        receipt_id: str,
+        payload: GHotCarriedIntentAssignmentInput,
+        request: Request,
+    ):
+        _creator_write_guard(request)
+        try:
+            receiver = field_returns.receiver(receipt_id)
+            if (
+                receiver is None
+                or not isinstance(receiver.get("admission"), dict)
+                or not isinstance(receiver.get("assignment_offer"), dict)
+            ):
+                raise ValueError(
+                    "current GHoT assignment offer is required before assignment"
+                )
+            offered = receiver["assignment_offer"]
+            offer_id = offered.get("ghot_offer", {}).get("offer_id")
+            if offer_id != payload.expected_offer_id:
+                raise HTTPException(
+                    status_code=409,
+                    detail=(
+                        "GHoT assignment offer changed; review current "
+                        "body/capability pairs before assigning"
+                    ),
+                )
+            repos = discover_repositories(config.roots, config.max_repo_depth)
+            assignment = assign_field_reseed_intent(
+                receiver["admission"],
+                offered,
+                payload.selected_node_id,
+                payload.capability,
+                config.state_dir,
+                repos,
+            )
+            receiver = field_returns.save_assignment(
+                receipt_id,
+                assignment,
+            )
+        except HTTPException:
+            raise
+        except FieldReseedCrossingError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        ghot_assignment = assignment["ghot_assignment"]
+        journal.append("field.reseed.ghot_assigned", {
+            "field_return_id": receipt_id,
+            "intent_id": assignment["intent_id"],
+            "assignment_id": ghot_assignment["assignment_id"],
+            "selected_node_id": ghot_assignment["selected_node_id"],
+            "capability": ghot_assignment["capability"],
+            "status": assignment["status"],
+            "semantic_effect": assignment["semantic_effect"],
+            "ghot_revision": assignment["pins"]["ghot"],
         })
         return receiver
 

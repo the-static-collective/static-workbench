@@ -686,11 +686,11 @@ def compose_nearby_station_doors(
             ))
         elif receiver_status == "ADMITTED_NOT_ASSIGNED":
             doors.append(_door(
-                "inspect-ghot-carried-intent",
-                "Inspect GHoT's admitted carried intent",
-                "GHoT admitted the reseed into its own durable inbox, but no body, capability, or execution has been assigned.",
+                "offer-ghot-carried-intent-assignment",
+                "Open GHoT's body + capability field",
+                "The carried intent is admitted but unassigned. GHoT can expose its current receiver-owned body/capability field without selecting or executing anything.",
                 lane="carried",
-                adapter="GHoT / carried intent",
+                adapter="GHoT / CARRIED INTENT ASSIGNMENT 001",
                 evidence=[{
                     "kind": "ghot-carried-intent",
                     "field_return_id": latest_receiver.get("field_return_id"),
@@ -702,6 +702,50 @@ def compose_nearby_station_doors(
                 target={
                     "field_return_id": latest_receiver.get("field_return_id"),
                     "intent_id": latest_receiver.get("intent_id"),
+                    "control": "ghot-field-intent-offer",
+                },
+            ))
+        elif receiver_status == "OFFER_READY":
+            doors.append(_door(
+                "choose-ghot-carried-intent-assignment",
+                "Choose one GHoT body + capability",
+                "GHoT exposed an unranked current body/capability offer. Assignment requires one explicit pair and still stops before execution.",
+                lane="carried",
+                adapter="GHoT / CARRIED INTENT ASSIGNMENT 001",
+                evidence=[{
+                    "kind": "ghot-carried-intent-assignment-offer",
+                    "field_return_id": latest_receiver.get("field_return_id"),
+                    "intent_id": latest_receiver.get("intent_id"),
+                    "offer_id": latest_receiver.get("assignment_offer_id"),
+                    "status": receiver_status,
+                }],
+                target={
+                    "field_return_id": latest_receiver.get("field_return_id"),
+                    "intent_id": latest_receiver.get("intent_id"),
+                    "offer_id": latest_receiver.get("assignment_offer_id"),
+                    "control": "ghot-field-intent-assign",
+                },
+            ))
+        elif receiver_status == "ASSIGNED_NOT_EXECUTED":
+            doors.append(_door(
+                "inspect-ghot-carried-intent-assignment",
+                "Inspect GHoT's assignment-only receipt",
+                "GHoT has assigned the carried intent to one explicit body/capability pair. No task, adapter call, remote dispatch, or execution receipt exists from this assignment.",
+                lane="carried",
+                adapter="GHoT / assignment-only",
+                evidence=[{
+                    "kind": "ghot-carried-intent-assignment",
+                    "field_return_id": latest_receiver.get("field_return_id"),
+                    "intent_id": latest_receiver.get("intent_id"),
+                    "assignment_id": latest_receiver.get("assignment_id"),
+                    "selected_node_id": latest_receiver.get("selected_node_id"),
+                    "capability": latest_receiver.get("capability"),
+                    "status": receiver_status,
+                }],
+                target={
+                    "field_return_id": latest_receiver.get("field_return_id"),
+                    "intent_id": latest_receiver.get("intent_id"),
+                    "assignment_id": latest_receiver.get("assignment_id"),
                 },
             ))
 
@@ -809,6 +853,14 @@ def compose_nearby_station_doors(
             1 for item in field_receivers
             if item.get("status") == "ADMITTED_NOT_ASSIGNED"
         ),
+        "ghot_assignment_offers": sum(
+            1 for item in field_receivers
+            if item.get("status") == "OFFER_READY"
+        ),
+        "ghot_assignments": sum(
+            1 for item in field_receivers
+            if item.get("status") == "ASSIGNED_NOT_EXECUTED"
+        ),
     }
     pressures = []
     if counts["unresolved_house_doors"]:
@@ -839,7 +891,19 @@ def compose_nearby_station_doors(
         pressures.append({
             "kind": "receiver-admission",
             "value": counts["ghot_reseed_admissions"],
-            "effect": "surface-receiver-local-consequence",
+            "effect": "surface-assignment-offer-door",
+        })
+    if counts["ghot_assignment_offers"]:
+        pressures.append({
+            "kind": "receiver-assignment-offer",
+            "value": counts["ghot_assignment_offers"],
+            "effect": "surface-explicit-body-capability-choice",
+        })
+    if counts["ghot_assignments"]:
+        pressures.append({
+            "kind": "receiver-assignment",
+            "value": counts["ghot_assignments"],
+            "effect": "surface-assignment-without-execution",
         })
 
     current_episode = (
@@ -917,6 +981,10 @@ def compose_nearby_station_doors(
                 "hold_id": item.get("hold_id"),
                 "admission_id": item.get("admission_id"),
                 "intent_id": item.get("intent_id"),
+                "assignment_offer_id": item.get("assignment_offer_id"),
+                "assignment_id": item.get("assignment_id"),
+                "selected_node_id": item.get("selected_node_id"),
+                "capability": item.get("capability"),
             }
             for item in field_receivers
         ],
@@ -951,6 +1019,9 @@ def compose_nearby_station_doors(
             "RECEIVE != ADMISSION",
             "ADMISSION != ASSIGNMENT",
             "ASSIGNMENT != EXECUTION",
+            "ASSIGNMENT != TASK",
+            "BODY AVAILABILITY != SELECTION",
+            "DISPATCH REQUIRES A NEW EXPLICIT CROSSING",
             "RECEIVER CONSEQUENCE != DONOR CONSEQUENCE",
         ],
     }

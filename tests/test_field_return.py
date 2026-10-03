@@ -1,3 +1,5 @@
+import sqlite3
+
 import pytest
 from fastapi.testclient import TestClient
 
@@ -306,3 +308,139 @@ def test_store_refuses_receiver_consequence_for_non_take_return(tmp_path):
                 "reseed_id": "field-reseed-v0:" + "0" * 64,
             },
         )
+
+
+
+def test_receiver_assignment_offer_and_assignment_survive_restart(tmp_path):
+    state = field()
+    receipt = compose_field_return(
+        state,
+        state["nearby_doors"][0]["door_id"],
+        "take",
+        "carry toward explicit assignment",
+    )
+    store = FieldReturnStore(tmp_path / "field_returns.sqlite3")
+    stored = store.save(receipt)
+
+    crossing = {
+        "schema": "workbench.field-reseed-crossing/v0",
+        "field_return_id": stored["receipt_id"],
+        "reseed_id": stored["reseed"]["reseed_id"],
+        "status": "RECEIVED_THEN_HELD",
+        "semantic_effect": "none",
+        "ghot_hold": {
+            "hold_id": "ghot-field-reseed-hold-v0:" + "3" * 64,
+            "received_at": "2026-10-03T16:40:00+00:00",
+        },
+    }
+    store.save_crossing(stored["receipt_id"], crossing)
+
+    intent_id = "ghot-carried-intent-v0:" + "5" * 64
+    admission = {
+        "schema": "workbench.field-reseed-admission/v0",
+        "field_return_id": stored["receipt_id"],
+        "reseed_id": stored["reseed"]["reseed_id"],
+        "status": "ADMITTED_NOT_ASSIGNED",
+        "ghot_admission": {
+            "admission_id": "ghot-field-reseed-admission-v0:" + "4" * 64,
+            "admitted_at": "2026-10-03T16:41:00+00:00",
+            "intent": {
+                "schema": "ghot.carried-intent/v0",
+                "intent_id": intent_id,
+                "status": "admitted-not-assigned",
+            },
+        },
+    }
+    store.save_admission(stored["receipt_id"], admission)
+
+    offered = {
+        "schema": "workbench.field-reseed-assignment-offer/v0",
+        "field_return_id": stored["receipt_id"],
+        "reseed_id": stored["reseed"]["reseed_id"],
+        "intent_id": intent_id,
+        "status": "OFFER_READY",
+        "semantic_effect": "none",
+        "ghot_offer": {
+            "schema": "ghot.carried-intent-assignment-offer/v0",
+            "offer_id": "ghot-carried-intent-offer-v0:" + "6" * 64,
+            "intent_id": intent_id,
+            "observed_at": "2026-10-03T16:42:00+00:00",
+            "bodies": [],
+        },
+    }
+    ready = store.save_assignment_offer(stored["receipt_id"], offered)
+    assert ready["status"] == "OFFER_READY"
+
+    assignment = {
+        "schema": "workbench.field-reseed-assignment/v0",
+        "field_return_id": stored["receipt_id"],
+        "reseed_id": stored["reseed"]["reseed_id"],
+        "intent_id": intent_id,
+        "status": "ASSIGNED_NOT_EXECUTED",
+        "semantic_effect": "receiver-assignment-only",
+        "ghot_assignment": {
+            "schema": "ghot.carried-intent-assignment/v0",
+            "assignment_id": "ghot-carried-intent-assignment-v0:" + "7" * 64,
+            "intent_id": intent_id,
+            "selected_node_id": "node-local",
+            "capability": "system.hash",
+            "status": "ASSIGNED_NOT_EXECUTED",
+            "assigned_at": "2026-10-03T16:43:00+00:00",
+        },
+    }
+    assigned = store.save_assignment(stored["receipt_id"], assignment)
+    assert assigned["status"] == "ASSIGNED_NOT_EXECUTED"
+
+    reopened = FieldReturnStore(store.db_path)
+    item = reopened.latest()[0]
+    assert item["receiver"]["status"] == "ASSIGNED_NOT_EXECUTED"
+    assert (
+        item["receiver"]["assignment"]["ghot_assignment"]["capability"]
+        == "system.hash"
+    )
+    summary = reopened.receiver_field_state()[0]
+    assert summary["assignment_offer_id"] == offered["ghot_offer"]["offer_id"]
+    assert (
+        summary["assignment_id"]
+        == assignment["ghot_assignment"]["assignment_id"]
+    )
+    assert summary["selected_node_id"] == "node-local"
+    assert summary["capability"] == "system.hash"
+    assert summary["receiver_at"] == "2026-10-03T16:43:00+00:00"
+
+
+def test_receiver_store_migrates_pre_assignment_schema(tmp_path):
+    db_path = tmp_path / "legacy.sqlite3"
+    with sqlite3.connect(db_path) as db:
+        db.execute(
+            """
+            CREATE TABLE field_returns (
+                receipt_id TEXT PRIMARY KEY,
+                stored_at TEXT NOT NULL,
+                field_state_id TEXT NOT NULL,
+                door_id TEXT NOT NULL,
+                disposition TEXT NOT NULL,
+                receipt_json TEXT NOT NULL
+            )
+            """
+        )
+        db.execute(
+            """
+            CREATE TABLE field_return_receivers (
+                receipt_id TEXT PRIMARY KEY,
+                crossing_json TEXT,
+                admission_json TEXT
+            )
+            """
+        )
+
+    FieldReturnStore(db_path)
+    with sqlite3.connect(db_path) as db:
+        columns = {
+            row[1]
+            for row in db.execute(
+                "PRAGMA table_info(field_return_receivers)"
+            ).fetchall()
+        }
+    assert "assignment_offer_json" in columns
+    assert "assignment_json" in columns

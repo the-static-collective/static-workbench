@@ -233,6 +233,18 @@ state, so the Field changes without Workbench claiming receiver authority.
 Pinned organs: reLATTE `87006f3…`; GHoT `fa3a2d8…`. See
 [FIELD RESEED CROSSING 001](docs/field-reseed-crossing-001.md).
 
+## Carried Intent Assignment 001 — point it without running it
+
+After a Field TAKE has crossed reLATTE, entered GHoT HOLD, and been explicitly
+admitted, the Workbench can now ask pinned GHoT `0812164…` for its current
+unranked body/capability field. The human then chooses one exact eligible pair.
+GHoT revalidates that pair and persists `ASSIGNED_NOT_EXECUTED`.
+
+The browser deliberately exposes no execute control. Assignment creates no
+`ghot.task`, adapter invocation, LAN dispatch, or execution receipt. A future
+dispatch must be a new explicit crossing. See
+[Carried Intent Assignment 001](docs/carried-intent-assignment-001.md).
+
 ## Creator Desk v0.1 — local source handoff
 
 Use **Creator Desk** in the navigator or House actions to inspect the discovered local media, research, live, and community repos through Creator Workspace-inspired workflow doors. Choose **one** discovered checkout and search its bounded Markdown/text sources. Each hit carries its configured root, repository-relative path, line, working-tree HEAD, and dirty marker; **Copy source handoff** prepares one explicitly selected excerpt for pasting into a separate Creator Workspace conversation.
