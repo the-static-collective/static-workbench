@@ -15,6 +15,7 @@ from .world_entry import WorldEntry
 from .doorhouse import DoorHouse, DoorHouseConflict, DoorHouseMissing
 from .doorhouse_relatte import RelatteApertureError, run_relatte_aperture
 from .doorhouse_ghot import GHotApertureError, discover_ghot_bodies, assign_ghot_body
+from .doorhouse_autodisco import AutodiscoApertureError, run_first_encounter
 
 import uvicorn
 from fastapi import FastAPI, HTTPException, Query, Request
@@ -615,6 +616,36 @@ def create_app(config: WorkbenchConfig | None = None) -> FastAPI:
             "ghot_receipt_id": ghot_receipt["receipt_id"],
             "capability": ghot_receipt["capability"],
             "status": ghot_receipt["status"],
+        })
+        return state
+
+    @app.post("/api/doorhouse/receipts/{receipt_id}/autodisco/first-encounter")
+    def doorhouse_autodisco_first_encounter(receipt_id: str, request: Request):
+        _creator_write_guard(request)
+        _doorhouse_call(lambda: doorhouse.receipt(receipt_id))
+        ghot = _doorhouse_call(
+            lambda: doorhouse.external_witness(receipt_id, "ghot_execution")
+        )
+        if ghot is None:
+            raise HTTPException(
+                status_code=409,
+                detail="GHoT creative execution is required before first encounter",
+            )
+        try:
+            repos = discover_repositories(config.roots, config.max_repo_depth)
+            result = run_first_encounter(ghot["snapshot"], repos)
+        except AutodiscoApertureError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+        state = _doorhouse_call(
+            lambda: doorhouse.record_autodisco_first_encounter(receipt_id, result)
+        )
+        journal.append("doorhouse.autodisco.first_encounter", {
+            "local_receipt_id": receipt_id,
+            "packet_id": result["packet"]["packet_id"],
+            "status": result["status"],
+            "model_used": result.get("model_used"),
+            "response_sha256": result.get("response_sha256"),
         })
         return state
 
