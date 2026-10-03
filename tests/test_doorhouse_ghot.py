@@ -69,7 +69,7 @@ def fake_offer() -> dict:
         "kind": "ghot.body-choice.offer",
         "version": "0",
         "offer_id": "ghot-body-offer-v0:" + "1" * 64,
-        "capability": "system.hash",
+        "capability": "creative.toaster.witness-sigil",
         "observed_at": "2026-10-03T03:00:00+00:00",
         "requester_node_id": "node-requester",
         "candidates": [
@@ -81,7 +81,7 @@ def fake_offer() -> dict:
                 "matching_offer": {
                     "kind": "ghot.offer",
                     "version": "0",
-                    "capability": "system.hash",
+                    "capability": "creative.toaster.witness-sigil",
                     "available": True,
                 },
                 "rejected": [],
@@ -99,8 +99,8 @@ def fake_offer() -> dict:
     }
 
 
-def fake_execution(offer: dict, selected: str) -> dict:
-    return {
+def fake_execution(offer: dict, selected: str, source_digest: str | None = None) -> dict:
+    result = {
         "kind": "ghot.body-choice.result",
         "version": "0",
         "assignment": {
@@ -109,7 +109,7 @@ def fake_execution(offer: dict, selected: str) -> dict:
             "assignment_id": "assignment-001",
             "offer_id": offer["offer_id"],
             "selected_node_id": selected,
-            "capability": "system.hash",
+            "capability": "creative.toaster.witness-sigil",
             "selection_source": "doorhouse-user-explicit",
             "created_at": "2026-10-03T03:01:00+00:00",
         },
@@ -118,7 +118,7 @@ def fake_execution(offer: dict, selected: str) -> dict:
                 "kind": "ghot.task",
                 "version": "0",
                 "task_id": "task-001",
-                "capability": "system.hash",
+                "capability": "creative.toaster.witness-sigil",
             },
             "receipt": {
                 "kind": "ghot.receipt",
@@ -126,15 +126,38 @@ def fake_execution(offer: dict, selected: str) -> dict:
                 "receipt_id": "receipt-ghot-001",
                 "task_id": "task-001",
                 "executor_node_id": selected,
-                "capability": "system.hash",
+                "capability": "creative.toaster.witness-sigil",
                 "status": "ok",
-                "output": {"sha256": "9" * 64},
+                "output": {
+                    "kind": "ghot.external-adapter.result",
+                    "version": "0",
+                    "adapter_id": "haunted-toaster.witness-sigil",
+                    "capability": "creative.toaster.witness-sigil",
+                    "result": {
+                        "kind": "haunted-toaster.ghot-adapter-result",
+                        "version": "0",
+                        "capability": "creative.toaster.witness-sigil",
+                        "status": "ok",
+                    },
+                },
                 "output_sha256": "8" * 64,
             },
         },
         "status": "ok",
         "laws": ["ASSIGNMENT != EXECUTION"],
+        "workbench_materialized": {
+            "kind": "workbench.materialized-toaster-artifact/v0",
+            "svg_path": "/tmp/witness.sigil.svg",
+            "svg_sha256": "2" * 64,
+            "recipe_path": "/tmp/witness.recipe.json",
+            "recipe_sha256": "3" * 64,
+            "toaster_receipt_path": "/tmp/witness.toaster-receipt.json",
+            "toaster_receipt_sha256": "4" * 64,
+            "instrument": "witness-sigil/v0.1",
+            "source_digest_sha256": source_digest,
+        },
     }
+    return result
 
 
 def test_ghot_requires_relatte_hold_then_preserves_offer_before_assignment(tmp_path):
@@ -163,7 +186,9 @@ def test_ghot_execution_must_match_latest_offer_and_explicit_selected_body(tmp_p
     offer = fake_offer()
     store.record_ghot_offer(receipt["id"], offer)
 
-    result = fake_execution(offer, "node-alpha")
+    result = fake_execution(
+        offer, "node-alpha", receipt["snapshot"]["artifact_sha256"]
+    )
     state = store.record_ghot_execution(
         receipt["id"], offer["offer_id"], "node-alpha", result
     )
@@ -175,7 +200,9 @@ def test_ghot_execution_must_match_latest_offer_and_explicit_selected_body(tmp_p
     assert witness["snapshot"]["selection_source"] == "doorhouse-user-explicit"
     assert witness["snapshot"]["status"] == "ok"
 
-    wrong = fake_execution(offer, "node-sleeping")
+    wrong = fake_execution(
+        offer, "node-sleeping", receipt["snapshot"]["artifact_sha256"]
+    )
     with pytest.raises(DoorHouseConflict):
         store.record_ghot_execution(
             receipt["id"], offer["offer_id"], "node-sleeping", wrong
@@ -193,12 +220,14 @@ def test_ghot_api_separates_discovery_from_assignment(monkeypatch, tmp_path):
     monkeypatch.setattr(
         app_module,
         "discover_ghot_bodies",
-        lambda receipt, relatte, repos: fake_offer(),
+        lambda receipt, relatte, repos, state_dir: fake_offer(),
     )
     monkeypatch.setattr(
         app_module,
         "assign_ghot_body",
-        lambda receipt, relatte, offer, selected, repos: fake_execution(offer, selected),
+        lambda receipt, relatte, offer, selected, repos, state_dir: fake_execution(
+            offer, selected, receipt["snapshot"]["artifact_sha256"]
+        ),
     )
 
     with TestClient(create_app(config), base_url="http://127.0.0.1") as client:
