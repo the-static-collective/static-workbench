@@ -14,6 +14,7 @@ from .first_door import FirstDoor, ArgConflict, ArgMissing
 from .world_entry import WorldEntry
 from .doorhouse import DoorHouse, DoorHouseConflict, DoorHouseMissing
 from .doorhouse_relatte import RelatteApertureError, run_relatte_aperture
+from .doorhouse_ghot import GHotApertureError, discover_ghot_bodies, assign_ghot_body
 
 import uvicorn
 from fastapi import FastAPI, HTTPException, Query, Request
@@ -97,6 +98,11 @@ class WorldPlayInput(BaseModel):
 
 class DoorHouseVersionInput(BaseModel):
     expected_world_version: int = Field(ge=0)
+
+
+class GHotAssignmentInput(BaseModel):
+    expected_offer_id: str = Field(min_length=1, max_length=200)
+    selected_node_id: str = Field(min_length=1, max_length=200)
 
 
 class FolioCreateInput(BaseModel):
@@ -536,6 +542,78 @@ def create_app(config: WorkbenchConfig | None = None) -> FastAPI:
             "crossing_id": result["crossing"]["crossing_id"],
             "receive_receipt_id": result["receive_receipt"]["receipt_id"],
             "hold_receipt_id": result["disposition_receipt"]["receipt_id"],
+        })
+        return state
+
+    @app.post("/api/doorhouse/receipts/{receipt_id}/ghot/offers")
+    def doorhouse_ghot_offers(receipt_id: str, request: Request):
+        _creator_write_guard(request)
+        receipt = _doorhouse_call(lambda: doorhouse.receipt(receipt_id))
+        relatte = _doorhouse_call(lambda: doorhouse.require_relatte_hold(receipt_id))
+        try:
+            repos = discover_repositories(config.roots, config.max_repo_depth)
+            offer = discover_ghot_bodies(receipt, relatte, repos)
+        except GHotApertureError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+        state = _doorhouse_call(
+            lambda: doorhouse.record_ghot_offer(receipt_id, offer)
+        )
+        eligible = sum(
+            1 for candidate in offer.get("candidates", [])
+            if candidate.get("eligible") is True
+        )
+        journal.append("doorhouse.ghot.offer_recorded", {
+            "local_receipt_id": receipt_id,
+            "offer_id": offer["offer_id"],
+            "candidate_count": len(offer.get("candidates", [])),
+            "eligible_count": eligible,
+        })
+        return state
+
+    @app.post("/api/doorhouse/receipts/{receipt_id}/ghot/assign")
+    def doorhouse_ghot_assign(
+        receipt_id: str,
+        payload: GHotAssignmentInput,
+        request: Request,
+    ):
+        _creator_write_guard(request)
+        receipt = _doorhouse_call(lambda: doorhouse.receipt(receipt_id))
+        relatte = _doorhouse_call(lambda: doorhouse.require_relatte_hold(receipt_id))
+        stored_offer = _doorhouse_call(lambda: doorhouse.latest_ghot_offer(receipt_id))
+        offer = stored_offer["snapshot"]
+        if offer.get("offer_id") != payload.expected_offer_id:
+            raise HTTPException(
+                status_code=409,
+                detail="GHoT body offer changed; review current bodies before assigning",
+            )
+        try:
+            repos = discover_repositories(config.roots, config.max_repo_depth)
+            result = assign_ghot_body(
+                receipt,
+                relatte,
+                offer,
+                payload.selected_node_id,
+                repos,
+            )
+        except GHotApertureError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+        state = _doorhouse_call(
+            lambda: doorhouse.record_ghot_execution(
+                receipt_id,
+                payload.expected_offer_id,
+                payload.selected_node_id,
+                result,
+            )
+        )
+        ghot_receipt = result["execution"]["receipt"]
+        journal.append("doorhouse.ghot.executed", {
+            "local_receipt_id": receipt_id,
+            "offer_id": payload.expected_offer_id,
+            "selected_node_id": payload.selected_node_id,
+            "assignment_id": result["assignment"]["assignment_id"],
+            "ghot_receipt_id": ghot_receipt["receipt_id"],
+            "capability": ghot_receipt["capability"],
+            "status": ghot_receipt["status"],
         })
         return state
 
