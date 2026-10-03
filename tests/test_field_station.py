@@ -807,3 +807,48 @@ def test_receiver_admission_changes_field_to_inspection_not_assignment():
     assert "ADMISSION != ASSIGNMENT" in admitted["laws"]
     assert "ASSIGNMENT != EXECUTION" in admitted["laws"]
     assert admitted["nearby_doors"][-1]["kind"] == "hold-silence"
+
+
+
+def test_active_receiver_boundary_survives_dense_field_cap():
+    receiver = [{
+        "stored_at": "2026-10-03T16:20:00+00:00",
+        "receiver_at": "2026-10-03T16:40:00+00:00",
+        "field_return_id": "field-return-v0:" + "1" * 64,
+        "reseed_id": "field-reseed-v0:" + "2" * 64,
+        "status": "RECEIVED_THEN_HELD",
+        "hold_id": "ghot-field-reseed-hold-v0:" + "3" * 64,
+        "admission_id": None,
+        "intent_id": None,
+    }]
+    moments = [{
+        "momentId": "moment-dense",
+        "eventId": "event-dense",
+        "span": {"startMs": 0, "endMs": 100},
+        "status": "registered_not_currently_reverified",
+    }]
+    state = compose_nearby_station_doors(
+        mature_house(),
+        broadcast("reachable"),
+        moments,
+        [repo("static-live"), repo("the-haunted-phonography")],
+        phonograph={
+            "checkout_present": True,
+            "available": True,
+            "repo_head": "038b710",
+            "repo_branch": "main",
+            "capability": "field-answer-001",
+        },
+        field_receivers=receiver,
+    )
+
+    assert len(state["nearby_doors"]) == 6
+    assert state["nearby_doors"][-1]["kind"] == "hold-silence"
+    assert any(
+        door["kind"] == "admit-ghot-field-reseed"
+        for door in state["nearby_doors"]
+    )
+    assert sum(
+        1 for door in state["nearby_doors"]
+        if door["lane"] == "carried"
+    ) == 1
