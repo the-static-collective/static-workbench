@@ -280,6 +280,161 @@ class DoorHouse:
         item["snapshot"] = json.loads(item["snapshot"])
         return item
 
+    def external_witness(self, receipt_id, kind):
+        self.receipt(receipt_id)
+        with self._db() as db:
+            row = db.execute(
+                "SELECT * FROM dh_external_witnesses WHERE receipt_id=? AND kind=?",
+                (receipt_id, kind),
+            ).fetchone()
+        if row is None:
+            return None
+        item = dict(row)
+        item["snapshot"] = json.loads(item["snapshot"])
+        return item
+
+    def require_relatte_hold(self, receipt_id):
+        witness = self.external_witness(receipt_id, "relatte")
+        if witness is None:
+            raise DoorHouseConflict("reLATTE HOLD witness is required before GHoT")
+        snapshot = witness["snapshot"]
+        if (
+            snapshot.get("status") != "RECEIVED_THEN_HELD"
+            or snapshot.get("semantic_effect") != "none"
+        ):
+            raise DoorHouseConflict("reLATTE witness is not an intact HOLD")
+        return snapshot
+
+    def record_ghot_offer(self, receipt_id, offer):
+        self.require_relatte_hold(receipt_id)
+        if not isinstance(offer, dict) or offer.get("kind") != "ghot.body-choice.offer":
+            raise DoorHouseConflict("invalid GHoT body-choice offer")
+        offer_id = offer.get("offer_id")
+        if not isinstance(offer_id, str) or not offer_id.startswith("ghot-body-offer-v0:"):
+            raise DoorHouseConflict("invalid GHoT body-choice offer id")
+        if "selected" in offer:
+            raise DoorHouseConflict("GHoT offer selected a body before user assignment")
+        candidates = offer.get("candidates")
+        if not isinstance(candidates, list):
+            raise DoorHouseConflict("GHoT offer has no candidate list")
+
+        kind = "ghot_offer:" + offer_id
+        offer_sha = _digest(offer)
+        with self._db() as db:
+            db.execute("BEGIN IMMEDIATE")
+            existing = db.execute(
+                "SELECT * FROM dh_external_witnesses WHERE receipt_id=? AND kind=?",
+                (receipt_id, kind),
+            ).fetchone()
+            if existing is None:
+                db.execute(
+                    "INSERT INTO dh_external_witnesses VALUES (?,?,?,?,?,?)",
+                    (uuid4().hex, receipt_id, kind, offer_sha, _encoded(offer), _now()),
+                )
+            elif existing["result_sha256"] != offer_sha:
+                raise DoorHouseConflict("GHoT offer id collided with different content")
+        return self.state()
+
+    def latest_ghot_offer(self, receipt_id):
+        self.require_relatte_hold(receipt_id)
+        with self._db() as db:
+            row = db.execute(
+                """SELECT * FROM dh_external_witnesses
+                   WHERE receipt_id=? AND kind LIKE 'ghot_offer:%'
+                   ORDER BY rowid DESC LIMIT 1""",
+                (receipt_id,),
+            ).fetchone()
+        if row is None:
+            raise DoorHouseMissing("no GHoT body offer has been recorded")
+        item = dict(row)
+        item["snapshot"] = json.loads(item["snapshot"])
+        return item
+
+    def record_ghot_execution(self, receipt_id, offer_id, selected_node_id, result):
+        receipt = self.receipt(receipt_id)
+        self.require_relatte_hold(receipt_id)
+        stored_offer = self.latest_ghot_offer(receipt_id)
+        offer = stored_offer["snapshot"]
+        if offer.get("offer_id") != offer_id:
+            raise DoorHouseConflict("GHoT assignment does not use the latest body offer")
+
+        candidate = next(
+            (
+                item for item in offer.get("candidates", [])
+                if item.get("node_id") == selected_node_id
+            ),
+            None,
+        )
+        if candidate is None or candidate.get("eligible") is not True:
+            raise DoorHouseConflict("selected GHoT body was not eligible in the stored offer")
+
+        if not isinstance(result, dict) or result.get("kind") != "ghot.body-choice.result":
+            raise DoorHouseConflict("invalid GHoT body-choice result")
+        assignment = result.get("assignment")
+        execution = result.get("execution")
+        if not isinstance(assignment, dict) or not isinstance(execution, dict):
+            raise DoorHouseConflict("incomplete GHoT execution result")
+        ghot_receipt = execution.get("receipt")
+        if not isinstance(ghot_receipt, dict):
+            raise DoorHouseConflict("GHoT execution receipt is missing")
+        if assignment.get("offer_id") != offer_id:
+            raise DoorHouseConflict("GHoT execution references a different offer")
+        if assignment.get("selected_node_id") != selected_node_id:
+            raise DoorHouseConflict("GHoT assignment names a different body")
+        if assignment.get("selection_source") != "doorhouse-user-explicit":
+            raise DoorHouseConflict("GHoT assignment lost explicit selection provenance")
+        if ghot_receipt.get("executor_node_id") != selected_node_id:
+            raise DoorHouseConflict("GHoT receipt names a different executor body")
+        if ghot_receipt.get("status") != "ok":
+            raise DoorHouseConflict("GHoT receipt is not successful")
+
+        snapshot = {
+            "schema": "workbench.ghot-execution-witness/v0",
+            "local_receipt_id": receipt_id,
+            "local_receipt_sha256": receipt["sha256"],
+            "offer_id": offer_id,
+            "assignment_id": assignment.get("assignment_id"),
+            "selected_node_id": selected_node_id,
+            "capability": assignment.get("capability"),
+            "selection_source": assignment.get("selection_source"),
+            "ghot_receipt_id": ghot_receipt.get("receipt_id"),
+            "executor_node_id": ghot_receipt.get("executor_node_id"),
+            "output_sha256": ghot_receipt.get("output_sha256"),
+            "output": ghot_receipt.get("output"),
+            "status": ghot_receipt.get("status"),
+            "laws": [
+                "RELATTE HOLD != GHOT ASSIGNMENT",
+                "OFFER != ASSIGNMENT",
+                "CAPABILITY != AUTHORITY",
+                "ASSIGNMENT != EXECUTION",
+                "GHOT RECEIPT != LOCAL RECEIPT",
+            ],
+        }
+        result_sha = _digest(result)
+        with self._db() as db:
+            db.execute("BEGIN IMMEDIATE")
+            existing = db.execute(
+                "SELECT * FROM dh_external_witnesses WHERE receipt_id=? AND kind='ghot_execution'",
+                (receipt_id,),
+            ).fetchone()
+            if existing is None:
+                db.execute(
+                    "INSERT INTO dh_external_witnesses VALUES (?,?,?,?,?,?)",
+                    (
+                        uuid4().hex,
+                        receipt_id,
+                        "ghot_execution",
+                        result_sha,
+                        _encoded(snapshot),
+                        _now(),
+                    ),
+                )
+            elif existing["result_sha256"] != result_sha:
+                raise DoorHouseConflict(
+                    "a different GHoT execution is already attached to this receipt"
+                )
+        return self.state()
+
     def record_relatte_witness(self, receipt_id, result):
         receipt = self.receipt(receipt_id)
         if not isinstance(result, dict) or result.get("schema") != "relatte.opaque-roundtrip-result/v0":
