@@ -90,6 +90,7 @@ def compose_nearby_station_doors(
     broadcast: dict,
     moments: list[dict],
     repos: list[RepoStatus],
+    phonograph: dict | None = None,
 ) -> dict:
     """Return a deterministic, read-only station field.
 
@@ -131,6 +132,22 @@ def compose_nearby_station_doors(
         pair_id,
     )
     episode = _latest(witnesses, "broadcast_episode:")
+    phonograph = phonograph or {
+        "checkout_present": False,
+        "available": False,
+        "repo_head": None,
+        "repo_branch": None,
+        "capability": None,
+    }
+    phono_answer = next(
+        (
+            witness
+            for witness in witnesses
+            if str(witness.get("kind", "")).startswith("phonograph_field_answer:")
+            and witness.get("snapshot", {}).get("window_id") == current_window_id
+        ),
+        None,
+    )
 
     doors: list[dict] = []
 
@@ -234,6 +251,59 @@ def compose_nearby_station_doors(
                 "episode_id": ep.get("episode_id"),
             },
         ))
+
+    # PHONOGRAPH LANE — only a proven local FIELD ANSWER executable earns a door.
+    if audio_window is not None and phonograph.get("available") is True:
+        window_snapshot = audio_window.get("snapshot", {})
+        if phono_answer is None:
+            doors.append(_door(
+                "ask-phonograph-answer",
+                "Ask Haunted Phonograph to answer this window",
+                "FIELD ANSWER 001 is present locally and can turn bounded PCM facts into one receipted musical proposal.",
+                lane="phono",
+                adapter="Haunted Phonograph / FIELD ANSWER 001",
+                evidence=[
+                    {
+                        "kind": "audio-window",
+                        "ref": window_snapshot.get("window_id"),
+                        "audio_sha256": window_snapshot.get("audio_sha256"),
+                    },
+                    {
+                        "kind": "capability",
+                        "ref": "field-answer-001",
+                        "repo_head": phonograph.get("repo_head"),
+                        "repo_branch": phonograph.get("repo_branch"),
+                    },
+                ],
+                target={
+                    "receipt_id": audio_window.get("receipt_id"),
+                    "window_id": window_snapshot.get("window_id"),
+                    "control": "phonograph-field-answer",
+                },
+            ))
+        else:
+            answer = phono_answer.get("snapshot", {})
+            doors.append(_door(
+                "audition-phonograph-answer",
+                "Audition Haunted Phonograph's musical proposal",
+                "A receipted proposal already answers the current exact audio window. Playback remains audition, not admission.",
+                lane="phono",
+                adapter="Haunted Phonograph / FIELD ANSWER 001",
+                evidence=[
+                    {
+                        "kind": "phonograph-field-answer",
+                        "ref": answer.get("proposal_receipt_hash"),
+                        "window_id": answer.get("window_id"),
+                        "proposal_hash": answer.get("proposal_hash"),
+                        "audition_sha256": answer.get("audition", {}).get("sha256"),
+                    }
+                ],
+                target={
+                    "receipt_id": phono_answer.get("receipt_id"),
+                    "window_id": answer.get("window_id"),
+                    "artifact": "audition.wav",
+                },
+            ))
 
     # STATIC LIVE LANE — presence/reachability is factual, never inferred.
     static_live_present = "static-live" in repo_names
@@ -362,6 +432,10 @@ def compose_nearby_station_doors(
             1 for item in witnesses
             if str(item.get("kind", "")).startswith("broadcast_episode:")
         ),
+        "phonograph_answers": sum(
+            1 for item in witnesses
+            if str(item.get("kind", "")).startswith("phonograph_field_answer:")
+        ),
         "unresolved_house_doors": len(unresolved),
         "registered_live_moments": len(moments),
     }
@@ -436,6 +510,13 @@ def compose_nearby_station_doors(
             "stream": broadcast.get("stream"),
             "authority": broadcast.get("authority"),
         },
+        "phonograph_capability": {
+            "checkout_present": phonograph.get("checkout_present"),
+            "available": phonograph.get("available"),
+            "repo_head": phonograph.get("repo_head"),
+            "repo_branch": phonograph.get("repo_branch"),
+            "capability": phonograph.get("capability"),
+        },
         "counts": counts,
         "memory_pressures": pressures,
         "nearby_doors": doors,
@@ -446,6 +527,8 @@ def compose_nearby_station_doors(
             "MEMORY PRESSURE != AUTHORITY",
             "FIELD STATE != WORLD STATE",
             "READ != OCCURRENCE",
+            "REPOSITORY PRESENT != CAPABILITY AVAILABLE",
+            "MUSICAL POSSIBILITY != RECOMMENDATION",
         ],
     }
     return {
