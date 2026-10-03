@@ -13,6 +13,7 @@ from .machine_book import MachineBook, BookMissing, BookConflict
 from .first_door import FirstDoor, ArgConflict, ArgMissing
 from .world_entry import WorldEntry
 from .doorhouse import DoorHouse, DoorHouseConflict, DoorHouseMissing
+from .doorhouse_relatte import RelatteApertureError, run_relatte_aperture
 
 import uvicorn
 from fastapi import FastAPI, HTTPException, Query, Request
@@ -517,6 +518,24 @@ def create_app(config: WorkbenchConfig | None = None) -> FastAPI:
             "world_after": receipt["world_after"],
         })
         return result
+
+    @app.post("/api/doorhouse/receipts/{receipt_id}/relatte")
+    def doorhouse_relatte(receipt_id: str, request: Request):
+        _creator_write_guard(request)
+        try:
+            receipt = doorhouse.receipt(receipt_id)
+            repos = discover_repositories(config.roots, config.max_repo_depth)
+            result = run_relatte_aperture(receipt, config.state_dir, repos)
+            state = doorhouse.record_relatte_witness(receipt_id, result)
+        except RelatteApertureError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+        journal.append("doorhouse.relatte.held", {
+            "local_receipt_id": receipt_id,
+            "crossing_id": result["crossing"]["crossing_id"],
+            "receive_receipt_id": result["receive_receipt"]["receipt_id"],
+            "hold_receipt_id": result["disposition_receipt"]["receipt_id"],
+        })
+        return state
 
     @app.get("/api/bootstrap", response_model=BootstrapResponse)
     def bootstrap() -> BootstrapResponse:
