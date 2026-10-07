@@ -153,3 +153,32 @@ def test_world_portal_script_requires_inspection_then_explicit_cross(tmp_path):
         assert "textContent" in script.text
         assert "innerHTML" not in script.text
         assert "eval(" not in script.text
+
+
+def test_webz_worlds_expose_explicit_opt_in_and_export_erase(tmp_path):
+    with make_client(tmp_path) as client:
+        for route in ("/webz/world/sanctuary", "/webz/world/orchard"):
+            html = client.get(route).text
+            assert 'id="webz-begin-recording"' in html
+            assert 'id="webz-pause-recording"' in html
+            assert 'id="webz-export-voyage"' in html
+            assert 'id="webz-erase-voyage"' in html
+            assert 'id="webz-recording-status"' in html
+            assert "recording is off" in html.lower()
+
+
+def test_world_portal_wires_optional_storage_after_trusted_resolution(tmp_path):
+    with make_client(tmp_path) as client:
+        world_script = client.get("/assets/webz-world.js").text
+        assert './webz-storage.mjs' in world_script
+        assert "confirmArrival(" in world_script
+        assert "recordDeparture(" in world_script
+        assert "beginRecording(" in world_script
+        assert "exportVoyage(" in world_script
+        assert "eraseVoyage(" in world_script
+        assert "window.location.assign" in world_script
+        assert "innerHTML" not in world_script
+        cockpit = client.get("/webz").text
+        assert 'id="webz-export-voyage"' in cockpit
+        assert 'id="webz-erase-voyage"' in cockpit
+        assert 'id="webz-recording-status"' in cockpit
