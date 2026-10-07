@@ -1,5 +1,55 @@
 <!doctype html>
-<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>webZ / Native Workbench</title></head><body>
-<main><header><a href="/">← Workbench</a><strong>webZ / FIRST NATIVE ADDRESS</strong></header>
-<h1>World Wide Web of Worlds</h1><p>Type an address. A world remains a proposal until you choose to enter.</p>
-<p>Native Workbench navigation · no carry · no reLATTE execution.</p></main></body></html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="color-scheme" content="dark">
+  <title>webZ · World Wide Web of Worlds</title>
+  <link rel="stylesheet" href="/assets/webz.css">
+</head>
+<body class="webz-body webz-atlas">
+  <div class="webz-far-stars" aria-hidden="true"></div>
+  <div class="webz-shell">
+    <header class="webz-header">
+      <a class="webz-return-link" href="/">← STATIC WORKBENCH</a>
+      <span class="webz-chip">WEBZ-NATIVE-001 · FIRST DOOR</span>
+      <span class="webz-indicator">● LOCAL REALITY / NO CARRY</span>
+    </header>
+    <main class="webz-main">
+      <section class="webz-hero" aria-labelledby="webz-heading">
+        <p class="webz-eyebrow">THE WORLD WIDE WEB OF WORLDS · GENESIS 001</p>
+        <h1 id="webz-heading">The address<br><em>becomes a place.</em></h1>
+        <p class="webz-lead">Enter an address. Discover a world. Choose whether to cross its threshold. Your story stays yours.</p>
+      </section>
+      <section class="webz-console" aria-label="Native webZ address resolver">
+        <div class="webz-console-cap"><span>◇</span> THE ADDRESS INSTRUMENT <span>01 / WORKBENCH NATIVE</span></div>
+        <form id="webz-form">
+          <label for="webz-address">WORLD ADDRESS <span>webz::</span></label>
+          <div class="webz-address-line">
+            <input id="webz-address" type="text" spellcheck="false" autocomplete="off" maxlength="512" value="webz::static/sanctuary" required aria-describedby="webz-address-help">
+            <button class="webz-button" type="submit" id="webz-resolve">Resolve world ↗</button>
+          </div>
+          <p id="webz-address-help" class="webz-hint">Recognizing local, declared worlds only. Resolving is never entering.</p>
+        </form>
+        <div id="webz-result" class="webz-result" role="status" aria-live="polite">No world selected. Resolve an address to inspect the declaration.</div>
+        <button id="webz-enter" class="webz-button webz-enter" type="button" disabled hidden>Enter selected world →</button>
+      </section>
+      <section class="webz-world-shelf" aria-label="First world addresses">
+        <div class="webz-section-caption">TWO ADDRESSES. ONE TRUE DOOR. NO AUTOMATIC CROSSING.</div>
+        <div class="webz-world-cards">
+          <button type="button" class="webz-world-card webz-world-card-sanctuary" data-webz-address="webz::static/sanctuary">
+            <span class="webz-card-overline">01 / THE WELCOME</span><strong>Sanctuary</strong>
+            <span>webz::static/sanctuary</span><span class="webz-card-arrow">↗ Set address</span>
+          </button>
+          <button type="button" class="webz-world-card webz-world-card-orchard" data-webz-address="webz::static/orchard/022100">
+            <span class="webz-card-overline">02 / THE HORIZON</span><strong>The Orchard</strong>
+            <span>webz::static/orchard/022100</span><span class="webz-card-arrow">↗ Set address</span>
+          </button>
+        </div>
+      </section>
+      <footer class="webz-footer">WORLD ≠ PAGE · DISCOVERY ≠ ENTRY · ARRIVAL ≠ ADMISSION · HUMAN STEERS</footer>
+    </main>
+  </div>
+  <script type="module" src="/assets/webz.js"></script>
+</body>
+</html>
