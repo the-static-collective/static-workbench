@@ -61,6 +61,8 @@ jobs:
           persist-credentials: false
       - name: Install pinned reLATTE dependencies
         run: npm install --prefix .compat/reLATTE --no-package-lock --ignore-scripts
+      - name: WEBZ-RELATTE-002 signed first sovereign parcel smoke
+        run: python scripts/smoke_webz_relatte.py
       - name: Checkout pinned GHoT field receiver, assignment, and signed dispatch
         uses: actions/checkout@v4
         with:
