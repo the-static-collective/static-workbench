@@ -72,19 +72,33 @@ def _find_pinned(
     expected: str,
     required_path: str,
 ) -> Path:
+    # Multiple versions of an owner repository may coexist as separate,
+    # clean worktrees for independent crossings. Select by *verified full
+    # commit*, never by first matching basename or an untrusted short SHA.
+    found_named = False
+    selected: Path | None = None
     for repo in repos:
         if repo.name.casefold() != name.casefold():
             continue
+        found_named = True
         root = Path(repo.path)
         if not _tracked_checkout_matches(root, expected):
-            raise FieldReseedCrossingError(
-                f"{name} tracked checkout must exactly match pinned revision {expected}"
-            )
+            continue
         if not (root / required_path).is_file():
             raise FieldReseedCrossingError(
                 f"{name} pinned checkout is missing {required_path}"
             )
-        return root
+        if selected is not None:
+            raise FieldReseedCrossingError(
+                f"{name} pinned revision {expected} is ambiguous across two checkouts"
+            )
+        selected = root
+    if selected is not None:
+        return selected
+    if found_named:
+        raise FieldReseedCrossingError(
+            f"{name} tracked checkout must exactly match pinned revision {expected}"
+        )
     raise FieldReseedCrossingError(
         f"A clean local {name} checkout pinned to {expected} is required."
     )
