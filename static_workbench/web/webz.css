@@ -209,3 +209,41 @@ a{color:inherit}
 @media(max-width:690px){.webz-world-side{display:block}
  .webz-parcel-console{margin-top:18px}
  .webz-parcel-proof{font-size:11px}}
+
+
+/* WEBZ-003: material bytes are a distinct permission boundary beyond signed envelopes. */
+.webz-custody-console{border-radius:15px;border:1px solid rgba(133,222,210,.47);
+ background:linear-gradient(145deg,rgba(13,37,43,.94),rgba(22,25,45,.94));
+ box-shadow:inset 0 1px rgba(183,255,244,.11);padding:clamp(22px,2.3vw,34px)}
+.webz-custody-console h2{font-size:clamp(28px,2.8vw,42px);line-height:1.08;
+ letter-spacing:-.055em;color:#c0f1e1;margin:14px 0}
+.webz-custody-console p:not(.webz-eyebrow){font-size:13px;line-height:1.75;color:#d7e3e7}
+.webz-custody-console>label:not(.webz-custody-consent){display:block;font-size:11px;
+ font-weight:850;letter-spacing:.12em;color:#ade8dc;margin:18px 0 7px}
+#webz-custody-kind{width:100%;padding:12px 11px;margin-bottom:11px;
+ border:1px solid #6ba39e;background:#0b1b26;border-radius:7px;color:#f0faf5;
+ font-size:13px;min-width:0}
+.webz-custody-preview,#webz-custody-proof{max-width:100%;white-space:pre-wrap;
+ overflow-wrap:anywhere;background:#07171e;color:#cfefe7;padding:17px;
+ border:1px solid #7bcab366;border-radius:9px;font:12px/1.75 ui-monospace,monospace;
+ max-height:400px;overflow:auto}
+.webz-custody-preview[hidden],#webz-custody-proof[hidden]{display:none}
+.webz-custody-consent{display:flex;align-items:flex-start;gap:12px;line-height:1.65;
+ margin:19px 0;color:#d2f3ed;font-size:13px}
+.webz-custody-consent input{width:19px;height:19px;flex:0 0 auto;margin-top:3px;
+ accent-color:#7bcfb9}
+.webz-custody-deliver{display:block;width:100%;text-align:left;
+ background:linear-gradient(115deg,#a0f1d3,#b9d9e9)}
+#webz-custody-status{white-space:pre-wrap;overflow-wrap:anywhere;min-height:70px;
+ margin-top:22px;padding-top:16px;border-top:1px solid #abebd355;
+ color:#bfeadd !important}
+.webz-custody-limit{font-size:11px !important;color:#a3c1be !important;
+ border-top:1px solid rgba(255,255,255,.1);padding-top:15px;margin-top:18px}
+#webz-custody-inbox{display:grid;gap:12px;margin:18px 0}
+.webz-custody-receipt{border:1px solid #91e4cd70;background:#091f27;
+ border-radius:10px;padding:17px;overflow-wrap:anywhere}
+.webz-custody-receipt strong{display:block;color:#a4e9d3;font-size:14px}
+.webz-custody-receipt p{margin:10px 0 !important}
+.webz-custody-error{color:#f0a3a3 !important}
+@media(max-width:1040px){.webz-custody-console{grid-column:1/-1}}
+@media(max-width:690px){.webz-custody-console{margin-top:18px}}
