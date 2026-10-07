@@ -61,8 +61,6 @@ jobs:
           persist-credentials: false
       - name: Install pinned reLATTE dependencies
         run: npm install --prefix .compat/reLATTE --no-package-lock --ignore-scripts
-      - name: WEBZ-RELATTE-002 signed first sovereign parcel smoke
-        run: python scripts/smoke_webz_relatte.py
       - name: Checkout WEBZ-003 additive reLATTE byte-custody owner
         uses: actions/checkout@v4
         with:
@@ -72,6 +70,8 @@ jobs:
           persist-credentials: false
       - name: Install separately pinned byte-custody owner dependencies
         run: npm install --prefix .compat/custody/reLATTE --no-package-lock --ignore-scripts
+      - name: WEBZ-RELATTE-002 signed first sovereign parcel smoke
+        run: python scripts/smoke_webz_relatte.py
       - name: WEBZ-003 independent actual-byte custodian smoke
         run: python scripts/smoke_webz_custody.py
       - name: Checkout pinned GHoT field receiver, assignment, and signed dispatch
