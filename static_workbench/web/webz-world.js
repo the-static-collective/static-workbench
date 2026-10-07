@@ -1,4 +1,8 @@
 "use strict";
+import {
+  readVoyage, beginRecording, recordDeparture, confirmArrival,
+  setRecording, exportVoyage, eraseVoyage,
+} from "./webz-storage.mjs";
 // Two trusted first-party world documents. A door is an authored invitation,
 // not destination authority or a signed reLATTE crossing.
 const $ = (id) => document.getElementById(id);
@@ -28,6 +32,85 @@ const target = $("webz-door-target");
 let manifest = null;
 let door = null;
 let inspected = false;
+
+const beginRecorder = $("webz-begin-recording");
+const pauseRecorder = $("webz-pause-recording");
+const exportButton = $("webz-export-voyage");
+const eraseButton = $("webz-erase-voyage");
+const recorderStatus = $("webz-recording-status");
+const STORAGE_KEY = "webz.voyage-local.v0";
+function safeStorage() {
+  try { return window.localStorage; }
+  catch (_) {
+    return {getItem(){throw new Error("blocked");},
+      setItem(){throw new Error("blocked");},
+      removeItem(){throw new Error("blocked");}};
+  }
+}
+function updateRecorder(state = readVoyage(safeStorage())) {
+  const usable = state.status === "recording" || state.status === "paused";
+  beginRecorder.disabled = !manifest || state.status !== "off";
+  pauseRecorder.disabled = !usable;
+  pauseRecorder.textContent = state.status === "paused" ? "Resume recording" : "Pause recording";
+  exportButton.disabled = !(usable || state.status === "corrupt");
+  eraseButton.disabled = state.status === "off" || state.status === "unavailable";
+  const count = state.record?.events?.length ?? 0;
+  const hint = state.projection?.pending_departure_seq !== null &&
+    state.projection?.pending_departure_seq !== undefined
+    ? " · departure pending (not admitted)" : "";
+  const message = state.status === "off"
+    ? "Recording is off. Nothing is saved unless you choose Begin."
+    : state.status === "recording"
+      ? "LOCAL ONLY · Recording " + count + " navigation events" + hint + "."
+      : state.status === "paused"
+        ? "PAUSED · " + count + " local navigation events" + hint + "."
+        : state.status === "corrupt"
+          ? "CORRUPT LOCAL HISTORY · Export raw data or deliberately erase. No repair was inferred."
+          : state.status === "unavailable"
+            ? "STORAGE UNAVAILABLE · Navigation still works; this journey is not being recorded."
+            : (state.error || "An unresolved local voyage awaits inspection.");
+  recorderStatus.textContent = message;
+  return state;
+}
+function downloadText(contents, filename, type) {
+  const blob = new Blob([contents], {type});
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = filename;
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+  URL.revokeObjectURL(url);
+}
+beginRecorder.addEventListener("click", () => {
+  if (!manifest) return;
+  updateRecorder(beginRecording(safeStorage(), manifest.world_id));
+});
+pauseRecorder.addEventListener("click", () => {
+  const current = readVoyage(safeStorage());
+  if (current.status === "recording" || current.status === "paused") {
+    updateRecorder(setRecording(safeStorage(), current.status === "paused"));
+  }
+});
+exportButton.addEventListener("click", () => {
+  try {
+    const current = readVoyage(safeStorage());
+    if (current.status === "corrupt") {
+      const raw = safeStorage().getItem(STORAGE_KEY);
+      if (raw === null) throw new Error("Raw history is not available.");
+      downloadText(raw, "webz-raw-local-recovery.txt", "text/plain");
+    } else {
+      downloadText(exportVoyage(safeStorage()), "webz-voyage-local-v0.json", "application/json");
+    }
+    updateRecorder();
+  } catch (_) { recorderStatus.textContent = "Export unavailable; original local history was not changed."; }
+});
+eraseButton.addEventListener("click", () => {
+  if (!window.confirm("Erase this browser-local webZ voyage? Export it first if you want to keep it.")) return;
+  updateRecorder(eraseVoyage(safeStorage()));
+});
+updateRecorder();
 
 function say(message) { status.textContent = message; }
 function closeDoor() {
@@ -73,6 +156,11 @@ cross.addEventListener("click", async () => {
       throw new Error("The destination has no trusted local address.");
     }
     // An intentional second click is the only portal navigation trigger.
+    const trace = recordDeparture(safeStorage(), manifest.world_id, door.to_world_id, door.door_id);
+    updateRecorder(trace);
+    if (["corrupt","unavailable","unresolved","pending"].includes(trace.status)) {
+      say("BROWSING ONLY · The local trace was not advanced (" + trace.status + "). You can still enter.");
+    }
     window.location.assign(resolved.entry_route);
   } catch (error) {
     say("UNRESOLVED / HOLD · " + error.message +
@@ -105,6 +193,12 @@ async function loadWorld() {
     door = document.doors[0];
     inspect.disabled = false;
     if (returnButton) returnButton.disabled = false;
+    const earlier = readVoyage(safeStorage());
+    if (earlier.status === "recording" && earlier.projection.pending_departure_seq !== null) {
+      updateRecorder(confirmArrival(safeStorage(), manifest.world_id));
+    } else {
+      updateRecorder(earlier);
+    }
     say("World declaration loaded. Choose Inspect to learn what the portal offers.");
   } catch (error) {
     say("WORLD UNRESOLVED · " + error.message + ". You can return to the atlas.");
