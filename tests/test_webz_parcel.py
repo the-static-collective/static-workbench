@@ -236,3 +236,29 @@ def test_api_read_is_pure_and_signed_offer_requires_workbench_session(tmp_path, 
         assert client.get("/api/webz/parcels/bad/preview").status_code == 404
         assert client.get("/").status_code == 200
         assert client.get("/arg").status_code == 200
+
+
+def test_world_pages_have_explicit_parcel_instrument_and_owner_receipt_inspection(tmp_path):
+    config = config_for(tmp_path)
+    with TestClient(create_app(config), base_url="http://127.0.0.1") as client:
+        sanctuary = client.get("/webz/world/sanctuary").text
+        orchard = client.get("/webz/world/orchard").text
+        script = client.get("/assets/webz-parcel.js")
+        assert 'id="webz-parcel-inspect"' in sanctuary
+        assert 'id="webz-parcel-send"' in sanctuary
+        assert 'id="webz-parcel-kind"' in sanctuary
+        assert 'id="webz-parcel-preview"' in sanctuary
+        assert 'id="webz-parcel-status"' in sanctuary
+        assert 'type="module" src="/assets/webz-parcel.js"' in sanctuary
+        assert 'id="webz-parcel-inbox"' in orchard
+        assert 'id="webz-parcel-refresh"' in orchard
+        assert 'type="module" src="/assets/webz-parcel.js"' in orchard
+        assert script.status_code == 200
+        assert "/api/webz/parcels/" in script.text
+        assert "SEND_TO_ORCHARD" in script.text
+        assert "textContent" in script.text
+        assert "innerHTML" not in script.text
+        assert "eval(" not in script.text
+        assert "api/bootstrap" in script.text
+        assert 'id="webz-cross"' in sanctuary  # existing no-carry door remains
+        assert 'id="webz-cross"' in orchard
