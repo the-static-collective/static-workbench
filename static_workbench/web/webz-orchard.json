@@ -1,0 +1,17 @@
+{
+  "schema": "webz/world/v0",
+  "world_id": "webz:the-static-collective/orchard-022100",
+  "revision": "genesis-001",
+  "title": "The Orchard / 022100",
+  "entry": "/webz/world/orchard",
+  "origin_note": "Fictional first-party world specimen based on the Collective's illustrated Phase 01 concept; not a historical occurrence.",
+  "doors": [
+    {
+      "door_id": "orchard-to-sanctuary",
+      "label": "Return to the Sanctuary",
+      "to_world_id": "webz:the-static-collective/sanctuary",
+      "to_address": "webz::static/sanctuary",
+      "carry_mode": "none"
+    }
+  ]
+}
