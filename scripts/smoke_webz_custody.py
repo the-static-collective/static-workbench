@@ -13,7 +13,7 @@ import subprocess
 import tempfile
 from pathlib import Path
 
-from static_workbench.field_reseed_crossing import RELATTE_REVISION
+from static_workbench.webz_parcel import WEBZ_RELATTE_REVISION
 from static_workbench.repos import RepoStatus
 from static_workbench.webz_parcel import WebzParcelGate
 from static_workbench.webz_custody import WebzCustodyGate,CUSTODY_RELATTE_REVISION,WebzCustodyError
@@ -43,14 +43,14 @@ def verify_signatures(crossing: dict, receive: dict, disposition: dict) -> None:
 
 
 def main() -> int:
-    assert (OLD/"scripts"/"opaque-roundtrip.ts").is_file(),"missing old pinned R14 owner"
+    assert (NEW/"scripts"/"opaque-roundtrip.ts").is_file(),"missing compatible pinned R14 envelope owner"
     assert (NEW/"scripts"/"material-delivery.ts").is_file(),"missing exact new custody owner"
     with tempfile.TemporaryDirectory(prefix="webz-003-real-byte-custody-") as td:
         parent=WebzParcelGate(Path(td)/"state")
         custody=WebzCustodyGate(parent)
         assert custody.inbox()==[]
         assert custody.preview("fruit")["status"]=="NOT_READY"
-        old_roots=[repo(OLD,RELATTE_REVISION)]
+        old_roots=[repo(NEW,WEBZ_RELATTE_REVISION)]
         new_roots=[repo(NEW,CUSTODY_RELATTE_REVISION)]
         for kind, expected in (("fruit","HOLD"),("spore","REFUSE")):
             source=parent.preview(kind)
