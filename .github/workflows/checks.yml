@@ -117,3 +117,12 @@ jobs:
           node --check static_workbench/web/arg.js
           node --check static_workbench/web/arg-world.js
           node --check static_workbench/web/doorhouse.js
+
+      - name: webZ native browser script syntax
+        run: |
+          node --check static_workbench/web/webz.js
+          node --check static_workbench/web/webz-world.js
+          node --check static_workbench/web/webz-voyage.mjs
+          node --check static_workbench/web/webz-storage.mjs
+      - name: webZ frozen voyage and denied-storage tests
+        run: node --test tests/webz-*.test.mjs
