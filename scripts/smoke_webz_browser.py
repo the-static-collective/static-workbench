@@ -62,7 +62,7 @@ def walk(browser, base: str, label: str, viewport: dict, out: Path) -> None:
         page.locator("#webz-enter").click()
         page.wait_for_url("**/webz/world/sanctuary")
         page.wait_for_function("!document.querySelector('#webz-inspect').disabled")
-        assert "Psychedelic Punk Sanctuary" in page.locator("#world-heading").inner_text()
+        assert "Psychedelic Punk Sanctuary" in " ".join(page.locator("#world-heading").inner_text().split())
         assert not page.locator("#webz-cross").is_enabled()
         page.screenshot(path=str(out / f"webz-{label}-sanctuary.png"), full_page=True)
 
