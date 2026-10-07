@@ -1,0 +1,17 @@
+{
+  "schema": "webz/world/v0",
+  "world_id": "webz:the-static-collective/sanctuary",
+  "revision": "genesis-001",
+  "title": "Psychedelic Punk Sanctuary",
+  "entry": "/webz/world/sanctuary",
+  "origin_note": "Fictional first-party world specimen based on the Collective's illustrated Phase 01 concept; not a historical occurrence.",
+  "doors": [
+    {
+      "door_id": "sanctuary-to-orchard",
+      "label": "Follow the orchard light",
+      "to_world_id": "webz:the-static-collective/orchard-022100",
+      "to_address": "webz::static/orchard/022100",
+      "carry_mode": "none"
+    }
+  ]
+}
