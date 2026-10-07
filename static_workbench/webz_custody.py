@@ -47,21 +47,22 @@ class WebzCustodyGate:
     def _prior(self, kind: str) -> tuple[dict, dict, bytes, str, str]:
         _known(kind)
         _, raw, digest, policy = self.parent._fixture(kind)
-        # Delivery must recheck exact sender bytes even if a stored parent
-        # summary is presented. Never silently repair overwritten staging.
-        try:
-            staged = _read_exact(self.parent._staged_path(kind,digest), limit=4096)
-        except WebzParcelError as exc:
-            raise WebzCustodyError(f"source staged bytes unavailable: {exc}") from exc
-        if staged != raw or hashlib.sha256(staged).hexdigest() != digest:
-            raise WebzCustodyError("source staged bytes SHA digest mismatch")
-        # The parent result must separately establish a signed envelope.
+        # A missing initial signed result is a normal NOT_READY preview, not
+        # a corrupt material-delivery attempt. GET must remain side-effect-free.
         try:
             summary = self.parent._stored(kind,digest,raw)
         except WebzParcelError as exc:
             raise WebzCustodyError(f"source staged bytes or parent receipt invalid: {exc}") from exc
         if summary is None:
             raise WebzCustodyError("no signed WEBZ-002 envelope; first explicitly offer the material")
+        # After the parent crossing exists, independently recheck exact sender
+        # staging, even if a mocked/legacy parent summary was presented.
+        try:
+            staged = _read_exact(self.parent._staged_path(kind,digest), limit=4096)
+        except WebzParcelError as exc:
+            raise WebzCustodyError(f"source staged bytes unavailable: {exc}") from exc
+        if staged != raw or hashlib.sha256(staged).hexdigest() != digest:
+            raise WebzCustodyError("source staged bytes SHA digest mismatch")
         try:
             proof = self.parent.proof(kind)
         except WebzParcelError as exc:
