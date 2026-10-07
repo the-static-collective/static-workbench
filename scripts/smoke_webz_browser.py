@@ -115,6 +115,25 @@ def walk(browser, base: str, label: str, viewport: dict, out: Path) -> None:
         assert page.locator("#webz-enter").is_disabled()
         page.screenshot(path=str(out / f"webz-{label}-unresolved.png"), full_page=True)
         assert page.evaluate("document.documentElement.scrollWidth <= window.innerWidth + 3")
+
+        # A direct address visit must not claim arrival for an earlier unrelated
+        # portal intention merely because the target world is the same.
+        page.goto(base + "/webz/world/sanctuary", wait_until="networkidle")
+        page.wait_for_function("!document.querySelector('#webz-begin-recording').disabled")
+        page.evaluate("""async () => {
+            const mod = await import('/assets/webz-storage.mjs');
+            const a='webz:the-static-collective/sanctuary';
+            const b='webz:the-static-collective/orchard-022100';
+            mod.beginRecording(localStorage,a);
+            mod.recordDeparture(localStorage,a,b,'sanctuary-to-orchard');
+        }""")
+        page.goto(base + "/webz/world/orchard", wait_until="networkidle")
+        recorded_events = page.evaluate(
+            "JSON.parse(localStorage.getItem('webz.voyage-local.v0')).events.length"
+        )
+        assert recorded_events == 1, (
+            "An unrelated direct address visit fabricated arrival for a pending portal crossing"
+        )
     finally:
         context.close()
 
