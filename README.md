@@ -393,3 +393,34 @@ See [Dogram Impact Desk setup and boundaries](docs/dogram-impact-desk-001.md).
 HOUSE now exposes an experimental **GROUNDKEEPER** door. Run a reproducible simulated ground signal through a coupled sound/visual feedback network; inspect a derived note phrase, visual frame, three bounded graph-change comparisons, and an exact-replay receipt. It does **not** access live sensors, mutate project state, admit generated capabilities, or implement a TranchNOSE optical field.
 
 Use the **GROUNDKEEPER** navigator view or run `python -m static_workbench.groundkeeper --seed static-first-ignition --output ~/groundkeeper-first.json`, followed by `python -m static_workbench.groundkeeper --replay ~/groundkeeper-first.json`. The output file must not already exist. Read [first-flight setup, controls, and next stages](docs/groundkeeper-001.md).
+
+
+## webZ Native 001 — Workbench reads worlds
+
+**Experimental first-party address instrument.** Run Workbench with your existing local configuration and open `http://127.0.0.1:13700/webz` (or select **webZ · World Wide Web of Worlds** from the navigator).
+
+Type one of the installed local addresses:
+
+```text
+webz::static/sanctuary
+webz::static/orchard/022100
+```
+
+Choose **Resolve world** to inspect the declared world, then deliberately choose **Enter selected world**. Each world owns a separately addressable HTML page and an inspectable portal. A visitor can inspect the door, remain, cross to the other world, and explicitly return. Unknown addresses stay **UNRESOLVED** rather than triggering network requests or arbitrary filesystem lookups.
+
+A **local voyage log** is optional and **off by default**. Inside a world, choose **Begin voyage recording** if you want a browser-local sequence of source world, destination world, door and departure/arrival. The record survives browser reload on the same Workbench origin while browser storage remains available. You can pause/resume it, export its noncanonical JSON, or erase it with confirmation; malformed stored history is exposed, not silently repaired. Browser storage is not a secret vault. No personal notes, coordinates, account identities, or uploaded images are included. Ordinary scene navigation works even if storage is denied. Exports are local testimony, **not** canonical STORYSHIP history or signed reLATTE receipts.
+
+**Boundaries:** Workbench understands `webz::` inside its own interface, but this is not registered with the operating system, Chrome, or a custom network stack. Initial worlds are trusted first-party and share the Workbench browser security origin; independent world IDs are *not* security isolation. No transport of personal material or signed reLATTE crossing occurs during visits, and destination-local admission remains separate. Scene graphics are original CSS constructions rather than copies of the manga source assets.
+
+Run verification:
+
+```bash
+python -m pytest -q
+node --test tests/webz-*.test.mjs
+# To exercise real desktop/mobile Chromium:
+python -m pip install 'playwright==1.56.0'
+python -m playwright install chromium
+python scripts/smoke_webz_browser.py --out browser-artifacts
+```
+
+Source decisions: [WEBZ-NATIVE-001 design](docs/superpowers/specs/2026-10-06-webz-native-001-workbench-design.md) and [implementation plan](docs/superpowers/plans/2026-10-06-webz-native-001-workbench.md). A later separate proposal can join chosen artifact crossings to reLATTE's signed crossing/receiver contracts.

@@ -1,0 +1,15 @@
+{
+  "schema": "webz/registry/v0",
+  "aliases": [
+    {
+      "typed_address": "webz::static/sanctuary",
+      "manifest_file": "webz-sanctuary.json",
+      "entry_route": "/webz/world/sanctuary"
+    },
+    {
+      "typed_address": "webz::static/orchard/022100",
+      "manifest_file": "webz-orchard.json",
+      "entry_route": "/webz/world/orchard"
+    }
+  ]
+}

@@ -13,6 +13,7 @@ from .maddloop import MaddloopStore, LoopConflict, LoopMissing
 from .machine_book import MachineBook, BookMissing, BookConflict
 from .first_door import FirstDoor, ArgConflict, ArgMissing
 from .world_entry import WorldEntry
+from .webz_native import WebzRegistryError, load_registry, resolve_webz_address, world_by_slug
 from .doorhouse import DoorHouse, DoorHouseConflict, DoorHouseMissing
 from .doorhouse_relatte import RelatteApertureError, run_relatte_aperture
 from .doorhouse_ghot import GHotApertureError, discover_ghot_bodies, assign_ghot_body
@@ -353,6 +354,35 @@ def create_app(config: WorkbenchConfig | None = None) -> FastAPI:
     @app.get("/", include_in_schema=False)
     def index():
         return FileResponse(web_dir / "index.html")
+
+    def _webz_registry():
+        try:
+            return load_registry(web_dir)
+        except WebzRegistryError as exc:
+            raise HTTPException(status_code=503, detail="webZ registry unavailable") from exc
+
+    @app.get("/webz", include_in_schema=False)
+    def webz_index():
+        return FileResponse(web_dir / "webz.html")
+
+    @app.get("/webz/world/{slug}", include_in_schema=False)
+    def webz_world_page(slug: str):
+        world = world_by_slug(slug, _webz_registry())
+        if world is None:
+            raise HTTPException(status_code=404, detail="webZ world not installed")
+        # Slug is a closed allowlist, never an arbitrary filename.
+        return FileResponse(web_dir / ("webz-" + slug + ".html"))
+
+    @app.get("/api/webz/resolve")
+    def webz_resolve(address: str = ""):
+        return resolve_webz_address(address, _webz_registry())
+
+    @app.get("/api/webz/worlds/{slug}")
+    def webz_declaration(slug: str):
+        world = world_by_slug(slug, _webz_registry())
+        if world is None:
+            raise HTTPException(status_code=404, detail="webZ world not installed")
+        return world
 
     @app.get("/arg", include_in_schema=False)
     def static_arg_page():
