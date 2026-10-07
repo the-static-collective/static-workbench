@@ -262,3 +262,22 @@ def test_world_pages_have_explicit_parcel_instrument_and_owner_receipt_inspectio
         assert "api/bootstrap" in script.text
         assert 'id="webz-cross"' in sanctuary  # existing no-carry door remains
         assert 'id="webz-cross"' in orchard
+
+
+def test_corrupt_persisted_intent_and_summary_fail_closed(tmp_path, monkeypatch):
+    calls = []
+    fake_pinned(monkeypatch, tmp_path, calls)
+    gate = WebzParcelGate(tmp_path / "state")
+    proposal = gate.preview("fruit")
+    intent = gate.root / "intents" / "fruit.json"
+    intent.parent.mkdir(parents=True)
+    intent.write_text("{bad")
+    with pytest.raises(WebzParcelError, match="intent"):
+        gate.send("fruit", proposal["artifact_sha256"], "SEND_TO_ORCHARD", [])
+    assert calls == []
+    intent.unlink()
+    gate.send("fruit", proposal["artifact_sha256"], "SEND_TO_ORCHARD", [])
+    summary = gate.root / "summaries" / "fruit.json"
+    summary.write_text("{broken")
+    with pytest.raises(WebzParcelError, match="summary"):
+        gate.inbox()
