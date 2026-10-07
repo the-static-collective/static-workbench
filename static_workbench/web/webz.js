@@ -1,3 +1,4 @@
+import {readVoyage, exportVoyage, eraseVoyage} from "./webz-storage.mjs";
 "use strict";
 // A Workbench-native textual resolver, not an OS/browser protocol registration.
 const $ = (id) => document.getElementById(id);
@@ -74,3 +75,60 @@ for (const card of document.querySelectorAll("[data-webz-address]")) {
     showLine("Address selected. Resolve it before choosing to enter.");
   });
 }
+
+const localStatus = $("webz-recording-status");
+const localExport = $("webz-export-voyage");
+const localErase = $("webz-erase-voyage");
+function localStorageSafely() {
+  try { return window.localStorage; }
+  catch (_) {
+    return {getItem(){throw new Error("blocked");},
+      setItem(){throw new Error("blocked");},removeItem(){throw new Error("blocked");}};
+  }
+}
+function renderLocalVoyage() {
+  const current = readVoyage(localStorageSafely());
+  const valid = current.status === "recording" || current.status === "paused";
+  localExport.disabled = !(valid || current.status === "corrupt");
+  localErase.disabled = current.status === "off" || current.status === "unavailable";
+  const count = current.record?.events?.length ?? 0;
+  localStatus.textContent = valid
+    ? "LOCAL / " + current.status + " / " + count + " navigation events · not a STORYSHIP or reLATTE receipt."
+    : current.status === "corrupt"
+      ? "CORRUPT · Export raw history before choosing Erase. Nothing was silently repaired."
+      : current.status === "unavailable"
+        ? "Browser storage unavailable; world navigation remains usable."
+        : "Recording is off. Begin a voyage after entering a world.";
+}
+function downloadLocal(text, filename, mime) {
+  const url = URL.createObjectURL(new Blob([text], {type:mime}));
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+}
+localExport.addEventListener("click", () => {
+  try {
+    const current = readVoyage(localStorageSafely());
+    if (current.status === "corrupt") {
+      const raw = localStorageSafely().getItem("webz.voyage-local.v0");
+      if (raw === null) throw new Error("no raw history");
+      downloadLocal(raw,"webz-raw-local-recovery.txt","text/plain");
+    } else {
+      downloadLocal(exportVoyage(localStorageSafely()),"webz-voyage-local-v0.json","application/json");
+    }
+    renderLocalVoyage();
+  } catch (_) {
+    localStatus.textContent = "Export unavailable; your original local history was not changed.";
+  }
+});
+localErase.addEventListener("click", () => {
+  if (!window.confirm("Erase the browser-local webZ voyage? Export first to keep it.")) return;
+  const result=eraseVoyage(localStorageSafely());
+  renderLocalVoyage();
+  if (result.status === "unavailable") localStatus.textContent = result.error;
+});
+renderLocalVoyage();
