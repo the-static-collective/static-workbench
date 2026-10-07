@@ -30,7 +30,7 @@ from .repos import RepoStatus
 
 # WEBZ-003 upgrades only the webZ receiver lineage to the additive owner.
 # Field Reseed and other Workbench adapters keep their earlier R14 pin.
-WEBZ_RELATTE_REVISION = "743e5705c1e397c40aff82960e361d0b36eb11a5"
+WEBZ_RELATTE_REVISION = "103c03c745968bfe2105167fa9007fab8906fc71"
 
 SANCTUARY = "webz:the-static-collective/sanctuary"
 ORCHARD = "webz:the-static-collective/orchard-022100"
