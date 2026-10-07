@@ -217,3 +217,32 @@ def test_read_only_api_and_explicit_session_origin_extra_field_guard(tmp_path):
         assert client.get("/api/webz/custody/bad/preview").status_code==404
         assert client.get("/webz/world/sanctuary").status_code==200
         assert client.get("/webz/world/orchard").status_code==200
+
+
+def test_workbench_shows_separate_byte_gate_and_orchard_read_only_receipts(tmp_path):
+    root=tmp_path/"projects"
+    root.mkdir()
+    cfg=WorkbenchConfig(bind_host="127.0.0.1",port=13700,state_dir=tmp_path/"state",roots=(RootConfig("static",root),))
+    with TestClient(create_app(cfg),base_url="http://127.0.0.1") as client:
+        a=client.get("/webz/world/sanctuary").text
+        b=client.get("/webz/world/orchard").text
+        js=client.get("/assets/webz-custody.js")
+        css=client.get("/assets/webz.css")
+        assert js.status_code==200 and css.status_code==200
+        for control in ("webz-custody-kind","webz-custody-inspect","webz-custody-preview",
+                        "webz-custody-confirm","webz-custody-deliver","webz-custody-status"):
+            assert f'id="{control}"' in a
+        assert 'type="module" src="/assets/webz-custody.js"' in a
+        assert 'id="webz-cross"' in a
+        assert 'id="webz-parcel-send"' in a
+        assert 'id="webz-custody-inbox"' in b
+        assert 'id="webz-custody-proof"' in b
+        assert 'id="webz-custody-refresh"' in b
+        assert 'id="webz-cross"' in b
+        assert "DELIVER_VERIFIED_BYTES" in js.text
+        assert "/api/webz/custody/" in js.text
+        assert "/api/bootstrap" in js.text
+        assert "textContent" in js.text
+        assert "innerHTML" not in js.text
+        assert "eval(" not in js.text
+        assert "prefers-reduced-motion" in css.text
