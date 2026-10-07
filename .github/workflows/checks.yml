@@ -136,6 +136,7 @@ jobs:
           node --check static_workbench/web/webz.js
           node --check static_workbench/web/webz-world.js
           node --check static_workbench/web/webz-parcel.js
+          node --check static_workbench/web/webz-custody.js
           node --check static_workbench/web/webz-voyage.mjs
           node --check static_workbench/web/webz-storage.mjs
       - name: webZ frozen voyage and denied-storage tests
