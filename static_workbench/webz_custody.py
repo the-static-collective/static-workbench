@@ -10,6 +10,7 @@ import base64
 import hashlib
 import json
 import os
+from datetime import datetime, timezone
 from pathlib import Path
 
 from .field_reseed_crossing import (
@@ -47,10 +48,16 @@ class WebzCustodyGate:
         _known(kind)
         _, raw, digest, policy = self.parent._fixture(kind)
         # _stored checks local staged bytes and first-phase evidence scope.
-        summary = self.parent._stored(kind,digest,raw)
+        try:
+            summary = self.parent._stored(kind,digest,raw)
+        except WebzParcelError as exc:
+            raise WebzCustodyError(f"source staged bytes or parent receipt invalid: {exc}") from exc
         if summary is None:
             raise WebzCustodyError("no signed WEBZ-002 envelope; first explicitly offer the material")
-        proof = self.parent.proof(kind)
+        try:
+            proof = self.parent.proof(kind)
+        except WebzParcelError as exc:
+            raise WebzCustodyError(f"signed source envelope unavailable: {exc}") from exc
         crossing = proof.get("crossing")
         if (
             not isinstance(crossing,dict)
@@ -163,7 +170,7 @@ class WebzCustodyGate:
             raise WebzCustodyError("receiver custody evidence does not bind exact signed bytes/disposition")
         for name in ("receive_receipt","disposition_receipt"):
             other=result[name].get("signing",{}).get("public_key")
-            if other is not None and other!=key:
+            if other!=key:
                 raise WebzCustodyError("custody receipt was not signed by the receiver's existing key")
         return {
             "schema":"workbench.webz-material-custody/v0",
@@ -235,7 +242,7 @@ class WebzCustodyGate:
                 "carrier_path":str(carrier_path.resolve()),
                 "receiver_root":str((self.root/"orchard-receiver").resolve()),
                 "expected_crossing_id":parent["crossing_id"],
-                "created_at":_local_json(self.parent._intent_path(kind),"source send intent")["created_at"],
+                "created_at":datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3]+"Z",
             }
             # Explicit, bounded destination-side process; no source fixture path
             # or caller-controlled receiver decision is passed to the owner.
