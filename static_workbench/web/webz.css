@@ -164,3 +164,48 @@ a{color:inherit}
 .webz-atlas-voyage{margin-top:32px}
 .webz-atlas-voyage .webz-voyage-buttons{max-width:500px}
 @media(max-width:430px){.webz-voyage-buttons{grid-template-columns:1fr}}
+
+
+/* WEBZ-RELATTE-002: a second, intentionally effectful instrument.
+   The existing no-carry portal remains fully separate above it. */
+.webz-parcel-console{border:1px solid rgba(242,196,133,.41);
+ border-radius:15px;padding:clamp(21px,2vw,32px);
+ background:linear-gradient(145deg,rgba(52,35,55,.94),rgba(29,24,42,.93));
+ box-shadow:inset 0 1px #f5dfaf14}
+.webz-parcel-console h2{font-size:clamp(28px,2.8vw,42px);line-height:1.08;
+ letter-spacing:-.055em;color:#f4d49e;margin:14px 0}
+.webz-parcel-console p:not(.webz-eyebrow){font-size:13px;line-height:1.7;color:#d7cce0}
+.webz-parcel-label{display:block;margin:19px 0 7px;font-size:11px;
+ font-weight:800;letter-spacing:.12em;color:#e7c8a3}
+#webz-parcel-kind{display:block;width:100%;margin-bottom:13px;
+ color:#f2eafa;background:#0b1022;border:1px solid #89759a;
+ border-radius:7px;padding:13px 10px;min-width:0;font-size:13px}
+.webz-parcel-preview,.webz-parcel-proof{border:1px solid #ba91a17d;border-radius:9px;
+ background:#0f1327;padding:16px;white-space:pre-wrap;
+ overflow-wrap:anywhere;line-height:1.72;color:#d5e5ed;font:12px ui-monospace,monospace;
+ max-width:100%;max-height:360px;overflow:auto}
+.webz-parcel-preview[hidden],.webz-parcel-proof[hidden]{display:none}
+.webz-parcel-consent{display:flex;gap:11px;align-items:flex-start;color:#e8dcf0;
+ font-size:13px;line-height:1.6;margin:18px 0}
+.webz-parcel-consent input{margin-top:3px;width:19px;height:19px;accent-color:#e9c58f;flex:0 0 auto}
+.webz-parcel-send{width:100%;background:linear-gradient(110deg,#eed3a1,#e9b6c7)}
+#webz-parcel-status{white-space:pre-wrap;border-top:1px solid #f4d9aa44;
+ padding-top:14px;overflow-wrap:anywhere;color:#eed5b2 !important;
+ min-height:75px}
+.webz-parcel-note{font-size:11px !important;color:#ada8b9 !important;
+ border-top:1px solid #ffffff17;padding-top:12px;margin-top:20px}
+.webz-parcel-inbox{display:grid;gap:12px;margin:20px 0}
+.webz-parcel-receipt{padding:17px 15px;border:1px solid #a5c4bc5c;
+ background:rgba(13,27,31,.84);border-radius:9px}
+.webz-parcel-receipt p{margin:10px 0 !important}
+.webz-receipt-kind{display:block;color:#c5eece;font-weight:900;
+ font-size:13px;letter-spacing:.04em}
+.webz-mono{font:11px/1.6 ui-monospace,monospace !important;overflow-wrap:anywhere}
+.webz-parcel-error{color:#e8abae !important}
+.webz-parcel-empty{color:#bbb4ca !important}
+#webz-parcel-proof{margin-top:16px}
+@media(max-width:1040px){.webz-world-side{grid-template-columns:repeat(2,minmax(0,1fr))}
+ .webz-parcel-console{grid-column:1/-1}}
+@media(max-width:690px){.webz-world-side{display:block}
+ .webz-parcel-console{margin-top:18px}
+ .webz-parcel-proof{font-size:11px}}
