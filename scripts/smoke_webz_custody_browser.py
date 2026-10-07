@@ -133,7 +133,7 @@ def main() -> int:
     args=parser.parse_args()
     out=args.out.resolve()
     out.mkdir(parents=True,exist_ok=True)
-    assert (OLD/"scripts"/"opaque-roundtrip.ts").is_file(),"old reLATTE R14 unavailable"
+    assert (NEW/"scripts"/"opaque-roundtrip.ts").is_file(),"R14 signing unavailable in custody-compatible owner"
     assert (NEW/"scripts"/"material-delivery.ts").is_file(),"custody reLATTE owner unavailable"
     with tempfile.TemporaryDirectory(prefix="webz-003-chromium-") as td:
         with sync_playwright() as p:
