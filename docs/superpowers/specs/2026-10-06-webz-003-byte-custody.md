@@ -2,7 +2,7 @@
 
 **Status:** Approved conceptual frontier; implementation and PR pending verification.  
 **Operator decision:** Extend existing Workbench WEBZ-RELATTE-002 without replacing its signed-crossing fixture.  
-**Separate protocol owner:** reLATTE branch `feat/webz-003-receiver-material-custody`, exact reviewed owner revision `743e5705c1e397c40aff82960e361d0b36eb11a5` pending merge/owner approval.
+**Separate protocol owner:** merged reLATTE PR #63 at immutable merge revision `103c03c745968bfe2105167fa9007fab8906fc71` (previous proposed branch tip `743e5705c1e397c40aff82960e361d0b36eb11a5`).
 
 ## The missing proof
 
@@ -18,7 +18,7 @@ WEBZ-003 adds a **second explicit human-gated action**, after signed WEBZ-002: a
 - **Authority:** The signed custody receipt is produced with the Orchard receiver's existing signing key, attests to byte verification under that local fixture owner, and is bound to the crossing and preexisting RECEIVE/disposition receipts. It is not evidence of a human identity, legal ownership, remote machine, different OS account, decentralized global identity, or independent network host.
 - **Disposition:** HOLD means bytes present and safely quarantined, **not admitted**. REFUSE means bytes were independently inspected/hashed and were not retained. REFUSE ≠ nonexistent history; its signed receipt remains.
 - **Replay:** Re-running an identical delivery must return the identical signed custody receipt ID, never append duplicate custody evidence, and never bypass the actual digest check. Corrupted carrier, altered crossing, changed receiver payload file, malformed stored result, missing or dirty exact checkout, transport timeout, mismatch in receiver keys, or unrecognized receiver disposition fails visibly closed. An unknown outcome is not auto-retried by browser UI.
-- **Pinned owner:** Unrelated Field Reseed retains its original R14 pin. **Both** WEBZ-002's R14 envelope generation and WEBZ-003's physical-byte delivery select the custody-capable exact clean reLATTE owner revision; otherwise the old R14 receiver cannot replay a CUSTODY journal when another parcel arrives later. This explicit, tested upgrade preserves earlier signed envelopes and avoids any shadow signing code. The pin must be updated only after separately reviewed owner merge.
+- **Pinned owner:** Unrelated Field Reseed retains its original R14 pin. **Both** WEBZ-002's R14 envelope generation and WEBZ-003's physical-byte delivery select the custody-capable exact clean reLATTE owner revision; otherwise the old R14 receiver cannot replay a CUSTODY journal when another parcel arrives later. This explicit, tested upgrade preserves earlier signed envelopes and avoids any shadow signing code. The pin must be updated only at the already reviewed owner's merged commit.
 - **Security:** Existing `_creator_write_guard` for POST session/Origin, fixed world allowlist and flat asset packaging remain. Browser UI escapes all metadata via `textContent`, no background actions or new third-party script. Existing no-carry Workbench screens remain unchanged except an additive custody cockpit and read-only Orchard custody witness.
 
 ## Workbench adapter
