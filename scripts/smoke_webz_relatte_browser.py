@@ -44,8 +44,8 @@ def wait_ready(base: str) -> None:
     raise AssertionError("webZ test Workbench never became ready")
 
 
-def send(page, kind: str, expected_status: str) -> None:
-    page.goto(page.context._webz_base + "/webz/world/sanctuary", wait_until="networkidle")
+def send(page, base: str, kind: str, expected_status: str) -> None:
+    page.goto(base + "/webz/world/sanctuary", wait_until="networkidle")
     page.wait_for_function("!document.querySelector('#webz-parcel-inspect').disabled")
     page.locator("#webz-parcel-kind").select_option(kind)
     assert page.locator("#webz-parcel-send").is_disabled()
@@ -91,7 +91,6 @@ def main() -> int:
                     ]:
                         context = browser.new_context(viewport=viewport, reduced_motion="reduce")
                         try:
-                            context._webz_base = base
                             page = context.new_page()
                             page.goto(base + "/webz/world/sanctuary", wait_until="networkidle")
                             assert page.locator("#webz-cross").is_disabled()
@@ -104,7 +103,7 @@ def main() -> int:
                                 ("fruit", "RECEIVED_THEN_HELD"),
                                 ("spore", "RECEIVED_THEN_REFUSED"),
                             ):
-                                send(page, kind, expected)
+                                send(page, base, kind, expected)
                                 page.screenshot(path=str(out / f"webz-relatte-{label}-{kind}-sent.png"), full_page=True)
                             page.goto(base + "/webz/world/orchard", wait_until="networkidle")
                             page.wait_for_function("document.querySelectorAll('.webz-parcel-receipt').length === 2")
