@@ -203,7 +203,8 @@ def test_tampered_relatte_result_and_staged_bytes_refuse(tmp_path, monkeypatch):
     staged.write_bytes(b"tampered")
     with pytest.raises(WebzParcelError, match="digest"):
         gate.send("fruit", want["artifact_sha256"], "SEND_TO_ORCHARD", [])
-    assert gate.inbox() == []
+    with pytest.raises(WebzParcelError, match="digest"):
+        gate.inbox()
 
 
 def test_api_read_is_pure_and_signed_offer_requires_workbench_session(tmp_path, monkeypatch):
