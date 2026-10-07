@@ -58,7 +58,7 @@ def send(page, base: str, kind: str, expected_status: str) -> None:
     page.locator("#webz-parcel-send").click()
     page.wait_for_function(
         "(expect) => document.querySelector('#webz-parcel-status').textContent.includes(expect)",
-        expected_status,
+        arg=expected_status,
         timeout=65000,
     )
     assert "ADMITTED: NO" in page.locator("#webz-parcel-status").inner_text()
