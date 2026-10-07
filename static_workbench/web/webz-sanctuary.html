@@ -69,6 +69,24 @@
       <p id="webz-parcel-status" role="status" aria-live="polite">No material has been offered. The regular portal above remains no-carry.</p>
       <p class="webz-parcel-note">SOURCE OFFER ≠ RECEIVER DECISION. Signed RECEIVE and HOLD/REFUSE do not constitute local admission. A clean pinned reLATTE checkout is required.</p>
     </section>
+    <section class="webz-custody-console" aria-labelledby="webz-custody-heading">
+      <p class="webz-eyebrow">◆ WEBZ-003 / DESTINATION BYTE CUSTODY</p>
+      <h2 id="webz-custody-heading">A real arrival, byte by byte.</h2>
+      <p>First send the fictional artifact through the signed reLATTE portal above. Then separately authorize actual byte delivery to the Orchard. Its own receiver—not this page—reads the carrier, checks the signed SHA-256, and signs the physical-byte observation.</p>
+      <label for="webz-custody-kind">FIRST-PARTY MATERIAL</label>
+      <select id="webz-custody-kind">
+        <option value="fruit">Impossible orange → verified, retained in HOLD</option>
+        <option value="spore">Uninvited story-spore → verified, REFUSED and discarded</option>
+      </select>
+      <button id="webz-custody-inspect" class="webz-button webz-quiet" type="button">Inspect physical-delivery readiness ↗</button>
+      <pre id="webz-custody-preview" class="webz-custody-preview" aria-live="polite" hidden></pre>
+      <label class="webz-custody-consent"><input id="webz-custody-confirm" type="checkbox" disabled>
+        I explicitly authorize delivery of this exact previously signed fictional artifact's bytes to the Orchard's receiver.
+      </label>
+      <button id="webz-custody-deliver" class="webz-button webz-custody-deliver" type="button" disabled>Deliver actual bytes to independent receiver →</button>
+      <p id="webz-custody-status" role="status" aria-live="polite">No actual bytes have been offered through this instrument.</p>
+      <p class="webz-custody-limit">Signed envelope ≠ possession. Byte receipt ≠ admission. This experiment uses local file transport and an independently executing recipient process, not two remote machines.</p>
+    </section>
     <section class="webz-world-law">
       <p class="webz-eyebrow">THE SHIP KEEPS ITS LAWS</p>
       <blockquote>“The ship preserves the passage. The story renders the passage navigable. The traveler chooses the bearing.”</blockquote>
@@ -80,4 +98,5 @@
 </div>
 <script type="module" src="/assets/webz-world.js"></script>
 <script type="module" src="/assets/webz-parcel.js"></script>
+<script type="module" src="/assets/webz-custody.js"></script>
 </body></html>

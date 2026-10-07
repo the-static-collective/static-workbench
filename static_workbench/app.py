@@ -15,6 +15,7 @@ from .first_door import FirstDoor, ArgConflict, ArgMissing
 from .world_entry import WorldEntry
 from .webz_native import WebzRegistryError, load_registry, resolve_webz_address, world_by_slug
 from .webz_parcel import WebzParcelError, WebzParcelGate
+from .webz_custody import WebzCustodyError, WebzCustodyGate
 from .doorhouse import DoorHouse, DoorHouseConflict, DoorHouseMissing
 from .doorhouse_relatte import RelatteApertureError, run_relatte_aperture
 from .doorhouse_ghot import GHotApertureError, discover_ghot_bodies, assign_ghot_body
@@ -105,6 +106,13 @@ from .schemas import (
     LivingMomentImportRequest,
     LivingMomentDraftRequest,
 )
+
+
+class WebzMaterialDeliveryInput(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    expected_sha256: str = Field(min_length=64, max_length=64)
+    expected_crossing_id: str = Field(min_length=84, max_length=84)
+    confirmation: Literal["DELIVER_VERIFIED_BYTES"]
 
 
 class WebzParcelSendInput(BaseModel):
@@ -348,6 +356,7 @@ def create_app(config: WorkbenchConfig | None = None) -> FastAPI:
 
     web_dir = Path(__file__).resolve().parent / "web"
     webz_parcels = WebzParcelGate(config.state_dir, web_dir)
+    webz_custody = WebzCustodyGate(webz_parcels)
     app.mount("/assets", StaticFiles(directory=web_dir), name="assets")
 
     allowed_hosts = {"127.0.0.1", "localhost", "::1", config.bind_host.lower()}
@@ -391,6 +400,41 @@ def create_app(config: WorkbenchConfig | None = None) -> FastAPI:
         if world is None:
             raise HTTPException(status_code=404, detail="webZ world not installed")
         return world
+
+    @app.get("/api/webz/custody/inbox")
+    def webz_byte_custody_inbox():
+        try:
+            return {"parcels": webz_custody.inbox()}
+        except (WebzCustodyError, WebzParcelError) as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+    @app.get("/api/webz/custody/{kind}/preview")
+    def webz_byte_custody_preview(kind: str):
+        try:
+            return webz_custody.preview(kind)
+        except (WebzCustodyError, WebzParcelError) as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+    @app.get("/api/webz/custody/{kind}/proof")
+    def webz_byte_custody_proof(kind: str):
+        try:
+            return webz_custody.proof(kind)
+        except (WebzCustodyError, WebzParcelError) as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+    @app.post("/api/webz/custody/{kind}/deliver")
+    def webz_byte_custody_deliver(
+        kind: str, payload: WebzMaterialDeliveryInput, request: Request,
+    ):
+        _creator_write_guard(request)
+        try:
+            repos = discover_repositories(config.roots, config.max_repo_depth)
+            return webz_custody.deliver(
+                kind, payload.expected_sha256, payload.expected_crossing_id,
+                payload.confirmation, repos,
+            )
+        except (WebzCustodyError, WebzParcelError) as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
 
     @app.get("/api/webz/parcels/inbox")
     def webz_parcel_inbox():

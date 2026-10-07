@@ -21,13 +21,16 @@ from pathlib import Path
 from typing import Any
 
 from .field_reseed_crossing import (
-    RELATTE_REVISION,
     FieldReseedCrossingError,
     _find_pinned,
     _run_json,
 )
 from .repos import RepoStatus
 
+
+# WEBZ-003 upgrades only the webZ receiver lineage to the additive owner.
+# Field Reseed and other Workbench adapters keep their earlier R14 pin.
+WEBZ_RELATTE_REVISION = "103c03c745968bfe2105167fa9007fab8906fc71"
 
 SANCTUARY = "webz:the-static-collective/sanctuary"
 ORCHARD = "webz:the-static-collective/orchard-022100"
@@ -151,7 +154,7 @@ class WebzParcelGate:
             "carry_mode": "explicit-synthetic-artifact",
             "policy": policy,
             "admission": "not-authorized",
-            "relatte_pin": RELATTE_REVISION,
+            "relatte_pin": WEBZ_RELATTE_REVISION,
             "law": "PREVIEW != OFFER; RECEIVE != ADMIT",
         }
 
@@ -300,7 +303,7 @@ class WebzParcelGate:
             "receive_receipt_id": received["receipt_id"],
             "disposition_receipt_id": disposition["receipt_id"],
             "receiver_state_ref": snapshot.get("state_ref"),
-            "relatte_revision": RELATTE_REVISION,
+            "relatte_revision": WEBZ_RELATTE_REVISION,
             "witness_scope": "signed-reLATTE-envelope-and-receipts-plus-local-byte-digest",
         }
 
@@ -341,7 +344,7 @@ class WebzParcelGate:
             or not _valid_identity(row.get("crossing_id"), "relatte-crossing-v0:")
             or not _valid_identity(row.get("receive_receipt_id"), "relatte-receipt-v0:")
             or not _valid_identity(row.get("disposition_receipt_id"), "relatte-receipt-v0:")
-            or row.get("relatte_revision") != RELATTE_REVISION
+            or row.get("relatte_revision") != WEBZ_RELATTE_REVISION
         ):
             raise WebzParcelError("stored Orchard receiver summary conflicts with the fixture")
         return row
@@ -357,7 +360,7 @@ class WebzParcelGate:
             # No mutation if the owner is absent or the tracked worktree has changed.
             try:
                 relatte = _find_pinned(
-                    repos, "reLATTE", RELATTE_REVISION, "scripts/opaque-roundtrip.ts"
+                    repos, "reLATTE", WEBZ_RELATTE_REVISION, "scripts/opaque-roundtrip.ts"
                 )
             except FieldReseedCrossingError as exc:
                 raise WebzParcelError(f"pinned reLATTE owner unavailable: {exc}") from exc

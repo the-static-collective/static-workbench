@@ -450,3 +450,33 @@ python scripts/smoke_webz_relatte_browser.py --out browser-artifacts
 ```
 
 Design: [WEBZ-RELATTE-002](docs/superpowers/specs/2026-10-06-webz-relatte-002-first-sovereign-parcel.md). Do not treat these first-party fixtures as untrusted community worlds or as authorization for real third-party asset transfer.
+
+
+## WEBZ-003 — Independently verified actual-byte custody (experimental)
+
+WEBZ-002 signs a crossing with a declared SHA-256 **payload reference**, then the Orchard signs RECEIVE and HOLD/REFUSE on that **envelope**. WEBZ-003 adds the previously missing physical-byte observation. It is a **second explicit human decision** after the first signed offer, not a change to ordinary no-carry navigation.
+
+In `/webz/world/sanctuary`:
+
+1. **Inspect and SEND a first-party fictional parcel** through the existing WEBZ-002 reLATTE instrument.
+2. At the separate **WEBZ-003 / DESTINATION BYTE CUSTODY** instrument, select that already-signed specimen, **Inspect physical-delivery readiness**, verify its full crossing ID and SHA-256, check the independent consent box, and click **Deliver actual bytes to independent receiver**.
+3. Visit `/webz/world/orchard` to inspect the read-only receiver-key signed **PAYLOAD_BYTES_VERIFIED** receipt bound to the previous RECEIVE and disposition. The receiving process independently read literal material bytes from a separate bounded file carrier, validated them against the signed crossing, and cold-replayed its journal.
+
+**HOLD** retains the exact verified bytes under the receiver's **local quarantine**, not in the world. **REFUSE** verifies and signs what was received but **does not retain** the material. Neither outcome grants admission, identity authority or capability execution. No personal input/files/links are accepted in this specimen.
+
+The implementation deliberately keeps **two exact pinned reLATTE checkouts** after the owner change merged: the original R14 `87006f3265103a8abe387d81597c58aeb39b0beb` **for existing Field Reseed and other legacy adapters**, and custody-capable reLATTE owner `103c03c745968bfe2105167fa9007fab8906fc71` **for both WEBZ-002 signed envelopes and WEBZ-003 byte delivery**. This is required: the original R14 code cannot replay a receiver journal once it contains a new CUSTODY event. Existing first-phase crossing envelopes are preserved; no prior signature is rewritten. Both can be configured as Workbench roots with actual checkout basename `reLATTE`; the full clean tracked commit is verified and ambiguous duplicate pins are rejected. No dirty checkout or latest mutable HEAD is accepted.
+
+**Proof scope:** The new receipt is signed with the Orchard receiver's existing local P-256 signing key and binds the actual SHA, byte length, retained/refused status and prior receipt IDs. This proves the separately executed recipient code inspected the carrier bytes in a **local filesystem process**. It is **not yet remote network transport**, separate-machine/administrator isolation, global webZ protocol registration, a legal identity claim or an admitted world object. The carrier and signed proofs are retained under the operator-controlled `state_dir/webz-relatte/v0/`; neither affects STORYSHIP canonical history.
+
+To repeat the exact integration proof in a prepared development checkout:
+
+```bash
+python -m pytest -q tests/test_webz_custody.py tests/test_pinned_owner_selection.py
+# Existing R14 owner: .compat/reLATTE
+# Custody owner: .compat/custody/reLATTE (both clean at their exact documented SHAs)
+python scripts/smoke_webz_custody.py
+# With Playwright/Chromium installed:
+python scripts/smoke_webz_custody_browser.py --out browser-artifacts
+```
+
+See [WEBZ-003 design](docs/superpowers/specs/2026-10-06-webz-003-byte-custody.md). Owner protocol changes were merged from `the-static-collective/reLATTE` PR #63.

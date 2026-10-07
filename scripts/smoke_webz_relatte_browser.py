@@ -11,7 +11,7 @@ from pathlib import Path
 from urllib.request import urlopen
 
 ROOT = Path(__file__).resolve().parents[1]
-RELATTE = ROOT / ".compat" / "reLATTE"
+RELATTE = ROOT / ".compat" / "custody" / "reLATTE"
 
 
 def serve(state: str, port: int) -> None:

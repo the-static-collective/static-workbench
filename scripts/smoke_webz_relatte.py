@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Real WEBZ-RELATTE-002: explicit fictional carry, signed reLATTE R14, Orchard HOLD/REFUSE.
 
-Requires a clean pinned .compat/reLATTE at RELATTE_REVISION, with its npm
+Requires a clean pinned .compat/custody/reLATTE at WEBZ_RELATTE_REVISION, with its npm
 dependencies installed. No provider keys, network requests or user data used.
 """
 from __future__ import annotations
@@ -14,12 +14,12 @@ import tempfile
 from copy import deepcopy
 from pathlib import Path
 
-from static_workbench.field_reseed_crossing import RELATTE_REVISION
+from static_workbench.webz_parcel import WEBZ_RELATTE_REVISION
 from static_workbench.repos import RepoStatus
 from static_workbench.webz_parcel import WebzParcelGate, WebzParcelError, ORCHARD
 
 ROOT = Path(__file__).resolve().parents[1]
-RELATTE = ROOT / ".compat" / "reLATTE"
+RELATTE = ROOT / ".compat" / "custody" / "reLATTE"
 
 
 def verify_public(proof: dict) -> dict:
@@ -41,7 +41,7 @@ def verify_public(proof: dict) -> dict:
 def repo_status() -> RepoStatus:
     return RepoStatus(
         name="reLATTE", path=str(RELATTE), branch=None, detached=True,
-        head=RELATTE_REVISION[:7], dirty=False, ahead=None, behind=None,
+        head=WEBZ_RELATTE_REVISION[:7], dirty=False, ahead=None, behind=None,
     )
 
 
