@@ -112,6 +112,52 @@ eraseButton.addEventListener("click", () => {
 });
 updateRecorder();
 
+// A browser-local, tab-scoped navigation handoff is not a signed receipt.
+// It prevents an unrelated direct world visit from claiming a prior portal
+// departure. Its short wall-clock expiry is NOT voyage identity or order.
+const HANDOFF_KEY = "webz.portal-handoff/v0";
+function markPortalDeparture(trace, from_world_id, to_world_id, door_id) {
+  const seq = trace.projection?.pending_departure_seq;
+  if (trace.status !== "recording" || !Number.isSafeInteger(seq)) return false;
+  try {
+    window.sessionStorage.setItem(HANDOFF_KEY, JSON.stringify({
+      schema: "webz/portal-handoff/v0",
+      from_world_id, to_world_id, door_id, departure_seq: seq, issued_at_ms: Date.now(),
+    }));
+    return true;
+  } catch (_) { return false; }
+}
+function matchingPortalHandoff(trace, arrived_world_id) {
+  if (trace.status !== "recording" || trace.projection?.pending_departure_seq === null) return false;
+  try {
+    const raw = window.sessionStorage.getItem(HANDOFF_KEY);
+    if (!raw) return false;
+    const packet = JSON.parse(raw);
+    const issued = packet.issued_at_ms;
+    const age = Date.now() - issued;
+    const keys = ["schema","from_world_id","to_world_id","door_id","departure_seq","issued_at_ms"];
+    const departure = trace.record.events.find((event) =>
+      event.seq === trace.projection.pending_departure_seq && event.kind === "departed");
+    if (!departure || !packet || typeof packet !== "object" || Array.isArray(packet) ||
+        Object.keys(packet).length !== keys.length ||
+        !keys.every((key) => Object.hasOwn(packet,key)) ||
+        packet.schema !== "webz/portal-handoff/v0" ||
+        !Number.isSafeInteger(issued) || age < 0 || age > 120000 ||
+        packet.from_world_id !== departure.from_world_id ||
+        packet.to_world_id !== departure.to_world_id ||
+        packet.to_world_id !== arrived_world_id ||
+        packet.door_id !== departure.door_id ||
+        packet.departure_seq !== departure.seq) return false;
+    const fromSlug = departure.from_world_id === KNOWN.sanctuary.id ? "sanctuary"
+      : departure.from_world_id === KNOWN.orchard.id ? "orchard" : null;
+    if (!fromSlug) return false;
+    // The browser documents the actual source page of the navigation.
+    return document.referrer === window.location.origin + "/webz/world/" + fromSlug;
+  } catch (_) { return false; }
+}
+function clearPortalHandoff() {
+  try { window.sessionStorage.removeItem(HANDOFF_KEY); } catch (_) {}
+}
 function say(message) { status.textContent = message; }
 function closeDoor() {
   inspected = false;
@@ -158,6 +204,7 @@ cross.addEventListener("click", async () => {
     // An intentional second click is the only portal navigation trigger.
     const trace = recordDeparture(safeStorage(), manifest.world_id, door.to_world_id, door.door_id);
     updateRecorder(trace);
+    markPortalDeparture(trace, manifest.world_id, door.to_world_id, door.door_id);
     if (["corrupt","unavailable","unresolved","pending"].includes(trace.status)) {
       say("BROWSING ONLY · The local trace was not advanced (" + trace.status + "). You can still enter.");
     }
@@ -194,9 +241,14 @@ async function loadWorld() {
     inspect.disabled = false;
     if (returnButton) returnButton.disabled = false;
     const earlier = readVoyage(safeStorage());
-    if (earlier.status === "recording" && earlier.projection.pending_departure_seq !== null) {
-      updateRecorder(confirmArrival(safeStorage(), manifest.world_id));
+    if (matchingPortalHandoff(earlier, manifest.world_id)) {
+      const confirmed = confirmArrival(safeStorage(), manifest.world_id);
+      updateRecorder(confirmed);
+      if (confirmed.status === "recording" &&
+          confirmed.projection.pending_departure_seq === null) clearPortalHandoff();
     } else {
+      // A direct URL visit or expired/mismatched handoff cannot turn an
+      // earlier intention into an observed portal arrival.
       updateRecorder(earlier);
     }
     say("World declaration loaded. Choose Inspect to learn what the portal offers.");
