@@ -124,6 +124,7 @@ jobs:
         run: |
           node --check static_workbench/web/webz.js
           node --check static_workbench/web/webz-world.js
+          node --check static_workbench/web/webz-parcel.js
           node --check static_workbench/web/webz-voyage.mjs
           node --check static_workbench/web/webz-storage.mjs
       - name: webZ frozen voyage and denied-storage tests
@@ -139,6 +140,18 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+      - name: Checkout exact reLATTE R14 owner for browser parcel witness
+        uses: actions/checkout@v4
+        with:
+          repository: the-static-collective/reLATTE
+          ref: 87006f3265103a8abe387d81597c58aeb39b0beb
+          path: .compat/reLATTE
+          persist-credentials: false
+      - name: Install pinned reLATTE browser-test dependencies
+        run: npm install --prefix .compat/reLATTE --no-package-lock --ignore-scripts
       - name: Install Workbench and browser test dependencies
         run: |
           python -m pip install -e '.[dev]'
@@ -146,6 +159,8 @@ jobs:
           python -m playwright install --with-deps chromium
       - name: Real desktop/mobile webZ crossing and voyage replay
         run: python scripts/smoke_webz_browser.py --out browser-artifacts
+      - name: Real desktop/mobile webZ signed parcel and receiver witness
+        run: python scripts/smoke_webz_relatte_browser.py --out browser-artifacts
       - uses: actions/upload-artifact@v4
         if: always()
         with:
