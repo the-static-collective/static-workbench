@@ -150,3 +150,17 @@ a{color:inherit}
 @media(max-width:690px){.webz-world-side{display:block}.webz-world-law{margin-top:18px}
  .webz-world-stage{min-height:66vh}.webz-world-stage-copy{padding:24px}
  .webz-world-stage-copy h1{font-size:clamp(43px,10vw,66px)}}
+
+
+/* First-party optional local-voyage instrument: navigation works even when storage is denied. */
+.webz-voyage-console{border:1px solid rgba(202,182,248,.26);border-radius:15px;
+ padding:clamp(20px,2.3vw,31px);background:linear-gradient(135deg,rgba(24,30,50,.93),rgba(19,20,41,.82))}
+.webz-voyage-console h2{font-size:clamp(24px,2.4vw,34px);letter-spacing:-.045em;margin:12px 0}
+.webz-voyage-console p:not(.webz-eyebrow){color:#cac4d8;font-size:13px;line-height:1.65}
+#webz-recording-status{min-height:42px;color:#e7cda7 !important;border-top:1px solid var(--stroke);
+ padding:13px 0;font-size:13px;line-height:1.6}
+.webz-voyage-buttons{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.webz-voyage-buttons .webz-button{padding:12px 14px;font-size:12px;text-align:left}
+.webz-atlas-voyage{margin-top:32px}
+.webz-atlas-voyage .webz-voyage-buttons{max-width:500px}
+@media(max-width:430px){.webz-voyage-buttons{grid-template-columns:1fr}}
