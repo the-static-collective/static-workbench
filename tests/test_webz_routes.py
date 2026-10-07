@@ -83,3 +83,39 @@ def test_webz_uses_only_local_read_routes_and_preserves_host_guard(tmp_path):
         }, headers={"host": "example.test"}).status_code == 400
         assert client.post("/api/webz/resolve", json={"address": "webz::static/sanctuary"}).status_code == 405
         assert client.post("/api/webz/worlds/sanctuary", json={}).status_code == 405
+
+
+def test_workbench_links_to_native_webz_cockpit(tmp_path):
+    with make_client(tmp_path) as client:
+        assert 'href="/webz"' in client.get("/").text
+
+
+def test_webz_cockpit_resolve_and_enter_are_separate(tmp_path):
+    with make_client(tmp_path) as client:
+        html = client.get("/webz").text
+        script = client.get("/assets/webz.js")
+        style = client.get("/assets/webz.css")
+        assert 'id="webz-address"' in html
+        assert 'id="webz-resolve"' in html
+        assert 'id="webz-enter"' in html
+        assert 'id="webz-result"' in html
+        assert 'type="module" src="/assets/webz.js"' in html
+        assert script.status_code == 200
+        assert style.status_code == 200
+        assert "prefers-reduced-motion" in style.text
+        assert "textContent" in script.text
+        assert "innerHTML" not in script.text
+        assert "eval(" not in script.text
+        assert "/api/webz/resolve" in script.text
+        assert "webz::" in html
+
+
+def test_native_webz_cockpit_never_executes_on_resolve(tmp_path):
+    with make_client(tmp_path) as client:
+        script = client.get("/assets/webz.js").text
+        assert "addEventListener" in script
+        assert "webz-enter" in script
+        assert "/webz/world/sanctuary" in script
+        assert "/webz/world/orchard" in script
+        assert "window.location" in script
+        assert "new Function(" not in script
