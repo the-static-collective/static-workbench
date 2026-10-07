@@ -89,6 +89,13 @@ def _object(value: Any, label: str) -> dict:
     return value
 
 
+def _local_json(path: Path, label: str, *, limit: int = 128_000) -> dict:
+    try:
+        return _object(json.loads(_read_exact(path, limit=limit).decode("utf-8")), label)
+    except (UnicodeError, json.JSONDecodeError) as exc:
+        raise WebzParcelError(f"stored {label} JSON is corrupt; no reconstruction was inferred") from exc
+
+
 def _valid_identity(value: Any, prefix: str) -> bool:
     return (
         isinstance(value, str) and value.startswith(prefix)
@@ -161,7 +168,7 @@ class WebzParcelGate:
         """Durable human-selected first occurrence time; never silently redate a retry."""
         path = self._intent_path(kind)
         if path.exists() or path.is_symlink():
-            saved = _object(json.loads(_read_exact(path).decode("utf-8")), "intent")
+            saved = _local_json(path, "intent")
             if (
                 set(saved) != {"schema", "kind", "artifact_sha256", "created_at"}
                 or saved["schema"] != "workbench.webz-parcel-intent/v0"
@@ -312,7 +319,7 @@ class WebzParcelGate:
         path = self._summary_path(kind)
         if not path.exists() and not path.is_symlink():
             return None
-        row = _object(json.loads(_read_exact(path).decode("utf-8")), "stored parcel summary")
+        row = _local_json(path, "stored parcel summary")
         expected = self._verify_summary(row, kind, digest, raw)
         return expected
 
@@ -397,8 +404,8 @@ class WebzParcelGate:
             if self._stored(kind, digest, raw) is None:
                 raise WebzParcelError("the Orchard has no confirmed parcel for this kind")
             path = self.root / "results" / f"{kind}-{digest}.json"
-            result = _object(json.loads(_read_exact(path, limit=256_000).decode("utf-8")), "owner proof")
-            intent = _object(json.loads(_read_exact(self._intent_path(kind)).decode("utf-8")), "intent")
+            result = _local_json(path, "owner proof", limit=256_000)
+            intent = _local_json(self._intent_path(kind), "intent")
             request = self._request(kind, digest, intent["created_at"])
             self._verify_result(result, request, kind, digest)
             # The owner result contains only public JWKs, never local signing keys.
