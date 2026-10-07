@@ -66,3 +66,87 @@ a{color:inherit}
   .webz-header{gap:11px}.webz-chip{order:3}.webz-hero{padding-top:60px}}
 @media(prefers-reduced-motion:reduce){*,*::before,*::after{animation:none !important;transition:none !important;
   scroll-behavior:auto !important;transform:none !important}}
+
+
+/* WEBZ-NATIVE-001: authored-world surfaces; the scenes are original CSS, not redistributed manga. */
+.webz-world-body{min-height:100vh}
+.webz-world-shell{max-width:1450px;margin:0 auto;padding:22px clamp(16px,3.5vw,54px) 40px}
+.webz-world-main{display:grid;grid-template-columns:minmax(0,1.8fr) minmax(280px,.88fr);
+  gap:clamp(18px,2.5vw,32px);align-items:stretch;margin-top:26px}
+.webz-world-stage{position:relative;isolation:isolate;border:1px solid var(--stroke);border-radius:18px;
+ min-height:min(76vh,810px);overflow:hidden;display:flex;align-items:flex-end;
+ background:#14152b}
+.webz-world-stage::after{content:"";position:absolute;z-index:-1;inset:0;
+ background:linear-gradient(180deg,transparent 32%,rgba(6,9,20,.23) 52%,rgba(7,8,19,.91) 100%)}
+.webz-stage-sanctuary{background:radial-gradient(circle at 67% 35%,#f7a2bb67,transparent 13%),
+  radial-gradient(circle at 55% 44%,#d576ca8f,transparent 27%),
+  radial-gradient(circle at 50% 28%,#745bbd,transparent 55%),
+  linear-gradient(160deg,#070b24,#27143e 58%,#1b0e23)}
+.webz-stage-orchard{background:radial-gradient(circle at 75% 31%,#fed69799,transparent 16%),
+  radial-gradient(circle at 55% 60%,#c1a26d55,transparent 49%),
+  linear-gradient(145deg,#0c1a2c,#30414a 40%,#4a342e 78%,#1c2330)}
+.webz-scene-art{position:absolute;inset:0;pointer-events:none;overflow:hidden;z-index:-1}
+.webz-sky-rings{position:absolute;width:78%;aspect-ratio:1;left:28%;top:-16%;border-radius:50%;
+ border:1px solid #ffd8ff66;box-shadow:0 0 0 25px #6d6fc11a,0 0 0 54px #e99cf015,0 0 0 83px #6bbff015}
+.webz-orbit-orb{position:absolute;left:62%;top:16%;width:28%;aspect-ratio:1;border-radius:50%;
+ background:radial-gradient(circle at 39% 30%,#fff7d7,#ff9cce 31%,#d356e6 64%,#543b9f 90%);
+ box-shadow:0 0 70px 45px #ea80ec4d,0 0 160px 100px #b859fa27}
+.webz-machine{position:absolute;left:18%;top:35%;width:34%;height:32%;display:flex;align-items:center;justify-content:center;
+ background:linear-gradient(90deg,#20122e,#674872 48%,#170f32);border:3px solid #e4bff482;border-radius:50% 50% 12% 12%;
+ box-shadow:0 0 65px 16px #cd64cc77, inset 0 0 26px #fac2ff55;transform:rotate(-8deg)}
+.webz-machine>span{position:absolute;top:17%;font:bold clamp(10px,1.4vw,19px) ui-monospace,monospace;
+ color:#ffe9ed;letter-spacing:.25em;text-shadow:0 0 9px #fff}
+.webz-machine-dial{width:25%;aspect-ratio:1;border:9px double #f6d4a3;border-radius:50%;
+ box-shadow:0 0 22px #fff4bb}
+.webz-fruit{position:absolute;border-radius:50% 40% 55% 40%;background:radial-gradient(circle at 35% 30%,#fff5bf,#e89fd9 50%,#bc4ced);
+ box-shadow:0 0 38px 12px #d84fd488}
+.webz-fruit-one{width:12%;aspect-ratio:1;left:56%;top:55%;transform:rotate(24deg)}
+.webz-fruit-two{width:8%;aspect-ratio:1;left:72%;top:59%}
+.webz-fruit-three{width:5%;aspect-ratio:1;left:58%;top:75%}
+.webz-scene-ground{position:absolute;bottom:-12%;left:-10%;width:120%;height:43%;
+ transform:rotate(-6deg);border-top:5px solid #cc7cff66;
+ background:repeating-linear-gradient(90deg,#291737,#291737 42px,#3e294e 46px,#291737 56px)}
+.webz-orchard-moon{position:absolute;left:65%;top:14%;width:22%;aspect-ratio:1;border-radius:50%;
+ background:radial-gradient(circle at 34% 27%,#fffbee,#f1e2b6 43%,#be987b 87%);
+ box-shadow:0 0 70px 33px #ffe1a648}
+.webz-orchard-hills{position:absolute;left:-10%;bottom:22%;width:130%;height:36%;
+ border-radius:50% 65% 0 0;background:linear-gradient(#30423e,#112635)}
+.webz-orchard-tree{position:absolute;bottom:25%;width:4%;height:39%;background:#201b28;border-radius:28%}
+.webz-orchard-tree::before{content:"";position:absolute;width:450%;height:60%;bottom:73%;left:-160%;border-radius:50%;
+ background:radial-gradient(circle at 33% 28%,#b4a47c,#425440 52%,#1b342e);box-shadow:0 0 36px #9a875a33}
+.webz-orchard-tree-a{left:16%;height:35%}.webz-orchard-tree-b{left:45%;height:42%}.webz-orchard-tree-c{left:87%;height:48%}
+.webz-orchard-bus{position:absolute;right:11%;bottom:31%;width:29%;height:15%;border-radius:12px 28px 8px 8px;
+ background:linear-gradient(#dec8a3 0 27%,#173a48 28% 51%,#b99871 52%);border:3px solid #271b24;
+ display:flex;align-items:flex-end;justify-content:center;box-shadow:0 10px 30px #0008}
+.webz-orchard-bus span{font-size:clamp(7px,.9vw,12px);color:#382a2d;font-weight:900;letter-spacing:.08em;margin-bottom:8px}
+.webz-orchard-bus::before,.webz-orchard-bus::after{content:"";position:absolute;bottom:-17%;width:15%;aspect-ratio:1;border:5px solid #3d3342;
+ background:#0c101e;border-radius:50%}.webz-orchard-bus::before{left:16%}.webz-orchard-bus::after{right:16%}
+.webz-orchard-rose{position:absolute;bottom:17%;left:38%;width:4%;aspect-ratio:1;border-radius:50%;
+ background:#609cfa;box-shadow:0 0 18px 10px #7aabf788,0 10px 0 -2px #254653}
+.webz-world-stage-copy{padding:clamp(24px,4vw,56px);max-width:800px}
+.webz-world-stage-copy h1{font-size:clamp(46px,5vw,92px);line-height:1.02;letter-spacing:-.07em;margin:16px 0 18px}
+.webz-world-stage-copy h1 em{color:#f5cda2;font-weight:450}
+.webz-world-stage-copy p:not(.webz-eyebrow){font-size:clamp(14px,1.4vw,18px);line-height:1.64;max-width:580px;color:#e8deef}
+.webz-world-address{font:13px ui-monospace,monospace;color:#f7daa7;letter-spacing:.01em;overflow-wrap:anywhere;margin-top:28px}
+.webz-world-side{display:flex;flex-direction:column;gap:20px}
+.webz-door-console,.webz-world-law{background:var(--glass);border:1px solid var(--stroke);border-radius:15px;padding:clamp(21px,2vw,32px)}
+.webz-door-console h2{font-size:clamp(30px,3vw,44px);letter-spacing:-.05em;margin:16px 0}
+.webz-door-console p:not(.webz-eyebrow),.webz-world-law p{line-height:1.6;color:#c9c2d4;font-size:14px}
+.webz-identity{overflow-wrap:anywhere;font-family:ui-monospace,monospace;font-size:11px !important;
+ color:#a5e1d0 !important;border-top:1px solid var(--stroke);border-bottom:1px solid var(--stroke);padding:14px 0}
+#webz-world-status{min-height:60px;color:#f2dfad !important}
+.webz-door-target{white-space:pre-line;padding:18px;border:1px solid #a9b7ca44;border-radius:8px;
+ background:#0d1426;color:#f2e6fd;font:12px/1.9 ui-monospace,monospace;overflow-wrap:anywhere}
+.webz-door-target[hidden]{display:none}
+.webz-door-actions{display:grid;gap:10px}.webz-door-actions button{text-align:left}
+.webz-amber{background:linear-gradient(100deg,#f2d6a5,#d6b2c6)}
+.webz-quiet{background:transparent;color:#f4e4ff;border:1px solid #7a6a98}
+.webz-quiet:hover:not(:disabled){background:#56406f55}
+.webz-world-law{flex:1}
+.webz-world-law blockquote{font-size:clamp(18px,2vw,27px);font-style:italic;line-height:1.45;
+ letter-spacing:-.04em;color:#eecb9c;margin:24px 0}
+@media(max-width:1040px){.webz-world-main{grid-template-columns:1fr}.webz-world-stage{min-height:65vh}
+ .webz-world-side{display:grid;grid-template-columns:minmax(0,1.2fr) minmax(0,1fr)}}
+@media(max-width:690px){.webz-world-side{display:block}.webz-world-law{margin-top:18px}
+ .webz-world-stage{min-height:66vh}.webz-world-stage-copy{padding:24px}
+ .webz-world-stage-copy h1{font-size:clamp(43px,10vw,66px)}}
