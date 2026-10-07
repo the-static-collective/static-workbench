@@ -17,12 +17,13 @@ from .field_reseed_crossing import (
     FieldReseedCrossingError, _find_pinned, _run_json,
 )
 from .webz_parcel import (
+    WEBZ_RELATTE_REVISION,
     ORCHARD, SANCTUARY, POLICY, WebzParcelError, WebzParcelGate,
     _read_exact, _local_json, _atomic_bytes, _valid_identity,
 )
 from .repos import RepoStatus
 
-CUSTODY_RELATTE_REVISION = "743e5705c1e397c40aff82960e361d0b36eb11a5"
+CUSTODY_RELATTE_REVISION = WEBZ_RELATTE_REVISION
 RECEIVER_PARTICULAR = "particular:webz:orchard-local-inbox"
 CONFIRMATION = "DELIVER_VERIFIED_BYTES"
 
