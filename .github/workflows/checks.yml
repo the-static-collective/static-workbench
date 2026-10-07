@@ -65,7 +65,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: the-static-collective/reLATTE
-          ref: 743e5705c1e397c40aff82960e361d0b36eb11a5
+          ref: 103c03c745968bfe2105167fa9007fab8906fc71
           path: .compat/custody/reLATTE
           persist-credentials: false
       - name: Install separately pinned byte-custody owner dependencies
@@ -168,7 +168,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: the-static-collective/reLATTE
-          ref: 743e5705c1e397c40aff82960e361d0b36eb11a5
+          ref: 103c03c745968bfe2105167fa9007fab8906fc71
           path: .compat/custody/reLATTE
           persist-credentials: false
       - name: Install separately pinned byte-custody owner dependencies
