@@ -63,6 +63,15 @@
       <pre id="webz-parcel-proof" class="webz-parcel-proof" hidden aria-label="Public reLATTE signed envelope and receipts"></pre>
       <p class="webz-parcel-note">This is local evidence from pinned reLATTE. The world does not import any material merely because a visitor opens this page.</p>
     </section>
+    <section class="webz-custody-console" aria-labelledby="webz-custody-heading">
+      <p class="webz-eyebrow">◆ WEBZ-003 / DESTINATION BYTE CUSTODY</p>
+      <h2 id="webz-custody-heading">What did the Orchard actually receive?</h2>
+      <p>Read separately signed receiver-byte observations. A HOLD keeps verified bytes in quarantine; a REFUSE signs verification but discards material. Neither becomes part of the Orchard's authored world.</p>
+      <div id="webz-custody-inbox" aria-live="polite">Checking receiver-local byte evidence…</div>
+      <button id="webz-custody-refresh" class="webz-button webz-quiet" type="button">Refresh verified byte custody ↻</button>
+      <pre id="webz-custody-proof" aria-label="Public receiver-key signed byte custody evidence" hidden></pre>
+      <p class="webz-custody-limit">The receiver itself signs the byte verification, bound to earlier RECEIVE and disposition. Local-process proof is not remote, separate-machine custody.</p>
+    </section>
     <section class="webz-world-law">
       <p class="webz-eyebrow">THE ROAD IS NOT THE RECEIPT</p>
       <blockquote>“A world gets an address. A door gets a contract. A traveler gets a choice.”</blockquote>
@@ -74,4 +83,5 @@
 </div>
 <script type="module" src="/assets/webz-world.js"></script>
 <script type="module" src="/assets/webz-parcel.js"></script>
+<script type="module" src="/assets/webz-custody.js"></script>
 </body></html>
