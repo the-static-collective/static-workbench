@@ -1,0 +1,10 @@
+{
+  "schema": "webz.artifact/v0",
+  "artifact_kind": "fictional-reality-fruit",
+  "world_id": "webz:the-static-collective/sanctuary",
+  "title": "One small impossible orange",
+  "description": "A luminous reality-fruit grown by the Sanctuary's humming static machine. Offered freely; ownership and admission remain local.",
+  "fictional": true,
+  "publication_scope": "public-first-party-test-fixture",
+  "seed": "022100"
+}

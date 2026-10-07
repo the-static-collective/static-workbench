@@ -424,3 +424,29 @@ python scripts/smoke_webz_browser.py --out browser-artifacts
 ```
 
 Source decisions: [WEBZ-NATIVE-001 design](docs/superpowers/specs/2026-10-06-webz-native-001-workbench-design.md) and [implementation plan](docs/superpowers/plans/2026-10-06-webz-native-001-workbench.md). A later separate proposal can join chosen artifact crossings to reLATTE's signed crossing/receiver contracts.
+
+
+## WEBZ-RELATTE-002 — First accountable material offer (experimental)
+
+The Sanctuary's **The fruit may travel** instrument is a separate, **effectful** action from ordinary `webz::` navigation. The familiar Inspect / Cross / Return portal still carries **nothing**. Browsing or recording a local voyage does not sign, send, import, or admit any artifact.
+
+In `/webz/world/sanctuary`, choose the original fictional **Impossible orange** or **Uninvited story-spore**, press **Inspect exact parcel**, read the SHA-256 and Orchard receiver policy, check the explicit confirmation, and **Sign and offer parcel through reLATTE**. The app rejects different files, client-supplied recipient decisions and stale digests. No user uploads, photographs, memories, personal information or network URLs are accepted.
+
+This action requires a **clean local checkout of reLATTE at exactly `87006f3265103a8abe387d81597c58aeb39b0beb`** (the same pinned owner already used by Workbench's Field Reseed path), discoverable under a configured Workbench repository root. Without it, the action fails visibly and does not impersonate signed evidence. The sender chooses **whether** to offer a declared fixture; the Orchard's local policy fixes the disposition: fruit → signed `RECEIVED` + `R3_HOLD`, spore → signed `RECEIVED` + `R3_REFUSE`. Neither admits material into the world.
+
+The Workbench stages **exact JSON bytes** in operator-local quarantine and verifies their SHA-256 against the signed crossing's payload reference. reLATTE signs the crossing envelope and the independent Orchard `LocalReceiver` signs receipt/disposition. The signed RECEIVE covers the **envelope and digest reference**; the separate Workbench byte check is not a receiver signature over physically ingested bytes. The first two worlds share one trusted browser origin; this is **not** open federation, cryptographic human identity, cross-origin isolation, or an installed OS-wide `webz::` handler.
+
+Visit `/webz/world/orchard` to view the **read-only** receiver inbox and inspect its public signed evidence. Repeating the same offer reuses durable results instead of minting another crossing. Intent, staged material, bundle, receiver journal, signed result and compact summaries remain under the configured Workbench `state_dir/webz-relatte/v0/`, not in the STORYSHIP canonical voyage ledger. Rejected/corrupt state returns an error rather than inventing success or erasing provenance.
+
+Verification:
+
+```bash
+python -m pytest -q
+node --test tests/webz-*.test.mjs
+# after checking out and installing the exact pinned reLATTE owner in .compat/reLATTE:
+python scripts/smoke_webz_relatte.py
+# with Playwright and Chromium installed:
+python scripts/smoke_webz_relatte_browser.py --out browser-artifacts
+```
+
+Design: [WEBZ-RELATTE-002](docs/superpowers/specs/2026-10-06-webz-relatte-002-first-sovereign-parcel.md). Do not treat these first-party fixtures as untrusted community worlds or as authorization for real third-party asset transfer.

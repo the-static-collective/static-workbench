@@ -1,0 +1,10 @@
+{
+  "schema": "webz.artifact/v0",
+  "artifact_kind": "fictional-uninvited-spore",
+  "world_id": "webz:the-static-collective/sanctuary",
+  "title": "An uninvited story-spore",
+  "description": "A harmless fictional paper spore with no invitation. Orchard policy refuses it, preserving the refusal as a signed local decision.",
+  "fictional": true,
+  "publication_scope": "public-first-party-test-fixture",
+  "seed": "022100"
+}

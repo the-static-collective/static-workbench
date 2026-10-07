@@ -8,12 +8,13 @@ from pathlib import Path
 
 from typing import Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 from .maddloop import MaddloopStore, LoopConflict, LoopMissing
 from .machine_book import MachineBook, BookMissing, BookConflict
 from .first_door import FirstDoor, ArgConflict, ArgMissing
 from .world_entry import WorldEntry
 from .webz_native import WebzRegistryError, load_registry, resolve_webz_address, world_by_slug
+from .webz_parcel import WebzParcelError, WebzParcelGate
 from .doorhouse import DoorHouse, DoorHouseConflict, DoorHouseMissing
 from .doorhouse_relatte import RelatteApertureError, run_relatte_aperture
 from .doorhouse_ghot import GHotApertureError, discover_ghot_bodies, assign_ghot_body
@@ -104,6 +105,12 @@ from .schemas import (
     LivingMomentImportRequest,
     LivingMomentDraftRequest,
 )
+
+
+class WebzParcelSendInput(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    expected_sha256: str = Field(min_length=64, max_length=64)
+    confirmation: Literal["SEND_TO_ORCHARD"]
 
 
 class ArgSeedInput(BaseModel):
@@ -340,6 +347,7 @@ def create_app(config: WorkbenchConfig | None = None) -> FastAPI:
     app.state.session_token = session_token
 
     web_dir = Path(__file__).resolve().parent / "web"
+    webz_parcels = WebzParcelGate(config.state_dir, web_dir)
     app.mount("/assets", StaticFiles(directory=web_dir), name="assets")
 
     allowed_hosts = {"127.0.0.1", "localhost", "::1", config.bind_host.lower()}
@@ -383,6 +391,41 @@ def create_app(config: WorkbenchConfig | None = None) -> FastAPI:
         if world is None:
             raise HTTPException(status_code=404, detail="webZ world not installed")
         return world
+
+    @app.get("/api/webz/parcels/inbox")
+    def webz_parcel_inbox():
+        try:
+            return {"parcels": webz_parcels.inbox()}
+        except WebzParcelError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+    @app.get("/api/webz/parcels/{kind}/preview")
+    def webz_parcel_preview(kind: str):
+        try:
+            return webz_parcels.preview(kind)
+        except WebzParcelError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+    @app.post("/api/webz/parcels/{kind}/send")
+    def webz_parcel_send(kind: str, payload: WebzParcelSendInput, request: Request):
+        _creator_write_guard(request)
+        try:
+            repos = discover_repositories(config.roots, config.max_repo_depth)
+            return webz_parcels.send(
+                kind,
+                payload.expected_sha256,
+                payload.confirmation,
+                repos,
+            )
+        except WebzParcelError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+    @app.get("/api/webz/parcels/{kind}/proof")
+    def webz_parcel_proof(kind: str):
+        try:
+            return webz_parcels.proof(kind)
+        except WebzParcelError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
 
     @app.get("/arg", include_in_schema=False)
     def static_arg_page():

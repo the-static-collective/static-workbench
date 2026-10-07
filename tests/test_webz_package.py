@@ -22,6 +22,7 @@ def test_webz_flat_assets_are_in_installed_wheel(tmp_path: Path):
         "webz-voyage.mjs", "webz-storage.mjs", "webz-registry.json",
         "webz-sanctuary.json", "webz-orchard.json",
         "webz-sanctuary.html", "webz-orchard.html",
+        "webz-parcel.js", "webz-fruit.json", "webz-spore.json",
     }
     with zipfile.ZipFile(wheels[0]) as archive:
         members = set(archive.namelist())

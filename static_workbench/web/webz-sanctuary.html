@@ -51,6 +51,24 @@
         <button id="webz-erase-voyage" class="webz-button webz-quiet webz-small" type="button" disabled>Erase local voyage</button>
       </div>
     </section>
+    <section class="webz-parcel-console" aria-labelledby="webz-parcel-heading">
+      <p class="webz-eyebrow">◇ WEBZ-RELATTE-002 / MATERIAL CROSSING</p>
+      <h2 id="webz-parcel-heading">The fruit may travel.</h2>
+      <p>Unlike the ordinary portal, carrying material is a separate, explicit choice. These are original <strong>fictional test cards</strong>, not your photos, memories, or identity.</p>
+      <label class="webz-parcel-label" for="webz-parcel-kind">DECLARED PARCEL</label>
+      <select id="webz-parcel-kind">
+        <option value="fruit">Impossible orange · Orchard policy: HOLD</option>
+        <option value="spore">Uninvited story-spore · Orchard policy: REFUSE</option>
+      </select>
+      <button id="webz-parcel-inspect" class="webz-button webz-quiet" type="button">Inspect exact parcel ↗</button>
+      <pre id="webz-parcel-preview" class="webz-parcel-preview" hidden aria-live="polite"></pre>
+      <label class="webz-parcel-consent"><input type="checkbox" id="webz-parcel-confirm" disabled>
+        I choose to send this exact fictional JSON specimen to the Orchard's separate reLATTE receiver.
+      </label>
+      <button id="webz-parcel-send" class="webz-button webz-parcel-send" type="button" disabled>Sign and offer parcel through reLATTE →</button>
+      <p id="webz-parcel-status" role="status" aria-live="polite">No material has been offered. The regular portal above remains no-carry.</p>
+      <p class="webz-parcel-note">SOURCE OFFER ≠ RECEIVER DECISION. Signed RECEIVE and HOLD/REFUSE do not constitute local admission. A clean pinned reLATTE checkout is required.</p>
+    </section>
     <section class="webz-world-law">
       <p class="webz-eyebrow">THE SHIP KEEPS ITS LAWS</p>
       <blockquote>“The ship preserves the passage. The story renders the passage navigable. The traveler chooses the bearing.”</blockquote>
@@ -61,4 +79,5 @@
 <footer class="webz-footer">FIRST-PARTY FICTION · LOCAL WORLD ADDRESS · NO AUTOMATIC CARRY OR RECEIVER EFFECT</footer>
 </div>
 <script type="module" src="/assets/webz-world.js"></script>
+<script type="module" src="/assets/webz-parcel.js"></script>
 </body></html>
