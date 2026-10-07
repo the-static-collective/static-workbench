@@ -42,8 +42,8 @@ def prepare(tmp_path, monkeypatch, kind="fruit"):
         "schema":"workbench.webz-parcel-proof/v0",
         "crossing":crossing,
         "artifact_sha256":digest,
-        "receive_receipt":{"receipt_id":RECEIVE,"crossing_id":CROSSING},
-        "disposition_receipt":{"receipt_id":DISPOSITION,"crossing_id":CROSSING,"kind":"R3_"+policy},
+        "receive_receipt":{"receipt_id":RECEIVE,"crossing_id":CROSSING,"signing":{"public_key":{"kty":"EC","x":"e","y":"f"}}},
+        "disposition_receipt":{"receipt_id":DISPOSITION,"crossing_id":CROSSING,"kind":"R3_"+policy,"signing":{"public_key":{"kty":"EC","x":"e","y":"f"}}},
     }
     monkeypatch.setattr(parent,"_stored",lambda *args: result)
     monkeypatch.setattr(parent,"proof",lambda *args:proof)
@@ -72,8 +72,8 @@ def owner_result(digest, policy, length):
       "received_byte_length":length,
       "receiver_disposition":"R3_"+policy,
       "retained":policy=="HOLD",
-      "receive_receipt":{"receipt_id":RECEIVE,"crossing_id":CROSSING},
-      "disposition_receipt":{"receipt_id":DISPOSITION,"crossing_id":CROSSING,"kind":"R3_"+policy},
+      "receive_receipt":{"receipt_id":RECEIVE,"crossing_id":CROSSING,"signing":{"public_key":{"kty":"EC","x":"e","y":"f"}}},
+      "disposition_receipt":{"receipt_id":DISPOSITION,"crossing_id":CROSSING,"kind":"R3_"+policy,"signing":{"public_key":{"kty":"EC","x":"e","y":"f"}}},
       "custody_receipt":receipt,
       "receiver_snapshot":{"admitted":[],"held":[CROSSING] if policy=="HOLD" else [],"refused":[CROSSING] if policy=="REFUSE" else []},
     }
@@ -83,7 +83,16 @@ def stub_owner(tmp_path, monkeypatch, received):
     owner=tmp_path/"checked-out-reLATTE"
     owner.mkdir(exist_ok=True)
     monkeypatch.setattr(module,"_find_pinned",lambda *a,**k:owner)
-    monkeypatch.setattr(module,"_run_json",lambda command,cwd,payload,env,label,timeout=30:received(payload))
+    def run(command,cwd,payload,env,label,timeout=30):
+        result=received(payload)
+        if result.get("retained") is True:
+            import base64
+            carrier=json.loads(Path(payload["carrier_path"]).read_text())
+            target=Path(payload["receiver_root"])/"payloads"/(CROSSING+".bin")
+            target.parent.mkdir(parents=True,exist_ok=True)
+            target.write_bytes(base64.b64decode(carrier["payload_base64"]))
+        return result
+    monkeypatch.setattr(module,"_run_json",run)
     return owner
 
 
