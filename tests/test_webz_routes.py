@@ -119,3 +119,37 @@ def test_native_webz_cockpit_never_executes_on_resolve(tmp_path):
         assert "/webz/world/orchard" in script
         assert "window.location" in script
         assert "new Function(" not in script
+
+
+def test_two_worlds_expose_independent_portal_controls(tmp_path):
+    with make_client(tmp_path) as client:
+        sanctuary = client.get("/webz/world/sanctuary").text
+        orchard = client.get("/webz/world/orchard").text
+        assert 'data-webz-world="sanctuary"' in sanctuary
+        assert 'data-webz-world="orchard"' in orchard
+        assert 'id="webz-inspect"' in sanctuary
+        assert 'id="webz-cross"' in sanctuary
+        assert 'id="webz-remain"' in sanctuary
+        assert 'id="webz-return"' in orchard
+        assert 'id="webz-world-status"' in sanctuary
+        assert 'type="module" src="/assets/webz-world.js"' in sanctuary
+        assert 'type="module" src="/assets/webz-world.js"' in orchard
+        assert "carry: NONE" in sanctuary and "carry: NONE" in orchard
+        assert "Psychedelic Punk Sanctuary" in sanctuary
+        assert "The Orchard / 022100" in orchard
+
+
+def test_world_portal_script_requires_inspection_then_explicit_cross(tmp_path):
+    with make_client(tmp_path) as client:
+        script = client.get("/assets/webz-world.js")
+        assert script.status_code == 200
+        assert "webz-inspect" in script.text
+        assert "webz-cross" in script.text
+        assert "webz-remain" in script.text
+        assert "webz-return" in script.text
+        assert "/api/webz/worlds/" in script.text
+        assert "/api/webz/resolve" in script.text
+        assert "window.location.assign" in script.text
+        assert "textContent" in script.text
+        assert "innerHTML" not in script.text
+        assert "eval(" not in script.text
