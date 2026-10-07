@@ -47,7 +47,15 @@ class WebzCustodyGate:
     def _prior(self, kind: str) -> tuple[dict, dict, bytes, str, str]:
         _known(kind)
         _, raw, digest, policy = self.parent._fixture(kind)
-        # _stored checks local staged bytes and first-phase evidence scope.
+        # Delivery must recheck exact sender bytes even if a stored parent
+        # summary is presented. Never silently repair overwritten staging.
+        try:
+            staged = _read_exact(self.parent._staged_path(kind,digest), limit=4096)
+        except WebzParcelError as exc:
+            raise WebzCustodyError(f"source staged bytes unavailable: {exc}") from exc
+        if staged != raw or hashlib.sha256(staged).hexdigest() != digest:
+            raise WebzCustodyError("source staged bytes SHA digest mismatch")
+        # The parent result must separately establish a signed envelope.
         try:
             summary = self.parent._stored(kind,digest,raw)
         except WebzParcelError as exc:
