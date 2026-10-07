@@ -1,6 +1,6 @@
 # WEBZ-NATIVE-001 — Workbench Reads Worlds Natively
 
-**Status:** Written architectural specification for human review; not approved implementation or executable evidence.  
+**Status:** Human-approved written design for implementation planning (2026-10-06); not executable evidence or authorization to run changes.  
 **Date:** 2026-10-06 (human-local)  
 **Owning implementation:** `the-static-collective/static-workbench`  
 **Normative neighboring design:** `the-static-collective/webZ`, `docs/superpowers/specs/2026-10-06-webz-genesis-001-design.md`  
@@ -16,7 +16,7 @@
 
 **Observable success:** A person opens the existing local Static Workbench, types `webz::static/sanctuary` into an obvious address field, sees the recognized world and its doors, enters the Sanctuary, explicitly crosses to the Orchard, returns, and can inspect an optional locally recorded route after reload. Ordinary Workbench functions are unaffected. A second addressed world is genuinely a different document with a different world ID. A visit does not create a signed crossing or receive authority from the visited world.
 
-This approval **permits producing this written design**. It does not authorize code changes, cross-repository protocol promotion, reLATTE dispatch, or new process installation; the written spec must be separately reviewed.
+The human approved this written design for **implementation planning** on 2026-10-06. That approval does not yet authorize code changes, cross-repository protocol promotion, reLATTE dispatch, or new process installation. A reviewed implementation plan and selected execution method are still required.
 
 ## 2. Existing project constraints, verified in repository
 
@@ -191,4 +191,4 @@ Separate, independently governed webZ manifests may later replace these frozen s
 
 ---
 
-**Next required gate:** human review of this committed design. After explicit approval, use Superpowers `writing-plans` to prepare an implementation plan for the real Workbench and webZ codebase, then ask the human to choose the execution method. Runtime implementation must wait for those gates.
+**Next required gate:** create and review the Superpowers implementation plan; human must select its execution method before runtime work begins. Runtime implementation must wait for those gates.
