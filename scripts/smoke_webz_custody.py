@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""WEBZ-003: real old R14 sender → physical carrier → new reLATTE receiver.
+"""WEBZ-003: compatible R14 signed sender → material carrier → separate receiver process.
 
 No synthetic crypto, mocked signatures, external files or third-party artifacts.
 The destination is a separate Node process which reads the literal carrier bytes.
