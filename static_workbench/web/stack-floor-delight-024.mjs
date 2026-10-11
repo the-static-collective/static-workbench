@@ -19,6 +19,7 @@ let enabled=false,session=null,proposal=null,receiverState=null,
 function msg(s){$('delight-024-message').textContent=s;}
 function clear(){
   preview=null;chosen=null;
+  window.dispatchEvent(new CustomEvent('stack-floor:toaster-delight-choice',{detail:null}));
   $('delight-024-deck').replaceChildren(node('p','help','No current, verified source-specific deal.'));
   $('delight-024-paper').replaceChildren(node('span','micro','NO KEEPSAKE SELECTED'));
   $('delight-024-preview-title').textContent='A preview needs a question.';
