@@ -127,6 +127,9 @@ function evidenceCard(item){
 }
 function showSelection(edge){
   selected=edge;
+  window.dispatchEvent(new CustomEvent('stack-floor:mycelium-proposal-selected',{
+    detail:{proposal_id:edge?.proposal_id||null,receiver_state_ref:field?.state_ref||null}
+  }));
   const name=$('mycelium-023-selected');
   const help=$('mycelium-023-context');
   const box=$('mycelium-023-evidence');
