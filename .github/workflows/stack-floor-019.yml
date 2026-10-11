@@ -1,0 +1,47 @@
+name: "STACK² 019 — living Lego floor, local witness and no authority"
+on:
+  push:
+    branches:
+      - experiment/stack-squared-019-lego-floor
+  pull_request:
+    paths:
+      - "static_workbench/web/stack-floor*"
+      - "static_workbench/app.py"
+      - "static_workbench/web/index.html"
+      - "static_workbench/web/app.js"
+      - "tests/*stack_floor_019*"
+      - "tests/stack-floor-019.test.mjs"
+      - "docs/STACK-SQUARED-019.md"
+      - ".github/workflows/stack-floor-019.yml"
+permissions:
+  contents: read
+jobs:
+  local-floor:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Real browser core, strict declared sockets and adversarial original receipt comparisons
+        run: |
+          node --check static_workbench/web/stack-floor-core.mjs
+          node --check static_workbench/web/stack-floor-ui.mjs
+          node --check static_workbench/web/app.js
+          node --test tests/stack-floor-019.test.mjs
+      - name: Actual FastAPI route, host restriction and existing shell regressions
+        run: |
+          python -m pip install -e '.[dev]'
+          python -m pytest -q tests/test_stack_floor_019.py tests/test_return_room_001.py tests/test_ghot_shell.py tests/test_ui.py
+      - name: Fail if any native activation endpoint or foreign donor code landed in browser floor
+        run: |
+          set -eu
+          ! grep -Ei "fetch\\(|XMLHttpRequest|WebSocket|EventSource|localStorage|sessionStorage|/api/stack-floor|subprocess" static_workbench/web/stack-floor-ui.mjs static_workbench/web/stack-floor-core.mjs
+          test ! -e static_workbench/web/.env
+          test ! -e static_workbench/web/receiver-key.json
