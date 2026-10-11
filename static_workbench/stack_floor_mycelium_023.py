@@ -52,8 +52,8 @@ class StackFloorMycelium023:
               and isinstance(result.get("edges"), list)
               and len(result["nodes"]) <= 60
               and len(result["edges"]) <= 360
-              and result.get("lenses") == sorted(ALLOWED_LENSES)
-                  if False else True,
+              and result.get("lenses") ==
+                  ["origin", "lineage", "structure", "content", "arrival"],
               "MYCELIUM_UNSAFE_NATIVE_PROPOSALS")
         check(
             result["schema"] == "workbench.stack2-023-mycelium-proposals/v0"
