@@ -41,6 +41,7 @@ from .ghot_shell import build_ghot_status
 from .stack_floor_native_020 import StackFloorNative020, StackFloorActHold
 from .stack_floor_postoffice_021 import StackFloorPostOffice021
 from .stack_floor_hold_shelf_022 import StackFloorHoldShelf022
+from .stack_floor_mycelium_023 import StackFloorMycelium023
 from .launchpad import launchpad_router
 from .arrival import diagnose as diagnose_arrival
 from .mirror import mirror_router
@@ -188,6 +189,8 @@ def create_app(config: WorkbenchConfig | None = None) -> FastAPI:
         postoffice=stack_floor_postoffice_021
     )
 
+    stack_floor_mycelium_023 = StackFloorMycelium023(shelf=stack_floor_hold_shelf_022)
+
     @asynccontextmanager
     async def lifespan(app: FastAPI):
         journal.append("workbench.started", {"version": __version__})
@@ -223,6 +226,7 @@ def create_app(config: WorkbenchConfig | None = None) -> FastAPI:
     app.state.stack_floor_native_020 = stack_floor_native_020
     app.state.stack_floor_postoffice_021 = stack_floor_postoffice_021
     app.state.stack_floor_hold_shelf_022 = stack_floor_hold_shelf_022
+    app.state.stack_floor_mycelium_023 = stack_floor_mycelium_023
     app.state.session_token = session_token
     app.include_router(launchpad_router())
     app.include_router(mirror_router(config.state_dir, session_token, journal))
@@ -581,6 +585,27 @@ def create_app(config: WorkbenchConfig | None = None) -> FastAPI:
             raise HTTPException(status_code=422, detail="shelf detail needs one exact crossing ID")
         try:
             return stack_floor_hold_shelf_022.read(crossing_id=payload["crossing_id"])
+        except (StackFloorActHold, OSError, ValueError) as exc:
+            raise HTTPException(status_code=409, detail=str(exc)[:220]) from exc
+
+    @app.get("/api/stack-floor/mycelium/status")
+    def stack_floor_mycelium_status():
+        return {
+            "schema": "workbench.stack2-023-status/v0",
+            "enabled": stack_floor_mycelium_023.enabled,
+            "original_receiver_required": True,
+            "proposals_only": True,
+            "stored_relationships": False,
+            "admission_api": False,
+        }
+
+    @app.post("/api/stack-floor/mycelium/inspect")
+    def stack_floor_mycelium_inspect(payload: dict, request: Request):
+        _stack_floor_native_guard(request)
+        if payload != {}:
+            raise HTTPException(status_code=422, detail="only a receiver-local, non-writing graph read is accepted")
+        try:
+            return stack_floor_mycelium_023.inspect()
         except (StackFloorActHold, OSError, ValueError) as exc:
             raise HTTPException(status_code=409, detail=str(exc)[:220]) from exc
 
