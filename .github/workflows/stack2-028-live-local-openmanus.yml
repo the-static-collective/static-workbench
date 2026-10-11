@@ -1,0 +1,205 @@
+name: "STACK² 028 — REAL OpenManus × local Ollama first occurrence"
+on:
+  push:
+    branches:
+      - experiment/stack-squared-028-elf-openmanus-local-model
+concurrency:
+  group: stack2-028-live-${{ github.ref }}
+  cancel-in-progress: true
+permissions:
+  contents: read
+jobs:
+  local-profile-contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Fast negative gates before expensive local LLM startup
+        run: |
+          python -m pip install -e '.[dev]'
+          python -m pytest -q tests/test_elf_live_028.py tests/test_elf_relay_028.py tests/test_elf_receipt_027.py tests/test_elf_genesis.py
+          python -m py_compile static_workbench/elf_live_027.py
+  original-openmanus-with-real-local-model:
+    needs: local-profile-contract
+    runs-on: ubuntu-latest
+    timeout-minutes: 28
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Exact LOADOUT original live verifier and OpenManus adapter
+        uses: actions/checkout@v4
+        with:
+          repository: the-static-collective/LOADOUT
+          ref: dd5456d45946271e2d20d1dc6145b71576d2380b
+          path: loadout-source
+          persist-credentials: false
+      - name: Exact upstream FoundationAgents/OpenManus agent source
+        uses: actions/checkout@v4
+        with:
+          repository: FoundationAgents/OpenManus
+          ref: 3309bf4e416fb1c74b008f3e86494439a31bad53
+          path: openmanus-source
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Fresh Python provider runtime with original upstream requirements
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m venv "$RUNNER_TEMP/openmanus-venv"
+          "$RUNNER_TEMP/openmanus-venv/bin/python" -m pip install --disable-pip-version-check --no-cache-dir -r "$GITHUB_WORKSPACE/openmanus-source/requirements.txt"
+          python3 -m pip install -e .
+          # Pinned 2025 OpenManus eagerly constructs DaytonaSettings even when
+          # unused. A fixed, noncredential placeholder prevents that unrelated
+          # import error; strict local profile refuses any changed value.
+          cat > "$GITHUB_WORKSPACE/openmanus-source/config/config.toml" <<'TOML'
+          [llm]
+          api_type = "ollama"
+          model = "qwen2.5:3b"
+          base_url = "http://127.0.0.1:11434/v1"
+          api_key = "ollama"
+          max_tokens = 512
+          temperature = 0.0
+
+          [daytona]
+          daytona_api_key = "disabled-local-placeholder"
+          TOML
+          chmod 0600 "$GITHUB_WORKSPACE/openmanus-source/config/config.toml"
+          "$RUNNER_TEMP/openmanus-venv/bin/python" - <<'PY'
+          from app.agent.toolcall import ToolCallAgent
+          from app.tool.base import BaseTool
+          from app.tool.terminate import Terminate
+          from app.tool.tool_collection import ToolCollection
+          print("ORIGINAL_PINNED_TOOLCALLAGENT_IMPORT_PASS")
+          PY
+          # Replicate the original LOADOUT OpenManusJsonStdioAdapter exact
+          # subprocess child environment, not the permissive CI shell.
+          env -i PYTHONPATH="$GITHUB_WORKSPACE/openmanus-source" "$RUNNER_TEMP/openmanus-venv/bin/python" - <<'PY'
+          from app.agent.toolcall import ToolCallAgent
+          from app.tool.base import BaseTool
+          from app.tool.terminate import Terminate
+          from app.tool.tool_collection import ToolCollection
+          print("ORIGINAL_PINNED_RESTRICTED_CHILD_IMPORT_PASS")
+          PY
+        env:
+          PYTHONPATH: ${{ github.workspace }}/openmanus-source
+      - name: Start exact Ollama image with loopback-only service and no credentials
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker pull ollama/ollama@sha256:e2f0af4a865c61b580cc17a7e2bda3c82083046b74c5a5402ce32a0d84454f9b
+          docker run --detach --name stack28-ollama \
+            --security-opt=no-new-privileges --cap-drop=ALL \
+            --user 0:0 --memory=5g --cpus=2 \
+            --network host --env OLLAMA_HOST=127.0.0.1:11434 \
+            ollama/ollama@sha256:e2f0af4a865c61b580cc17a7e2bda3c82083046b74c5a5402ce32a0d84454f9b
+          ready=0
+          for _ in $(seq 1 50); do
+            if curl --fail --silent --max-time 3 http://127.0.0.1:11434/api/tags >/dev/null; then
+              ready=1;break
+            fi
+            sleep 2
+          done
+          if test "$ready" != 1; then
+            echo "LOCAL_OLLAMA_HOLD: loopback API never became ready"
+            docker ps -a --filter "name=stack28-ollama"
+            docker inspect --format 'State={{.State.Status}} Exit={{.State.ExitCode}} Error={{.State.Error}}' stack28-ollama || true
+            docker logs --tail 100 stack28-ollama || true
+            ss -ltn || true
+            exit 1
+          fi
+          echo "LOCAL_OLLAMA_SERVER_READY"
+          docker exec stack28-ollama ollama pull qwen2.5:3b
+          docker exec stack28-ollama ollama list
+          curl --fail --show-error --max-time 10 http://127.0.0.1:11434/api/tags
+          docker image inspect --format '{{index .RepoDigests 0}}' ollama/ollama@sha256:e2f0af4a865c61b580cc17a7e2bda3c82083046b74c5a5402ce32a0d84454f9b
+      - name: Run genuine bounded original OpenManus ToolCallAgent against local model
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f "$GITHUB_WORKSPACE/openmanus-source/config/config.toml"
+          mkdir -p "$RUNNER_TEMP/elf-live-child"
+          python3 -m static_workbench.elf_live_027 \
+            --loadout-root "$GITHUB_WORKSPACE/loadout-source" \
+            --provider-checkout "$GITHUB_WORKSPACE/openmanus-source" \
+            --provider-python "$RUNNER_TEMP/openmanus-venv/bin/python" \
+            --workspace "$RUNNER_TEMP/elf-live-child" \
+            --output "$RUNNER_TEMP/elf-live-evidence" \
+            --model-config-class local-ollama \
+            --timeout-seconds 90 \
+            --max-steps 8 \
+            --approve-live-provider yes
+          python3 - <<'PY'
+          import json,os
+          from pathlib import Path
+          base=Path(os.environ["RUNNER_TEMP"])
+          report=json.loads((base/"elf-live-evidence/elf-live-gate-summary.json").read_text())
+          child=base/"elf-live-child/specimen"
+          assert report["live_provider_conformance"]=="SPECIMEN_SCOPED_PASS"
+          assert report["loadout_original_live_verifier"]=="PASS"
+          assert report["seedbank_admitted"] is False
+          assert report["promotion_authorized"] is False
+          assert (child/"input.txt").read_bytes()==b"OPENMANUS-LIVE-001 INPUT\n"
+          assert (child/"output.txt").read_bytes()==b"OPENMANUS-LIVE-001 OUTPUT\n"
+          assert set(p.name for p in child.iterdir())=={"input.txt","output.txt"}
+          print("REAL_PINNED_OPENMANUS_MODEL_BACKED_LOCAL_OCCURRENCE_VERIFIED")
+          PY
+      - name: Bounded native HOLD diagnosis without stderr, model text or credentials
+        if: failure()
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import json,os
+          from pathlib import Path
+          raw_stderr=Path(os.environ["RUNNER_TEMP"])/"openmanus-private.stderr"
+          if raw_stderr.is_file():
+              text=raw_stderr.read_text(errors="replace")[:32768]
+              failure=next((line.strip() for line in text.splitlines()
+                  if "OpenManus provider import failed:" in line),None)
+              if failure:
+                  print("LOCAL_PINNED_WORKER_IMPORT_REFUSAL:",
+                        failure.split("OpenManus provider import failed:",1)[1].strip()[:280])
+              else:
+                  # Local-only demo carries no credentials or user content.
+                  print("LOCAL_PINNED_WORKER_STDERR_TAIL:",
+                        "\\n".join(text.splitlines()[-8:])[-1000:])
+          original=Path(os.environ["RUNNER_TEMP"])/"elf-live-evidence/openmanus-live-001.json"
+          if not original.is_file():
+              print("OPENMANUS_LIVE_HOLD: no original bundle (preflight or launch failure)")
+          else:
+              b=json.loads(original.read_text())
+              p=b.get("provider_receipt",{})
+              e=b.get("effect_receipt",{})
+              print(json.dumps({
+                "stage":"OPENMANUS_LIVE_HOLD",
+                "source_pin":b.get("provider",{}).get("checkout_sha"),
+                "provider_disposition":p.get("disposition"),
+                "provider_termination":p.get("termination"),
+                "provider_steps":p.get("steps_executed"),
+                "observed_tools":p.get("observation_tools",[]),
+                "output_artifacts":p.get("artifact_paths",[]),
+                "provider_stderr_present":p.get("stderr_present"),
+                "effect_disposition":e.get("provider_disposition"),
+                "effect_semantic_authority":e.get("semantic_authority"),
+                "output_changed":b.get("before",{}).get("specimen/output.txt") != b.get("after",{}).get("specimen/output.txt"),
+              },sort_keys=True))
+          PY
+      - name: Publish only bounded non-authoritative live specimen result
+        uses: actions/upload-artifact@v4
+        with:
+          name: stack2-028-real-openmanus-local-model-verified
+          if-no-files-found: error
+          retention-days: 7
+          path: ${{ runner.temp }}/elf-live-evidence/elf-live-gate-summary.json
+      - name: Teardown ephemeral local model
+        if: always()
+        shell: bash
+        run: |
+          docker rm -f stack28-ollama || true
