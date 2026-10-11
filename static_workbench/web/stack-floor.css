@@ -57,6 +57,7 @@ input[type="file"]{max-width:100%;font-size:.77rem;color:#b7c8b2}input[type="fil
 .part-details span{display:block;color:#a4b4a3;font-size:.64rem;letter-spacing:.08em}.part-details a{word-break:break-all}
 .ending{margin:26px 4px 0;display:flex;align-items:center;justify-content:space-between;gap:22px;color:#b5c4b4;font-size:.84rem}.ending p{max-width:750px}
 footer{border-top:1px solid #425447;border-bottom:none}
+.postoffice-ticket{display:flex;flex-direction:column;align-items:stretch}.postoffice-ticket input{max-width:100%;width:100%;letter-spacing:normal;font-family:ui-monospace,monospace;font-size:.76rem}.postoffice-ticket input:disabled{opacity:.5}
 @media(max-width:850px){.two-column{grid-template-columns:1fr}.ending{display:block}.quiet{display:none}}
 @media(max-width:520px){.panel{padding:15px}.tray,.file-row,.inspector{grid-template-columns:1fr}.inspector>div{border-right:0;border-bottom:1px solid #425748}.inspector>div:last-child{border-bottom:0}.heading{align-items:flex-start}.heading small{max-width:110px;text-align:right}.socket{padding:8px}}
 .native-act-phrase{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-top:15px;font-size:.87rem;color:var(--muted)}.native-act-phrase input{border:1px solid #7b9874;background:#0f1b15;color:#e9efdf;letter-spacing:.2em;font-weight:bold;padding:11px;border-radius:8px;max-width:100px}.native-act{margin-top:18px}

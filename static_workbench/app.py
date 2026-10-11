@@ -39,6 +39,7 @@ from .house import build_house_status
 from .road_desk import RoadDeskError, road_desk_status
 from .ghot_shell import build_ghot_status
 from .stack_floor_native_020 import StackFloorNative020, StackFloorActHold
+from .stack_floor_postoffice_021 import StackFloorPostOffice021
 from .launchpad import launchpad_router
 from .arrival import diagnose as diagnose_arrival
 from .mirror import mirror_router
@@ -174,6 +175,14 @@ def create_app(config: WorkbenchConfig | None = None) -> FastAPI:
     session_token = secrets.token_urlsafe(32)
     branch_radar = CollectiveRadar(config.state_dir) if config.branch_radar_enabled else None
 
+    stack_floor_postoffice_021 = StackFloorPostOffice021(
+        state_dir=config.state_dir,
+        enabled=config.stack_floor_postoffice_enabled,
+        previous=stack_floor_native_020,
+        relatte_checkout=config.stack_floor_relatte_checkout,
+        receiver_root=config.stack_floor_receiver_root,
+    )
+
     @asynccontextmanager
     async def lifespan(app: FastAPI):
         journal.append("workbench.started", {"version": __version__})
@@ -207,6 +216,7 @@ def create_app(config: WorkbenchConfig | None = None) -> FastAPI:
     app.state.rocket_desk = rocket_desk
     app.state.moment_inbox = moment_inbox
     app.state.stack_floor_native_020 = stack_floor_native_020
+    app.state.stack_floor_postoffice_021 = stack_floor_postoffice_021
     app.state.session_token = session_token
     app.include_router(launchpad_router())
     app.include_router(mirror_router(config.state_dir, session_token, journal))
@@ -488,6 +498,54 @@ def create_app(config: WorkbenchConfig | None = None) -> FastAPI:
             return response
         except (StackFloorActHold, OSError, ValueError) as exc:
             raise HTTPException(status_code=409, detail=str(exc)[:220]) from exc
+
+    @app.get("/api/stack-floor/postoffice/status")
+    def stack_floor_postoffice_status():
+        return {
+            "schema": "workbench.stack2-021-status/v0",
+            "enabled": config.stack_floor_postoffice_enabled,
+            "separate_cross_approval_required": True,
+            "receiver_policy_required": True,
+            "disposition": "HOLD_ONLY",
+            "no_automatic_admit": True,
+        }
+
+    @app.post("/api/stack-floor/postoffice/preview")
+    def stack_floor_postoffice_preview(payload: dict, request: Request):
+        _stack_floor_native_guard(request)
+        if not isinstance(payload, dict) or set(payload) != {"card_ids", "ticket_id"} or (
+            payload["card_ids"] != ["cannon", "planz", "ghot", "relatte"]
+        ):
+            raise HTTPException(status_code=422, detail="only the native four-card receipt handoff is allowed")
+        try:
+            return stack_floor_postoffice_021.preview(payload["ticket_id"])
+        except (StackFloorActHold, OSError, ValueError) as exc:
+            raise HTTPException(status_code=409, detail=str(exc)[:230]) from exc
+
+    @app.post("/api/stack-floor/postoffice/cross")
+    def stack_floor_postoffice_cross(payload: dict, request: Request):
+        _stack_floor_native_guard(request)
+        if not isinstance(payload, dict) or set(payload) != {
+            "card_ids", "ticket_id", "consent_nonce", "expected_receipt_id",
+            "confirm_phrase", "acknowledge_receiver_hold",
+        } or payload["card_ids"] != ["cannon", "planz", "ghot", "relatte"]:
+            raise HTTPException(status_code=422, detail="unexpected fields or unapproved crossing")
+        try:
+            result = stack_floor_postoffice_021.cross(
+                ticket_id=payload["ticket_id"], nonce=payload["consent_nonce"],
+                expected_receipt_id=payload["expected_receipt_id"],
+                phrase=payload["confirm_phrase"],
+                acknowledge=payload["acknowledge_receiver_hold"],
+            )
+            journal.append("stack2.postoffice.crossing_held", {
+                "ghot_receipt_id": result["original_ghot_receipt_id"],
+                "crossing_id": result["crossing_id"],
+                "disposition": "HOLD",
+                "receiver_admitted": False,
+            })
+            return result
+        except (StackFloorActHold, OSError, ValueError) as exc:
+            raise HTTPException(status_code=409, detail=str(exc)[:230]) from exc
 
     # Return Desk is Workbench-owned local writing, not a GOATnote protocol
     # or a claim that a project checkout has been modified.

@@ -83,6 +83,9 @@ $('native-020-act').addEventListener('click',async()=>{
       throw Error('UNEXPECTED_NATIVE_RECEIPT');
     }
     receipt=result;
+    window.dispatchEvent(new CustomEvent('stack-floor:native-act',{
+      detail:{ticket_id:result.ticket_id,receipt_id:result.receipt_id}
+    }));
     state('NATIVE GHoT SIGNED RECEIPT VERIFIED · '+result.receipt_id+
       ' · ticket spent · original planZ program NOT executed · no reLATTE ADMIT.');
   }catch(e){state('HOLD: '+e.message+' · preview was spent; request a new preview before any retry.');}

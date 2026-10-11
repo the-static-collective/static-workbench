@@ -1,0 +1,129 @@
+name: "STACK² 021 — original GHoT signed ACT to reLATTE sovereign HOLD"
+on:
+  push:
+    branches:
+      - experiment/stack-squared-021-post-office-lego
+  pull_request:
+    paths:
+      - "static_workbench/stack_floor_postoffice_021.py"
+      - "static_workbench/config.py"
+      - "static_workbench/app.py"
+      - "static_workbench/web/stack-floor*"
+      - "tests/test_stack_floor_021.py"
+      - "tests/stack-floor-021.browser.mjs"
+      - "scripts/stack-floor-021-verify.mjs"
+      - "docs/STACK-SQUARED-021.md"
+      - ".github/workflows/stack-floor-021.yml"
+permissions:
+  contents: read
+jobs:
+  sovereign-hold:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: workbench
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          repository: the-static-collective/GHoT
+          ref: b01758bee55d66d699160715ec377b45f7589707
+          path: ghot
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          repository: the-static-collective/planZ
+          ref: e8111fdb64c5587b33aece0fed639ed3d03375ac
+          path: planz
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          repository: the-static-collective/reLATTE
+          ref: dcc8cdca84c440aa4294134f020fb7095bf87f24
+          path: relatte
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install unchanged native reLATTE package without scripts and Workbench tests
+        run: |
+          cd relatte && npm install --ignore-scripts --no-audit --no-fund
+          cd ..
+          python -m pip install -e './workbench[dev]'
+      - name: Node and browser script syntax
+        run: |
+          node --check workbench/scripts/stack-floor-021-verify.mjs
+          node --check workbench/static_workbench/web/stack-floor-postoffice-021.mjs
+          node --check workbench/static_workbench/web/stack-floor-act-020.mjs
+      - name: Original GHoT P256 ACT to original reLATTE P256 RECEIVE and HOLD, independent cold replay and hostile refusals
+        run: |
+          export STACK2_020_GHOT_CHECKOUT="$PWD/ghot"
+          export STACK2_020_PLANZ_CHECKOUT="$PWD/planz"
+          export STACK2_021_RELATTE_CHECKOUT="$PWD/relatte"
+          cd workbench
+          python -m pytest -q tests/test_stack_floor_021.py tests/test_stack_floor_020.py tests/test_stack_floor_019.py
+      - name: Confirm no private keys, generic native command or donor mutation in Workbench source
+        run: |
+          test ! -e workbench/static_workbench/web/receiver-key.json
+          test ! -e workbench/static_workbench/web/.env
+          test ! -e workbench/static_workbench/web/ghot-identity.pem
+
+  real-browser-post-office:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    needs: sovereign-hold
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: workbench
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          repository: the-static-collective/GHoT
+          ref: b01758bee55d66d699160715ec377b45f7589707
+          path: ghot
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          repository: the-static-collective/planZ
+          ref: e8111fdb64c5587b33aece0fed639ed3d03375ac
+          path: planz
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          repository: the-static-collective/reLATTE
+          ref: dcc8cdca84c440aa4294134f020fb7095bf87f24
+          path: relatte
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install original native reLATTE dependencies and local-only Chromium test
+        run: |
+          npm install --prefix relatte --ignore-scripts --no-audit --no-fund
+          python -m pip install -e './workbench[dev]'
+          cd workbench
+          npm install --no-save --ignore-scripts --no-audit --no-fund playwright@1.56.1
+          npx playwright install --with-deps chromium
+      - name: Click real GHoT ACT, separately approve CROSS and cold verify reLATTE signed HOLD
+        run: |
+          export STACK2_020_GHOT_CHECKOUT="$PWD/ghot"
+          export STACK2_020_PLANZ_CHECKOUT="$PWD/planz"
+          export STACK2_021_RELATTE_CHECKOUT="$PWD/relatte"
+          export STACK2_BROWSER_OUTPUT="/tmp/stack-floor-021-chromium"
+          cd workbench
+          node tests/stack-floor-021.browser.mjs
+      - name: Preserve visible desktop/mobile proof of actual original signed HOLD
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: stack-floor-021-postoffice-real-chromium
+          if-no-files-found: warn
+          path: /tmp/stack-floor-021-chromium/*.png
