@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {webcrypto,createHash} from 'node:crypto';
+import {webcrypto} from 'node:crypto';
 import {GHOT_PIN,RELATTE_PIN,CI_RUN,SCHEMA,SOURCE,inspectPublicWitness,
         cardsFor,inspectParticular,traverse,makeUnsignedInspection}
         from '../static_workbench/web/receipt-floor-core.mjs';
@@ -116,6 +116,7 @@ test('human consent gates unsigned local packet with bounded relation claims',as
   assert.equal(packet.browser_network,false);
   assert.equal(packet.browser_execution,false);
   assert.equal(packet.local_sha256.length,64);
-  assert.deepEqual(packet.reported_portable_packets,s.ghot_portable_packet_ids);\n  assert.deepEqual(packet.reported_receiver_receipts,[s.relatte_received_receipt_id,s.relatte_hold_receipt_id]);
+  assert.deepEqual(packet.reported_portable_packets,s.ghot_portable_packet_ids);
+  assert.deepEqual(packet.reported_receiver_receipts,[s.relatte_received_receipt_id,s.relatte_hold_receipt_id]);
   assert.equal(packet.reported_crossing,s.relatte_crossing_id);
 });
