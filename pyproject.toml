@@ -26,7 +26,7 @@ include-package-data = true
 include = ["static_workbench*"]
 
 [tool.setuptools.package-data]
-static_workbench = ["web/*"]
+static_workbench = ["web/*", "ark_manifest.json"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
