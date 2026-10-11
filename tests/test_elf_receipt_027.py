@@ -161,3 +161,32 @@ def test_live_genuine_probe_refuses_bad_gate_before_provider_launch(tmp_path):
             output=tmp_path/"out",model_config_class="../bad",
             forwarded_env_names=("TEST_MODEL_KEY",),source_env={"TEST_MODEL_KEY":"never print"},
         )
+
+
+def test_genuine_live_gate_refuses_unpinned_worker_or_bounded_ops(tmp_path):
+    from subprocess import CompletedProcess
+    from static_workbench.elf_live_027 import verify_original_live_loadout_files
+    root = tmp_path / "loadout"
+    paths = [
+        "src/loadout/dev/openmanus_live.py",
+        "contrib/openmanus/worker.py",
+        "contrib/openmanus/bounded_ops.py",
+    ]
+    for name in paths:
+        f = root / name
+        f.parent.mkdir(parents=True, exist_ok=True)
+        f.write_text("original source")
+    fake_git = lambda args, **kwargs: CompletedProcess(
+        args, 0, stdout=b"original source", stderr=b""
+    )
+    with patch("static_workbench.elf_live_027.subprocess.run", side_effect=fake_git):
+        verify_original_live_loadout_files(root)
+        (root / "contrib/openmanus/bounded_ops.py").write_text("mutated: injected tool")
+        with pytest.raises(LiveGateRefusal, match="LIVE_DONOR_SOURCE_CHANGED"):
+            verify_original_live_loadout_files(root)
+        (root / "contrib/openmanus/bounded_ops.py").unlink()
+        (root / "contrib/openmanus/bounded_ops.py").symlink_to(
+            root / "contrib/openmanus/worker.py"
+        )
+        with pytest.raises(LiveGateRefusal, match="LIVE_DONOR_SOURCE_MISSING"):
+            verify_original_live_loadout_files(root)
