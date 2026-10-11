@@ -6,7 +6,7 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; connect-src 'self'; img-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'">
 <title>STACK² · Living Lego Floor · Static Workbench</title>
 <link rel="stylesheet" href="/assets/stack-floor.css">
-<script type="module" src="/assets/stack-floor-ui.mjs"></script><script type="module" src="/assets/stack-floor-act-020.mjs"></script><script type="module" src="/assets/stack-floor-postoffice-021.mjs"></script><script type="module" src="/assets/stack-floor-shelf-022.mjs"></script>
+<script type="module" src="/assets/stack-floor-ui.mjs"></script><script type="module" src="/assets/stack-floor-act-020.mjs"></script><script type="module" src="/assets/stack-floor-postoffice-021.mjs"></script><script type="module" src="/assets/stack-floor-shelf-022.mjs"></script><script type="module" src="/assets/stack-floor-mycelium-023.mjs"></script>
 </head>
 <body>
 <header class="topbar"><a href="/" class="back">← STATIC / WORKBENCH</a>
@@ -108,6 +108,46 @@
   </aside>
 </div>
 <div class="laws"><span>HOLD ≠ ADMIT</span><span>SIGNED WRAPPER ≠ VERIFIED DONOR CLAIM</span><span>INSPECTION ≠ EXECUTION</span></div>
+</section>
+<section class="panel mycelium-panel" aria-labelledby="mycelium-023-title">
+<div class="heading"><h2 id="mycelium-023-title"><span>09</span> Mycelium Shelf</h2><span class="tag">CONNECTIONS ARE QUESTIONS</span></div>
+<p class="help">Let HELD particulars notice one another without moving from their places. Every filament is a <strong>proposed relationship</strong>, grown from exact fields in signed receiver history. Select a lens, touch a filament, and inspect why it appeared. Matching references do not establish shared meaning, ownership or lineage.</p>
+<div class="inspector">
+  <div><span class="micro">RECEIVER'S FIELD</span><strong id="mycelium-023-status">NO RELATIONSHIP INSPECTION</strong></div>
+  <div><span class="micro">HELD PARTICULARS</span><strong id="mycelium-023-nodes">—</strong></div>
+  <div><span class="micro">EVIDENCED PROPOSALS</span><strong id="mycelium-023-edges">—</strong></div>
+</div>
+<div class="button-row"><button type="button" id="mycelium-023-inspect" disabled>Grow a read-only field</button><span id="mycelium-023-message" class="fit-caption" role="status" aria-live="polite">No journal or source bytes read yet.</span></div>
+<div class="mycelium-controls" aria-label="Explore evidence">
+ <div><span class="micro">THE EVIDENCE LENS</span><div id="mycelium-023-lenses" class="mycelium-lenses" role="group" aria-label="Evidence lens">
+ <button type="button" data-lens="all" aria-pressed="true">All threads</button>
+ <button type="button" data-lens="origin" aria-pressed="false">Origin</button>
+ <button type="button" data-lens="lineage" aria-pressed="false">Trace</button>
+ <button type="button" data-lens="structure" aria-pressed="false">Structure</button>
+ <button type="button" data-lens="content" aria-pressed="false">Address</button>
+ <button type="button" data-lens="arrival" aria-pressed="false">Arrival</button>
+ </div></div>
+ <label class="mycelium-evidence-filter"><span class="micro">AT LEAST THIS MANY MATCHING FACTS: <strong id="mycelium-023-min-display">1</strong></span>
+ <input type="range" id="mycelium-023-min" min="1" max="6" step="1" value="1" aria-label="Minimum recorded matching facts"></label>
+</div>
+<div class="mycelium-layout">
+  <div class="mycelium-world">
+    <svg id="mycelium-023-graph" viewBox="0 0 940 480" role="img" aria-label="Read-only proposal network of receiver-held particulars; use the accessible thread list to inspect connections."></svg>
+    <p class="help" id="mycelium-023-graph-caption">The empty field has not yet been inspected. Islands are permitted; a missing filament is not evidence of disconnection.</p>
+  </div>
+  <aside class="mycelium-reading" aria-label="Proposed connection and provenance">
+    <div class="micro">HUMAN READS THE THREAD</div>
+    <h3 id="mycelium-023-selected">Nothing connected yet</h3>
+    <p class="help" id="mycelium-023-context">Select a proposed thread below, or focus a particular on the map. The field doesn't decide what belongs together.</p>
+    <div id="mycelium-023-evidence" class="mycelium-evidence"></div>
+    <div class="button-row"><button type="button" id="mycelium-023-export" disabled>Export an unsigned question</button></div>
+  </aside>
+</div>
+<div class="mycelium-threads">
+ <div class="heading"><h3>Threads worth inspecting</h3><small id="mycelium-023-thread-count">0 SHOWN</small></div>
+ <div id="mycelium-023-list" class="mycelium-thread-list" aria-label="Accessible proposed-relationship list"><p class="help">No proposals inspected.</p></div>
+</div>
+<div class="laws"><span>PROPOSAL ≠ SELECTION</span><span>SHARED ADDRESS ≠ SHARED MEANING</span><span>RECEIVED ≠ ADMITTED</span><span>FIELD ≠ A NEW AUTHORITY</span></div>
 </section>
 </main>
 <footer><span>BUILD BETTER APERTURES, NOT A MASTER MACHINE</span><span>NO NETWORK · NO STORAGE · NO ADMISSION</span></footer>
