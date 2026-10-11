@@ -8,10 +8,12 @@ model credentials are configured and the provider really finishes.
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 from pathlib import Path
 import re
+import subprocess
 import sys
 
 from .openmanus_026 import pinned_loadout, LOADOUT_SHA, UPSTREAM_OPENMANUS
@@ -34,6 +36,25 @@ def _outside(inner: Path, outer: Path) -> bool:
         return True
 
 
+
+def verify_original_live_loadout_files(root: Path) -> None:
+    """Pinned LOADOUT adapter alone is insufficient: live worker must match too."""
+    for name in (
+        "src/loadout/dev/openmanus_live.py",
+        "contrib/openmanus/worker.py",
+        "contrib/openmanus/bounded_ops.py",
+    ):
+        file = root / name
+        require(file.is_file() and not file.is_symlink(), "LIVE_DONOR_SOURCE_MISSING")
+        result = subprocess.run(
+            ["git", "-C", str(root), "show", f"{LOADOUT_SHA}:{name}"],
+            capture_output=True, check=True, timeout=12,
+        )
+        require(hashlib.sha256(file.read_bytes()).digest() ==
+                hashlib.sha256(result.stdout).digest(),
+                "LIVE_DONOR_SOURCE_CHANGED")
+
+
 def live_elf_probe(
     *, loadout_root: Path, provider_checkout: Path, provider_python: Path,
     workspace: Path, output: Path, model_config_class: str,
@@ -48,8 +69,11 @@ def live_elf_probe(
                 r"[A-Z][A-Z0-9_]{2,63}", n) and n in source_env for n in forwarded_env_names),
             "EXPLICIT_MODEL_ENV_ALLOWLIST_REQUIRED")
     root = pinned_loadout(loadout_root)
+    verify_original_live_loadout_files(root)
     require(root.is_dir() and (root / "contrib/openmanus/worker.py").is_file(),
             "ORIGINAL_OPENMANUS_WORKER_MISSING")
+    require(not provider_checkout.is_symlink() and not workspace.is_symlink() and
+            not output.is_symlink(), "LIVE_SYMLINK_REFUSED")
     provider = provider_checkout.resolve(strict=True)
     require(provider.is_dir(), "OPENMANUS_CHECKOUT_MISSING")
     interpreter = provider_python.resolve(strict=True)
