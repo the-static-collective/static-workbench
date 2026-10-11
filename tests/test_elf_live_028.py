@@ -12,6 +12,9 @@ base_url = "http://127.0.0.1:11434/v1"
 api_key = "ollama"
 max_tokens = 512
 temperature = 0.0
+
+[daytona]
+daytona_api_key = "disabled-local-placeholder"
 '''
 
 def _profile(tmp_path: Path, content: str):
@@ -41,6 +44,7 @@ def test_local_ollama_profile_accepts_credentialless_gate_but_never_launches_bad
 @pytest.mark.parametrize("changed",[
     SAFE.replace("127.0.0.1","evil.remote"),
     SAFE.replace("api_key = \"ollama\"","api_key = \"private-key\""),
+    SAFE.replace("disabled-local-placeholder","external-daytona-key"),
     SAFE.replace("qwen2.5:1.5b","anything:latest"),
     SAFE.replace("temperature = 0.0","temperature = 1.0"),
     SAFE + '\n[sandbox]\nuse_sandbox = true\n',
