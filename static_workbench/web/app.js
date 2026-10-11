@@ -129,6 +129,11 @@ function renderGhot() {
   xp.append(el('div', 'pulse-number', String(ghot.resources.witness_xp)), el('div', 'muted tiny', 'witness XP'));
   hero.append(copy, xp);
   workspaceBody.appendChild(hero);
+  const returnDoor = el('a', 'action-card');
+  returnDoor.href = '/return-room';
+  returnDoor.append(el('strong', '', 'Return Room · 11 dials'),
+    el('span', 'muted', 'Inspect a preserved STATIC OS question session; browser checks its local address only. No automatic action.'));
+  workspaceBody.appendChild(returnDoor);
 
   const resourceGrid = el('div', 'metric-grid ghot-resources');
   resourceGrid.append(
