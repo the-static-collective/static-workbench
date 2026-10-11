@@ -1,0 +1,136 @@
+name: "STACK² 025 — original native verification porter"
+on:
+  push:
+    branches:
+      - experiment/stack-squared-025-native-verification-porter
+  pull_request:
+    paths:
+      - "static_workbench/receipt_porter.py"
+      - "static_workbench/app.py"
+      - "static_workbench/web/receipt-verification*"
+      - "static_workbench/web/receipt-floor.html"
+      - "tests/*receipt_porter_025.py"
+      - "tests/receipt-verification-025.test.mjs"
+      - "docs/STACK-SQUARED-025.md"
+      - ".github/workflows/receipt-verification-025.yml"
+permissions:
+  contents: read
+jobs:
+  porter-contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Python syntax and JS format, authority and byte-mismatch tests
+        run: |
+          python3 -m py_compile static_workbench/receipt_porter.py
+          node --check static_workbench/web/receipt-verification-core.mjs
+          node --check static_workbench/web/receipt-verification-ui.mjs
+          node --test tests/receipt-verification-025.test.mjs
+          node --test tests/receipt-floor-024.test.mjs
+      - name: Workbench FastAPI host-only read and previous floor regression
+        run: |
+          python -m pip install -e '.[dev]'
+          python -m pytest -q tests/test_receipt_porter_025.py tests/test_receipt_floor_024.py tests/test_stack_floor_019.py
+      - name: Refuse HTTP write or browser selected native execution
+        shell: bash
+        run: |
+          set -euo pipefail
+          ! grep -Ei "XMLHttpRequest|WebSocket|EventSource|localStorage|sessionStorage|subprocess|child_process|/api/execute|method:[ ]*'POST'" static_workbench/web/receipt-verification-ui.mjs static_workbench/web/receipt-verification-core.mjs
+  source-pinned-native-chain:
+    runs-on: ubuntu-latest
+    timeout-minutes: 14
+    needs: porter-contract
+    steps:
+      - name: Original Static Workbench porter
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Exact original GHoT AI recomposition
+        uses: actions/checkout@v4
+        with:
+          repository: the-static-collective/GHoT
+          ref: 6194d91ba83bad63606f6f6741723007227518f2
+          path: ghot-source
+          persist-credentials: false
+      - name: Exact original CANNON STACK² 023 verifier
+        uses: actions/checkout@v4
+        with:
+          repository: the-static-collective/CANNON
+          ref: 2fab6e142f21f6213bbcf4e290030acfce756061
+          path: cannon-source
+          persist-credentials: false
+      - name: Exact original reLATTE R14
+        uses: actions/checkout@v4
+        with:
+          repository: the-static-collective/reLATTE
+          ref: dcc8cdca84c440aa4294134f020fb7095bf87f24
+          path: relatte-source
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Original R14 dependencies
+        run: cd relatte-source && npm install --ignore-scripts --no-audit --no-fund
+      - name: Execute original signed Instrument Rack + R14 crossing into sovereign HOLD
+        shell: bash
+        run: |
+          set -euo pipefail
+          export GHOT_HOME="$RUNNER_TEMP/private-ghot"
+          export GHOT_ADAPTER_MANIFESTS="$GITHUB_WORKSPACE/ghot-source/integrations/ai-recomposition-001/adapter-manifest.json"
+          export PYTHONDONTWRITEBYTECODE=1
+          printf '%s\n' 'Rosemary grows. Rosemary remembers. Sky is blue today.' > "$RUNNER_TEMP/input.txt"
+          python3 ghot-source/ghot/ai_recomposition.py plan --mode profile --text-file "$RUNNER_TEMP/input.txt" --out "$RUNNER_TEMP/ghot-plan.json"
+          python3 ghot-source/ghot/ai_recomposition.py run --text-file "$RUNNER_TEMP/input.txt" --plan-file "$RUNNER_TEMP/ghot-plan.json" --approve-exact-plan --dispatch-source operator-fixture-stack25 --out "$RUNNER_TEMP/private-ghot-report.json"
+          (
+            cd cannon-source
+            node --experimental-strip-types scripts/stack-squared-023-ai.mjs run \
+              examples/stack-squared-023-ai.plan.json \
+              "$GITHUB_WORKSPACE/ghot-source" "$GITHUB_WORKSPACE/relatte-source" \
+              "$RUNNER_TEMP/private-ghot-report.json" "$RUNNER_TEMP/private-crossing" \
+              --approve-local-hold
+          )
+      - name: Real native porter re-verifies originals and emits bounded summary only
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m static_workbench.receipt_porter \
+            --cannon-root "$GITHUB_WORKSPACE/cannon-source" \
+            --ghot-root "$GITHUB_WORKSPACE/ghot-source" \
+            --relatte-root "$GITHUB_WORKSPACE/relatte-source" \
+            --original-report "$RUNNER_TEMP/private-ghot-report.json" \
+            --crossing-output "$RUNNER_TEMP/private-crossing" \
+            --state-dir "$RUNNER_TEMP/workbench-state"
+          python3 - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+          from static_workbench.receipt_porter import latest_summary
+          s=latest_summary(Path(os.environ["RUNNER_TEMP"])/"workbench-state")
+          assert s["status"]=="LOCAL_NATIVE_SIGNED_CHAIN_VERIFIED"
+          assert s["receiver_admitted"] is False
+          assert s["browser_execution"] is False
+          raw=json.dumps(s)
+          assert "Rosemary grows" not in raw
+          assert "private-ghot-report.json" not in raw
+          assert "receiver-key.json" not in raw
+          print("NATIVE_PORTER_025_REDacted_HOLD_VERIFIED")
+          PY
+      - name: Preserve only public attestation summary, never original evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: stack2-025-bounded-local-native-proof
+          if-no-files-found: error
+          retention-days: 7
+          path: ${{ runner.temp }}/workbench-state/receipt-porter/latest.json
