@@ -42,6 +42,7 @@ from .stack_floor_native_020 import StackFloorNative020, StackFloorActHold
 from .stack_floor_postoffice_021 import StackFloorPostOffice021
 from .stack_floor_hold_shelf_022 import StackFloorHoldShelf022
 from .stack_floor_mycelium_023 import StackFloorMycelium023
+from .stack_floor_useful_delight_024 import StackFloorUsefulDelight024
 from .launchpad import launchpad_router
 from .arrival import diagnose as diagnose_arrival
 from .mirror import mirror_router
@@ -191,6 +192,12 @@ def create_app(config: WorkbenchConfig | None = None) -> FastAPI:
 
     stack_floor_mycelium_023 = StackFloorMycelium023(shelf=stack_floor_hold_shelf_022)
 
+    stack_floor_useful_delight_024 = StackFloorUsefulDelight024(
+        mycelium=stack_floor_mycelium_023,
+        enabled=config.stack_floor_toaster_enabled,
+        toaster_checkout=config.stack_floor_toaster_checkout,
+    )
+
     @asynccontextmanager
     async def lifespan(app: FastAPI):
         journal.append("workbench.started", {"version": __version__})
@@ -227,6 +234,7 @@ def create_app(config: WorkbenchConfig | None = None) -> FastAPI:
     app.state.stack_floor_postoffice_021 = stack_floor_postoffice_021
     app.state.stack_floor_hold_shelf_022 = stack_floor_hold_shelf_022
     app.state.stack_floor_mycelium_023 = stack_floor_mycelium_023
+    app.state.stack_floor_useful_delight_024 = stack_floor_useful_delight_024
     app.state.session_token = session_token
     app.include_router(launchpad_router())
     app.include_router(mirror_router(config.state_dir, session_token, journal))
@@ -607,6 +615,29 @@ def create_app(config: WorkbenchConfig | None = None) -> FastAPI:
         try:
             return stack_floor_mycelium_023.inspect()
         except (StackFloorActHold, OSError, ValueError) as exc:
+            raise HTTPException(status_code=409, detail=str(exc)[:220]) from exc
+
+    @app.get("/api/stack-floor/delight/status")
+    def stack_floor_delight_status():
+        return {
+            "schema": "workbench.stack2-024-status/v0",
+            "enabled": stack_floor_useful_delight_024.enabled,
+            "original_toaster_source_required": True,
+            "proposals_only": True,
+            "media_execution_available": False,
+            "receiver_admission_available": False,
+        }
+
+    @app.post("/api/stack-floor/delight/preview")
+    def stack_floor_delight_preview(payload: dict, request: Request):
+        _stack_floor_native_guard(request)
+        if not isinstance(payload, dict) or set(payload) != {"proposal_id", "deal_index"}:
+            raise HTTPException(status_code=422, detail="one bounded mycelium proposal and deal index required")
+        try:
+            return stack_floor_useful_delight_024.preview(
+                proposal_id=payload["proposal_id"], deal_index=payload["deal_index"]
+            )
+        except (StackFloorActHold, OSError, ValueError, TypeError) as exc:
             raise HTTPException(status_code=409, detail=str(exc)[:220]) from exc
 
     # Return Desk is Workbench-owned local writing, not a GOATnote protocol
