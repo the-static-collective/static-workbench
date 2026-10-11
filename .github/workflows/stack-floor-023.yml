@@ -1,0 +1,129 @@
+name: "STACK² 023 — read-only receiver mycelium relation proposals"
+on:
+  push:
+    branches:
+      - experiment/stack-squared-023-mycelium-shelf
+  pull_request:
+    paths:
+      - "scripts/stack-floor-023-*"
+      - "static_workbench/stack_floor_mycelium_023.py"
+      - "static_workbench/app.py"
+      - "static_workbench/web/stack-floor*"
+      - "tests/test_stack_floor_023.py"
+      - "tests/stack-floor-023*"
+      - "docs/STACK-SQUARED-023.md"
+      - ".github/workflows/stack-floor-023.yml"
+permissions:
+  contents: read
+jobs:
+  native-mycelium:
+    runs-on: ubuntu-latest
+    timeout-minutes: 18
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: workbench
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          repository: the-static-collective/GHoT
+          ref: b01758bee55d66d699160715ec377b45f7589707
+          path: ghot
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          repository: the-static-collective/planZ
+          ref: e8111fdb64c5587b33aece0fed639ed3d03375ac
+          path: planz
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          repository: the-static-collective/reLATTE
+          ref: dcc8cdca84c440aa4294134f020fb7095bf87f24
+          path: relatte
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install original reLATTE and Workbench test dependencies only
+        run: |
+          npm install --prefix relatte --ignore-scripts --no-audit --no-fund
+          python -m pip install -e './workbench[dev]'
+          node --check workbench/scripts/stack-floor-023-core.mjs
+          node --check workbench/scripts/stack-floor-023-mycelium.mjs
+          node --check workbench/static_workbench/web/stack-floor-mycelium-023.mjs
+      - name: Deterministic origin/trace/structure/address/arrival evidence and negative cases
+        run: |
+          cd workbench
+          node --test tests/stack-floor-023.test.mjs
+      - name: Real reLATTE P256 multi-HOLD journal, admitted exclusion, replay and no-write refusals
+        run: |
+          export STACK2_020_GHOT_CHECKOUT="$PWD/ghot"
+          export STACK2_020_PLANZ_CHECKOUT="$PWD/planz"
+          export STACK2_021_RELATTE_CHECKOUT="$PWD/relatte"
+          cd workbench
+          python -m pytest -q tests/test_stack_floor_023.py tests/test_stack_floor_022.py tests/test_stack_floor_021.py tests/test_stack_floor_020.py tests/test_stack_floor_019.py
+      - name: New relation view has no reLATTE mutator or public remote effect
+        run: |
+          test ! -e workbench/static_workbench/web/receiver-key.json
+          ! grep -E '(^|[^a-zA-Z])receiver\.(receive|dispose|verifyPayloadBytes)\(' workbench/scripts/stack-floor-023-mycelium.mjs
+          ! grep -E '\.appendEvent\(|\.writeFile\(|\.rename\(' workbench/scripts/stack-floor-023-mycelium.mjs
+
+  actual-browser-mycelium:
+    needs: native-mycelium
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: workbench
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          repository: the-static-collective/GHoT
+          ref: b01758bee55d66d699160715ec377b45f7589707
+          path: ghot
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          repository: the-static-collective/planZ
+          ref: e8111fdb64c5587b33aece0fed639ed3d03375ac
+          path: planz
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          repository: the-static-collective/reLATTE
+          ref: dcc8cdca84c440aa4294134f020fb7095bf87f24
+          path: relatte
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install original reLATTE, Workbench and real Chrome
+        run: |
+          npm install --prefix relatte --ignore-scripts --no-audit --no-fund
+          python -m pip install -e './workbench[dev]'
+          cd workbench
+          npm install --no-save --ignore-scripts --no-audit --no-fund playwright@1.56.1
+          npx playwright install --with-deps chromium
+      - name: Real Chromium ACT → CROSS → HOLD → field → explanation → unsigned question
+        run: |
+          export STACK2_020_GHOT_CHECKOUT="$PWD/ghot"
+          export STACK2_020_PLANZ_CHECKOUT="$PWD/planz"
+          export STACK2_021_RELATTE_CHECKOUT="$PWD/relatte"
+          export STACK2_BROWSER_OUTPUT="/tmp/stack-floor-023-chromium"
+          cd workbench
+          node tests/stack-floor-023.browser.mjs
+      - name: Desktop and mobile field screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: stack-floor-023-mycelium-lenses-desktop-mobile
+          if-no-files-found: warn
+          path: /tmp/stack-floor-023-chromium/*.png
