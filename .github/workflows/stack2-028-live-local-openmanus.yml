@@ -134,7 +134,7 @@ jobs:
             --output "$RUNNER_TEMP/elf-live-evidence" \
             --model-config-class local-ollama \
             --timeout-seconds 90 \
-            --max-steps 6 \
+            --max-steps 8 \
             --approve-live-provider yes
           python3 - <<'PY'
           import json,os
