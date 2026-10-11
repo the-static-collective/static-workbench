@@ -47,6 +47,8 @@ class WorkbenchConfig:
     stack_floor_postoffice_enabled: bool = False
     stack_floor_relatte_checkout: Path | None = None
     stack_floor_receiver_root: Path | None = None
+    stack_floor_toaster_enabled: bool = False
+    stack_floor_toaster_checkout: Path | None = None
 
 
 def _expand_path(value: str | os.PathLike[str]) -> Path:
@@ -168,6 +170,18 @@ def load_config(path: Path | None = None) -> WorkbenchConfig:
             not isinstance(stack_floor_receiver_root, Path)
         ):
             raise ValueError("post office requires enabled native GHoT and separate reLATTE/receiver paths")
+        stack_floor_toaster_enabled = raw.get("stack_floor_toaster_enabled", False)
+        if type(stack_floor_toaster_enabled) is not bool:
+            raise ValueError("stack_floor_toaster_enabled must be boolean")
+        toaster_value = raw.get("stack_floor_toaster_checkout")
+        if toaster_value is not None and (not isinstance(toaster_value, str) or not toaster_value.strip()):
+            raise ValueError("stack_floor_toaster_checkout must be a nonempty path")
+        stack_floor_toaster_checkout = _expand_path(toaster_value) if toaster_value else None
+        if stack_floor_toaster_enabled and (
+            not stack_floor_postoffice_enabled or
+            not isinstance(stack_floor_toaster_checkout, Path)
+        ):
+            raise ValueError("Toaster useful delight needs receiver HOLD and pinned Toaster checkout")
         if stack_floor_native_enabled and not all(
             isinstance(p, Path) for p in
             (stack_floor_ghot_checkout, stack_floor_planz_checkout, stack_floor_ghot_home)
@@ -196,6 +210,8 @@ def load_config(path: Path | None = None) -> WorkbenchConfig:
         stack_floor_postoffice_enabled = False
         stack_floor_relatte_checkout = None
         stack_floor_receiver_root = None
+        stack_floor_toaster_enabled = False
+        stack_floor_toaster_checkout = None
 
     if bind_host not in {"127.0.0.1", "::1", "localhost"}:
         raise ValueError("v0.1 only supports loopback bind hosts")
@@ -233,4 +249,6 @@ def load_config(path: Path | None = None) -> WorkbenchConfig:
         stack_floor_postoffice_enabled=stack_floor_postoffice_enabled,
         stack_floor_relatte_checkout=stack_floor_relatte_checkout,
         stack_floor_receiver_root=stack_floor_receiver_root,
+        stack_floor_toaster_enabled=stack_floor_toaster_enabled,
+        stack_floor_toaster_checkout=stack_floor_toaster_checkout,
     )
