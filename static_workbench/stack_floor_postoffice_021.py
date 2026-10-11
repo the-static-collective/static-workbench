@@ -341,4 +341,8 @@ class StackFloorPostOffice021:
             "remote_effects":0,"source_programs_executed":0,
             "sender_identity_authenticated":False,
             "foreign_admission_authorized":False,
+            "signed_original_ghot_execution_receipt":ghot["receipt"],
+            "native_signed_crossing":native["crossing"],
+            "native_signed_receive_receipt":native["receive_receipt"],
+            "native_signed_hold_receipt":native["disposition_receipt"],
         }
