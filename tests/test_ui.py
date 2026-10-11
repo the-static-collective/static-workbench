@@ -64,3 +64,16 @@ def test_house_is_default_habitat_surface(tmp_path: Path):
     assert "/api/house" in js
     assert "house.laws" in js
     assert "The house is awake." in js
+
+
+def test_road_desk_is_visible_but_has_no_execution_controls(tmp_path: Path):
+    with TestClient(create_app(make_config(tmp_path)), base_url="http://127.0.0.1") as client:
+        html = client.get("/").text
+        js = client.get("/assets/app.js").text
+
+    assert 'data-view="roadkit"' in html
+    assert "Road Desk" in html
+    assert "/api/roadkit" in js
+    assert "UI != ROADKIT EXECUTION" in js
+    assert "no pull, accept, send, or peer-start controls" in js
+
