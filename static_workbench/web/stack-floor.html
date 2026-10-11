@@ -75,6 +75,19 @@
 <div class="button-row"><button type="button" class="primary" id="native-020-act" disabled>ACT once · native GHoT</button><button type="button" id="native-020-export" disabled>Export signed native execution witness</button></div>
 <p id="native-020-result" class="live" role="status" aria-live="polite">No preview issued. A separate, explicit ACT will be required.</p>
 </section>
+<section class="panel native-act" aria-labelledby="postoffice-title">
+<div class="heading"><h2 id="postoffice-title"><span>07</span> Post Office Lego</h2><span class="tag">GHOT RECEIPT → reLATTE HOLD</span></div>
+<p class="help">A second, independent crossing decision. Select a <strong>real, previously signed GHoT 030 ticket</strong>. The sender cannot reuse ACT as permission to transport it. Native reLATTE verifies and delivers to a <strong>pre-existing receiver</strong> only when that receiver's separately authored policy allows this exact ticket into HOLD.</p>
+<div class="inspector"><div><span class="micro">POST OFFICE CONFIGURATION</span><strong id="postoffice-021-state">CHECKING LOCAL SETTINGS</strong></div>
+<div><span class="micro">SOURCE</span><strong>PINNED GHOT 030 SIGNED EXECUTION</strong></div>
+<div><span class="micro">DESTINATION</span><strong>RECEIVED → HOLD ONLY</strong></div></div>
+<label class="native-act-phrase postoffice-ticket">Signed GHoT activation ticket ID <input type="text" id="postoffice-021-ticket" autocomplete="off" spellcheck="false" placeholder="ghot-activation-ticket-v0:…" maxlength="95" aria-label="Signed GHoT activation ticket identifier"></label>
+<div class="button-row"><button type="button" id="postoffice-021-preview" disabled>Preview exact receiver-held crossing</button><span id="postoffice-021-proposal" class="fit-caption">No receiver policy or signed ticket inspected yet.</span></div>
+<label class="consent" style="margin-top:14px"><input type="checkbox" id="postoffice-021-ack" disabled><span>I authorize <strong>one crossing of this verified GHoT receipt into this separately configured receiver's HOLD</strong>. This is not ADMIT, execution, or permission for another crossing.</span></label>
+<label class="native-act-phrase">Type <strong>CROSS</strong> for this fresh preview: <input type="text" id="postoffice-021-phrase" maxlength="5" autocomplete="off" spellcheck="false" placeholder="CROSS" disabled></label>
+<div class="button-row"><button type="button" class="primary" id="postoffice-021-cross" disabled>CROSS once · reLATTE HOLD</button><button type="button" id="postoffice-021-export" disabled>Export signed HOLD witness</button></div>
+<p class="live" id="postoffice-021-result" role="status" aria-live="polite">No sender crossing authorized. Source proof, receiver consent and a new human CROSS gate are all required.</p>
+</section>
 </main>
 <footer><span>BUILD BETTER APERTURES, NOT A MASTER MACHINE</span><span>NO NETWORK · NO STORAGE · NO ADMISSION</span></footer>
 </body></html>
