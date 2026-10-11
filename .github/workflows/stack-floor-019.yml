@@ -11,6 +11,7 @@ on:
       - "static_workbench/web/app.js"
       - "tests/*stack_floor_019*"
       - "tests/stack-floor-019.test.mjs"
+      - "tests/stack-floor-019.browser.mjs"
       - "docs/STACK-SQUARED-019.md"
       - ".github/workflows/stack-floor-019.yml"
 permissions:
@@ -45,3 +46,35 @@ jobs:
           ! grep -Ei "fetch\\(|XMLHttpRequest|WebSocket|EventSource|localStorage|sessionStorage|/api/stack-floor|subprocess" static_workbench/web/stack-floor-ui.mjs static_workbench/web/stack-floor-core.mjs
           test ! -e static_workbench/web/.env
           test ! -e static_workbench/web/receiver-key.json
+
+  chromium-witness:
+    runs-on: ubuntu-latest
+    timeout-minutes: 18
+    needs: local-floor
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install Workbench and headless browser test driver
+        run: |
+          python -m pip install -e '.[dev]'
+          npm install --no-save --ignore-scripts --no-audit --no-fund playwright@1.56.1
+          npx playwright install --with-deps chromium
+      - name: Real mouse drag, keyboard card, source file picker, local hash trial and mobile overflow
+        env:
+          STACK2_BROWSER_OUTPUT: /tmp/stack-floor-019-witness
+        run: |
+          node tests/stack-floor-019.browser.mjs
+      - name: Preserve rendered visual witness screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: stack-floor-019-chromium-desktop-mobile
+          if-no-files-found: warn
+          path: /tmp/stack-floor-019-witness/*.png
