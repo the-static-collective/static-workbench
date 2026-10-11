@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark"><meta name="referrer" content="no-referrer">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; connect-src 'none'; img-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'">
+<title>STACK² · Living Lego Floor · Static Workbench</title>
+<link rel="stylesheet" href="/assets/stack-floor.css">
+<script type="module" src="/assets/stack-floor-ui.mjs"></script>
+</head>
+<body>
+<header class="topbar"><a href="/" class="back">← STATIC / WORKBENCH</a>
+<span class="mark">STACK<sup>2</sup> / 019</span><span class="quiet">LOCAL FLOOR · EXPERIMENTAL</span></header>
+<main class="frame">
+<section class="hero">
+<p class="kicker">CANNON × PLANZ × GHOT × RELATTE</p>
+<h1>The Lego floor<br><em>comes alive.</em></h1>
+<p>Assemble source-pinned machine parts. Test which sockets really match. Carry a historical native STACK² 018 witness into a <strong>bounded, local comparison</strong> without letting the browser execute donors or admit their results.</p>
+<div class="laws"><span>BRICK ≠ AUTHORITY</span><span>SOCKET ≠ PERMISSION</span><span>RECEIPT ≠ ADMIT</span></div>
+</section>
+<section class="two-column">
+<section class="panel inventory" aria-labelledby="inventory-title">
+<div class="heading"><h2 id="inventory-title"><span>01</span> The loose bricks</h2><small>CLICK TO PLACE · DRAG TO SLOT</small></div>
+<p class="help">Five source-addressed capabilities. One is deliberately from a different fixture family. Find out what fits.</p>
+<div id="tray" class="tray" aria-label="Available Stack Cards"></div>
+</section>
+<section class="panel bench" aria-labelledby="bench-title">
+<div class="heading"><h2 id="bench-title"><span>02</span> Snap together</h2><small>4 TYPED SOCKETS</small></div>
+<p class="help">Select a card to fill the next empty socket, or drag it into a particular position. Tap a placed brick to remove it.</p>
+<div id="sockets" class="sockets" aria-label="Ordered composition sockets"></div>
+<div class="bench-actions"><button id="reset" type="button">Scatter all bricks</button><span id="fit-caption" class="fit-caption" role="status" aria-live="polite">Nothing connected yet.</span></div>
+</section>
+</section>
+<section class="panel evidence" aria-labelledby="evidence-title">
+<div class="heading"><h2 id="evidence-title"><span>03</span> Bring a witnessed crossing</h2><span class="tag">NO UPLOAD / NO FETCH</span></div>
+<p class="help">Choose two files produced by the genuine <a href="https://github.com/the-static-collective/CANNON/pull/25" rel="noopener noreferrer">STACK² 018</a> experiment. All file bytes remain inside this browser page. The public summary is a report, not proof of an authenticated signer.</p>
+<div class="file-row">
+<label>Public inspection <code>public-inspection.json</code><input type="file" id="summary" accept=".json,application/json"></label>
+<label>Original native planZ output <code>native-planz-output.json</code><input type="file" id="native" accept=".json,application/json"></label>
+</div>
+<div class="button-row"><button id="inspect" type="button">Inspect files and branch claims</button><button id="forget" type="button">Clear imported evidence</button></div>
+<div class="inspector" aria-live="polite">
+<div><span class="micro">EVIDENCE STATE</span><strong id="evidence-status">NO FILES INSPECTED</strong></div>
+<div><span class="micro">SIGNATURE TRUST</span><strong>NOT REVERIFIED IN BROWSER</strong></div>
+<div><span class="micro">SOURCE CHECK</span><strong id="source-status">NO LOCAL SOURCE VERIFIED</strong></div>
+</div>
+</section>
+<section class="two-column bottom">
+<section class="panel trial" aria-labelledby="trial-title">
+<div class="heading"><h2 id="trial-title"><span>04</span> One local trial</h2><span class="tag">WEBCRYPTO ONLY</span></div>
+<p class="help">With four compatible sockets and both inspected files, independently compute the original PlanZ output digest and reproduce GHoT's SHA-256 relationship. No subprocess, network request, signer, or system state change.</p>
+<label class="consent"><input type="checkbox" id="consent"><span>I explicitly authorize <strong>one in-browser SHA-256 comparison only</strong>. No donor code or remote system may be run.</span></label>
+<div class="button-row"><button id="trial" type="button" class="primary" disabled>Run this local trial</button><button id="export" type="button" disabled>Export unsigned trial receipt</button></div>
+<p class="live" id="trial-status" role="status" aria-live="polite">Awaiting arrangement, source files, and explicit authorization.</p>
+</section>
+<aside class="panel inspect" aria-labelledby="part-title">
+<div class="heading"><h2 id="part-title"><span>05</span> Inspect a particular</h2><span class="tag">SOURCE LINKS</span></div>
+<h3 id="part-name">Choose a brick</h3><p id="part-description" class="help">Every part keeps its own Git identity; no branch becomes canonical merely by being placed.</p>
+<div id="part-details" class="part-details"></div>
+</aside>
+</section>
+<section class="ending">
+<p><strong>What we actually established:</strong> The CANNON 018 native experiment can be inspected through human-operable sockets. This browser verifies a bounded hash relation against supplied evidence; it cannot re-run native planZ/GHoT/reLATTE, attest GitHub ownership, or verify the receiver's P-256 signatures.</p>
+<a href="https://github.com/the-static-collective/CANNON/actions/runs/38156936591" rel="noopener noreferrer">Open the actual native CI witness ↗</a>
+</section>
+</main>
+<footer><span>BUILD BETTER APERTURES, NOT A MASTER MACHINE</span><span>NO NETWORK · NO STORAGE · NO ADMISSION</span></footer>
+</body></html>
