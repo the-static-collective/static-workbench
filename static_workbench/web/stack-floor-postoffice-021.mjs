@@ -107,6 +107,9 @@ $('postoffice-021-cross').addEventListener('click',async()=>{
       x.receiver_admitted!==false||x.relatte_signatures_verified!==3)
       throw Error('UNEXPECTED_NATIVE_CROSSING_OUTCOME');
     result=x;
+    window.dispatchEvent(new CustomEvent('stack-floor:crossing-held',{
+      detail:{crossing_id:x.crossing_id,disposition:'HOLD'}
+    }));
     msg('RECEIVED → HOLD: '+x.crossing_id+' · THREE reLATTE signatures verified · GHoT native receipt checked. No ADMIT.');
   }catch(e){
     result=null;

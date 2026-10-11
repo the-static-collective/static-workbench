@@ -61,4 +61,21 @@ footer{border-top:1px solid #425447;border-bottom:none}
 @media(max-width:850px){.two-column{grid-template-columns:1fr}.ending{display:block}.quiet{display:none}}
 @media(max-width:520px){.panel{padding:15px}.tray,.file-row,.inspector{grid-template-columns:1fr}.inspector>div{border-right:0;border-bottom:1px solid #425748}.inspector>div:last-child{border-bottom:0}.heading{align-items:flex-start}.heading small{max-width:110px;text-align:right}.socket{padding:8px}}
 .native-act-phrase{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-top:15px;font-size:.87rem;color:var(--muted)}.native-act-phrase input{border:1px solid #7b9874;background:#0f1b15;color:#e9efdf;letter-spacing:.2em;font-weight:bold;padding:11px;border-radius:8px;max-width:100px}.native-act{margin-top:18px}
+.hold-shelf{margin-top:18px}.shelf-layout{display:grid;grid-template-columns:minmax(0,.9fr) minmax(0,1.1fr);gap:16px;margin:18px 0 13px}
+.shelf-slots{display:grid;align-content:start;gap:10px;max-height:490px;overflow:auto;padding:3px}
+.shelf-slot{display:flex;gap:13px;align-items:flex-start;text-align:left;width:100%;background:#121c16;border:1px solid #4c6655;border-left:5px solid var(--moss);border-radius:12px;padding:14px;color:var(--text);cursor:pointer}
+.shelf-slot:hover,.shelf-slot[aria-pressed="true"]{border-color:var(--copper);background:#273b2c}
+.shelf-slot-number{font:italic 1.6rem Georgia,serif;color:var(--copper);width:32px;flex:none}
+.shelf-slot-body{display:grid;gap:5px;min-width:0;flex:1}.shelf-slot-title{font-weight:750;font-size:.9rem;overflow-wrap:anywhere}
+.shelf-slot-sub{font-size:.68rem;color:var(--muted);overflow-wrap:anywhere}
+.shelf-slot-tag{font-size:.68rem;letter-spacing:.12em;font-weight:800;color:#b6d6ab}
+.shelf-particular{border-radius:11px;background:#111b16;border:1px solid #45584b;padding:18px;min-width:0}
+.shelf-particular h3{font:normal 1.25rem Georgia,serif;margin:8px 0;overflow-wrap:anywhere}
+.shelf-detail-list{margin:5px 0;display:grid;gap:8px}
+.shelf-detail-list>div{padding:7px 0;border-bottom:1px solid #334539}
+.shelf-detail-list dt{font-size:.62rem;letter-spacing:.12em;color:var(--moss)}
+.shelf-detail-list dd{margin:5px 0 0;font-size:.77rem;overflow-wrap:anywhere;color:#e1e7d5}
+.shelf-detail-list dd.mono{font-family:ui-monospace,monospace;font-size:.7rem}
+.shelf-detail-list .payload-ref{display:block;padding:6px 0;border-bottom:1px dotted #334539}
+@media(max-width:850px){.shelf-layout{grid-template-columns:1fr}.shelf-slots{max-height:380px}}
 @media(prefers-reduced-motion:reduce){*{transition:none!important}}
