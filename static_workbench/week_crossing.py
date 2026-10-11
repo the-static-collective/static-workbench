@@ -99,14 +99,14 @@ def inspect_notes(obj: dict) -> dict:
     _keys(payload, ["schema", "sourceBlobSha1", "trackId", "notes"])
     if payload["schema"] != NOTE_SCHEMA or payload["sourceBlobSha1"] != WEEK_SOURCE_BLOB:
         _deny("unsupported browser source revision")
-    if payload["trackId"] not in TRACKS:
+    if type(payload["trackId"]) is not str or payload["trackId"] not in TRACKS:
         _deny("track not in the witnessed album")
     notes = payload["notes"]
     if type(notes) is not list or len(notes) > 30:
         _deny("invalid notes collection")
     for note in notes:
         _keys(note, ["kind", "text"])
-        if note["kind"] not in KINDS:
+        if type(note["kind"]) is not str or note["kind"] not in KINDS:
             _deny("invalid note kind")
         text = _js_string(note["text"], 500)
         if not text.strip():
@@ -123,9 +123,9 @@ def inspect_evidence(obj: dict, asset: Path | None = None) -> dict:
     _keys(obj, ["schema", "provider", "providerTrackId", "assetRole", "observedAt",
                 "byteLength", "sha256", "sourceReceiptSha256", "sourceMethod",
                 "state", "authority"])
-    if obj["schema"] != EVIDENCE_SCHEMA or obj["provider"] != "suno" or obj["providerTrackId"] not in TRACKS:
+    if obj["schema"] != EVIDENCE_SCHEMA or obj["provider"] != "suno" or type(obj["providerTrackId"]) is not str or obj["providerTrackId"] not in TRACKS:
         _deny("unsupported source identity")
-    if obj["assetRole"] not in ROLES or obj["sourceMethod"] != "vault-local-byte-verification" or obj["state"] != "VERIFIED_AT_SOURCE":
+    if type(obj["assetRole"]) is not str or obj["assetRole"] not in ROLES or obj["sourceMethod"] != "vault-local-byte-verification" or obj["state"] != "VERIFIED_AT_SOURCE":
         _deny("unsupported source claim")
     if obj["authority"] != "SOURCE_CLAIM_ONLY_UNTIL_INDEPENDENT_BYTES":
         _deny("unsupported authority claim")
