@@ -335,3 +335,11 @@ See [Dogram Impact Desk setup and boundaries](docs/dogram-impact-desk-001.md).
 HOUSE now exposes an experimental **GROUNDKEEPER** door. Run a reproducible simulated ground signal through a coupled sound/visual feedback network; inspect a derived note phrase, visual frame, three bounded graph-change comparisons, and an exact-replay receipt. It does **not** access live sensors, mutate project state, admit generated capabilities, or implement a TranchNOSE optical field.
 
 Use the **GROUNDKEEPER** navigator view or run `python -m static_workbench.groundkeeper --seed static-first-ignition --output ~/groundkeeper-first.json`, followed by `python -m static_workbench.groundkeeper --replay ~/groundkeeper-first.json`. The output file must not already exist. Read [first-flight setup, controls, and next stages](docs/groundkeeper-001.md).
+
+## Branch Harbor 003 — FREEPORT 006 × Free Graph (experimental draft)
+
+The local **Branch Deck** now contains a bounded, session-memory-only **Branch Harbor** shelf for an explicitly pasted FREEPORT 006 synthetic manifest. It renders two source-pinned branch claims, a proposed descendant, the reported receiver-world HOLD, and a **seed-only unresolved Free Graph packet** with two `descends-from` links, one `tests` link, and one `connects` link. An explicit export produces the pointer-based graph seed; no `constitutes` link is inferred.
+
+The server accepts only strict 16 KiB FREEPORT 006 manifests through a same-origin, session-guarded preview route. It never fetches GitHub, runs donor code, writes a Git branch, saves manifest data, uses Supabase, or treats reported source checks/HOLD as verified. CI verifies the graph packet with the *original* pinned Free Graph v0 core, plus full Workbench regression.
+
+[Usage, exact donor pins, safety constraints and verification](docs/BRANCH-HARBOR-003.md). This feature PR is **parallel** to BRANCH-DECK 003/004/005's separate stacked review branches; it is not yet reconciled into their worktree, radar or test-run views.

@@ -1,0 +1,50 @@
+name: BRANCH-HARBOR 003 — Freeport manifest desk x Free Graph
+on:
+  push:
+    branches:
+      - feature/branch-harbor-003-freeport-graph
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  bounded-branch-harbor:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Static Workbench Branch Deck native parent
+        uses: actions/checkout@v4
+        with:
+          path: workbench
+          persist-credentials: false
+      - name: Original Free Graph validator, exact immutable commit
+        uses: actions/checkout@v4
+        with:
+          repository: the-static-collective/free-graph
+          ref: ec0ad8743c5faac3f3675760bbafcbcb1df846c1
+          path: free-graph
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install native Workbench test-only dependencies
+        run: python -m pip install -e './workbench[dev]'
+      - name: Assert Free Graph donor checkout remains at frozen commit
+        run: |
+          test "$(git -C free-graph rev-parse HEAD)" = "ec0ad8743c5faac3f3675760bbafcbcb1df846c1"
+      - name: Native Free Graph contract tests
+        run: cd free-graph && python -m unittest discover -s tests -v
+      - name: Strict Freeport manifest review, hostile promotion tests, native Graph verification and Branch Deck regression
+        run: |
+          export FREE_GRAPH_ORIGINAL_ROOT="$GITHUB_WORKSPACE/free-graph"
+          cd workbench
+          python -m pytest -q tests/test_branch_harbor.py tests/test_branch_deck.py tests/test_branch_remote.py tests/test_ui.py
+      - name: Full Workbench regression suite
+        run: cd workbench && python -m pytest -q
+      - name: Browser source syntax check (no remote browser or deployment)
+        run: |
+          cd workbench
+          node --check static_workbench/web/branch-harbor.js
+          node --check static_workbench/web/branch-deck.js
+          node --check static_workbench/web/app.js

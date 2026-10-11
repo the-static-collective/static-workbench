@@ -1,0 +1,31 @@
+/* Branch Harbor 003: restrained Workbench-native bonded-cargo shelf. */
+.branch-harbor-shelf { margin-top: 15px; }
+.branch-harbor-shelf h2 { margin-top: 3px; }
+.branch-harbor-ports, .branch-harbor-source-grid {
+  display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px;
+}
+.branch-harbor-port, .branch-harbor-source, .branch-harbor-relation {
+  border: 1px solid var(--line-soft); background: var(--panel-2);
+  border-radius: 9px; padding: 11px; min-width: 0; overflow-wrap: anywhere;
+}
+.branch-harbor-port .repo-name { margin-top: 4px; }
+.branch-harbor-manifest {
+  display: block; width: 100%; max-width: 100%; margin: 12px 0 8px;
+  border: 1px solid var(--line); border-radius: 9px; background: var(--bg);
+  color: var(--ink); padding: 12px; font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  font-size: 12px; resize: vertical;
+}
+.branch-harbor-manifest:focus { outline: 2px solid var(--green-dim); outline-offset: 1px; }
+.branch-harbor-actions { display: flex; flex-wrap: wrap; gap: 8px; margin: 10px 0; }
+.branch-harbor-result { margin-top: 12px; }
+.branch-harbor-boundary { display: grid; gap: 12px; border-top: 1px solid var(--line); padding-top: 16px; }
+.branch-harbor-relations { display: grid; gap: 8px; }
+.branch-harbor-relation { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: center; gap: 8px; }
+.branch-harbor-relation .tiny { grid-column: 1 / -1; }
+.branch-harbor-verb { color: var(--green); font-size: 11px; }
+.branch-harbor-source .repo-meta { overflow-wrap: anywhere; }
+@media (max-width: 720px) {
+  .branch-harbor-ports, .branch-harbor-source-grid { grid-template-columns: 1fr; }
+  .branch-harbor-relation { grid-template-columns: 1fr; }
+  .branch-harbor-relation .tiny { grid-column: auto; }
+}
