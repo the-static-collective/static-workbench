@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="referrer" content="no-referrer"><meta name="color-scheme" content="dark">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; connect-src 'self'; img-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'">
+<title>STACK² 025 · Native Verification Porter · Static Workbench</title>
+<link rel="stylesheet" href="/assets/receipt-floor.css">
+<script type="module" src="/assets/receipt-verification-ui.mjs"></script>
+</head>
+<body>
+<header class="topbar"><a href="/" class="back">← STATIC WORKBENCH</a>
+<div class="brand">STACK<sup>2</sup> <span>/</span> 025</div>
+<a href="/receipt-floor" class="back alt">RECEIPT FLOOR ↗</a></header>
+<main class="frame">
+<section class="hero">
+  <p class="eyebrow">ORIGINAL GHOT × CANNON × RELATTE · HOST-LOCAL TRUST INSTRUMENT</p>
+  <h1>A receipt can<br><em>answer for itself.</em></h1>
+  <p class="lede">The browser doesn't run the verifier. A deliberate host-side verification opens the original signed evidence and receiver journal; the browser sees only the bounded result, never the private material.</p>
+  <div class="laws"><span>VERIFICATION ≠ ADMISSION</span><span>SIGNATURE ≠ HUMAN IDENTITY</span><span>VIEW ≠ EXECUTE</span></div>
+</section>
+<section class="panel" aria-labelledby="host-title">
+  <div class="head"><h2 id="host-title"><span>01</span> Read the host verification</h2><span class="tag">LOOPBACK · READ ONLY</span></div>
+  <p>The operator must have already executed the separate native porter in a local terminal. This button only reads <code>GET /api/receipt-verification/latest</code>, with no command arguments or private files.</p>
+  <div class="buttonbar"><button type="button" id="read-local">Read local verification status</button><button type="button" id="clear-local">Clear browser view</button></div>
+  <div class="readouts">
+    <div><small>LOCAL PORTER</small><strong id="porter-status" role="status" aria-live="polite">NOT REQUESTED</strong></div>
+    <div><small>NATIVE VERIFICATION TIME</small><strong id="porter-time">NOT VERIFIED</strong></div>
+    <div><small>CRYPTOGRAPHIC SCOPE</small><strong id="porter-scope">SELF-DESCRIBING TEST KEYS, NOT HUMAN IDENTITY</strong></div>
+  </div>
+</section>
+<section class="desk">
+<section class="panel">
+  <div class="head"><h2><span>02</span> Bind the public particular</h2><span class="tag">LOCAL FILE · NO UPLOAD</span></div>
+  <p>The public <code>public-inspection.json</code> must be the same exact content the operator verified. Select it from your own disk. Workbench computes its SHA-256 locally and compares it to the native porter record. A mismatched or altered file is held.</p>
+  <div class="importbar">
+   <label class="pick" for="public-file">Select public-inspection.json
+    <input type="file" id="public-file" accept=".json,application/json"></label>
+   <button type="button" id="match" disabled>Compare with native verification</button>
+  </div>
+  <p class="output" role="status" aria-live="polite" id="match-status">No local native verification or public artifact has been bound.</p>
+  <div class="pair"><small>GHOT PROCESSING REPORT</small><code id="report-address">—</code></div>
+  <div class="pair"><small>RELATTE CROSSING</small><code id="crossing-address">—</code></div>
+  <div class="pair"><small>RECEIVER: RECEIVED</small><code id="received-address">—</code></div>
+  <div class="pair"><small>RECEIVER: R3_HOLD</small><code id="hold-address">—</code></div>
+</section>
+<aside class="panel">
+ <div class="head"><h2><span>03</span> Audit the boundaries</h2><span class="tag">NO AUTHORITY TRANSFER</span></div>
+ <div class="specific">
+ <p class="eyebrow">NATIVE CHECKS REPORTED BY HOST</p>
+ <div id="checks" class="part-details"><div>No locally verified report loaded.</div></div>
+ </div>
+ <p class="footnote">The host verifier calls the original GHoT/CANNON/reLATTE verification paths from exact Git commits. The source and receipt signatures are checked *on that host*. The browser checks only the bounded host report and locally selected public file. The host summary is unsigned and can be modified by an administrator or state-directory owner.</p>
+ <div class="pair"><small>ATTESTATION DIGEST — NOT A SIGNATURE</small><code id="attestation-id">—</code></div>
+ <div class="pair"><small>ADMISSION</small><strong>NOT GRANTED</strong></div>
+ <div class="pair"><small>HUMAN IDENTITY</small><strong>NOT AUTHENTICATED</strong></div>
+ <div class="pair"><small>NEW NATIVE WORK</small><strong>NONE FROM THIS PAGE</strong></div>
+ <a href="/receipt-floor">Return to the original receipt floor ↗</a>
+</aside>
+</section>
+<section class="ending"><p>The result is a new boundary: <strong>original native signature verification can happen on a trusted local host without sending private signed payloads to a browser.</strong> The host summary is a historical local statement; it is not an externally anchored identity certificate, a live monitor, or permission to ACT or ADMIT.</p></section>
+</main>
+<footer><span>THE RECEIVER KEEPS ITS OWN DOOR</span><span>HOST-VERIFIED · BROWSER-READ-ONLY</span></footer>
+</body></html>
