@@ -68,7 +68,7 @@ test('locally rehashed but forged authority and extra fields are refused',()=>us
 test('session digest, checkpoint binding and independent replay metadata cannot be silently altered',()=>useRealDocket(async({session,checkpoint,replay})=>{
  const bad=structuredClone(session);
  bad.inspection.question+=' and invented detail';
- await assert.rejects(inspectDocket(bad),/QUESTION_DRIFT|SESSION_ADDRESS_CHANGED/);
+ await assert.rejects(inspectDocket(bad),/QUESTION_DRIFT|SESSION_ADDRESS_CHANGED|INSPECTION_UNEARNED_AUTHORITY/);
  const c=structuredClone(checkpoint);c.input_fingerprints.carrier='sha256:'+'a'.repeat(64);
  await assert.rejects(inspectDocket(session,c),/CHECKPOINT_SOURCE_DRIFT/);
  const r=structuredClone(replay);r.executed_again=true;
