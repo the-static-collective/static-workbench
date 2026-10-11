@@ -145,6 +145,32 @@ jobs:
           assert set(p.name for p in child.iterdir())=={"input.txt","output.txt"}
           print("REAL_PINNED_OPENMANUS_MODEL_BACKED_LOCAL_OCCURRENCE_VERIFIED")
           PY
+      - name: Bounded native HOLD diagnosis without stderr, model text or credentials
+        if: failure()
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import json,os
+          from pathlib import Path
+          original=Path(os.environ["RUNNER_TEMP"])/"elf-live-evidence/openmanus-live-001.json"
+          if not original.is_file():
+              print("OPENMANUS_LIVE_HOLD: no original bundle (preflight or launch failure)")
+          else:
+              b=json.loads(original.read_text())
+              p=b.get("provider_receipt",{})
+              e=b.get("effect_receipt",{})
+              print(json.dumps({
+                "stage":"OPENMANUS_LIVE_HOLD",
+                "source_pin":b.get("provider",{}).get("checkout_sha"),
+                "provider_disposition":p.get("disposition"),
+                "provider_termination":p.get("termination"),
+                "provider_steps":p.get("steps_executed"),
+                "provider_stderr_present":p.get("stderr_present"),
+                "effect_disposition":e.get("provider_disposition"),
+                "effect_semantic_authority":e.get("semantic_authority"),
+                "output_changed":b.get("before",{}).get("specimen/output.txt") != b.get("after",{}).get("specimen/output.txt"),
+              },sort_keys=True))
+          PY
       - name: Publish only bounded non-authoritative live specimen result
         uses: actions/upload-artifact@v4
         with:
