@@ -138,6 +138,7 @@ jobs:
             --model-config-class local-ollama \
             --timeout-seconds 90 \
             --max-steps 6 \
+            --private-provider-diagnostic "$RUNNER_TEMP/openmanus-private.stderr" \
             --approve-live-provider yes
           python3 - <<'PY'
           import json,os
@@ -161,6 +162,18 @@ jobs:
           python3 - <<'PY'
           import json,os
           from pathlib import Path
+          raw_stderr=Path(os.environ["RUNNER_TEMP"])/"openmanus-private.stderr"
+          if raw_stderr.is_file():
+              text=raw_stderr.read_text(errors="replace")[:32768]
+              failure=next((line.strip() for line in text.splitlines()
+                  if "OpenManus provider import failed:" in line),None)
+              if failure:
+                  print("LOCAL_PINNED_WORKER_IMPORT_REFUSAL:",
+                        failure.split("OpenManus provider import failed:",1)[1].strip()[:280])
+              else:
+                  # Local-only demo carries no credentials or user content.
+                  print("LOCAL_PINNED_WORKER_STDERR_TAIL:",
+                        "\\n".join(text.splitlines()[-8:])[-1000:])
           original=Path(os.environ["RUNNER_TEMP"])/"elf-live-evidence/openmanus-live-001.json"
           if not original.is_file():
               print("OPENMANUS_LIVE_HOLD: no original bundle (preflight or launch failure)")
