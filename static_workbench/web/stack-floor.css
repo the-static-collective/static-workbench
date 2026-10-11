@@ -78,4 +78,40 @@ footer{border-top:1px solid #425447;border-bottom:none}
 .shelf-detail-list dd.mono{font-family:ui-monospace,monospace;font-size:.7rem}
 .shelf-detail-list .payload-ref{display:block;padding:6px 0;border-bottom:1px dotted #334539}
 @media(max-width:850px){.shelf-layout{grid-template-columns:1fr}.shelf-slots{max-height:380px}}
+
+.mycelium-panel{margin-top:18px}
+.mycelium-controls{display:flex;gap:20px;align-items:flex-end;justify-content:space-between;flex-wrap:wrap;margin:20px 0 16px}
+.mycelium-lenses{display:flex;gap:7px;flex-wrap:wrap;margin-top:7px}
+.mycelium-lenses button{font-size:.73rem;padding:9px 12px;border-radius:18px;background:#16271c;color:#c6d3c3;border:1px solid #506651;cursor:pointer}
+.mycelium-lenses button[aria-pressed="true"]{background:#406443;color:#fff3d8;border-color:var(--copper)}
+.mycelium-evidence-filter{display:flex;flex-direction:column;gap:10px;min-width:225px}
+.mycelium-evidence-filter input{accent-color:var(--copper);width:100%}
+.mycelium-layout{display:grid;grid-template-columns:minmax(0,1.22fr) minmax(0,.78fr);gap:15px}
+.mycelium-world{border:1px solid #3d5e43;background:radial-gradient(circle at 50% 50%,#253b2a 0%,#102016 67%,#0a1410 100%);border-radius:14px;min-height:280px;overflow:hidden;position:relative}
+.mycelium-world svg{width:100%;height:auto;display:block;min-height:270px;max-height:580px}
+.mycelium-world .help{margin:0 14px 16px;font-size:.73rem;line-height:1.6}
+.mycelium-reading{background:#101c16;border:1px solid #405548;border-radius:12px;padding:19px;min-width:0}
+.mycelium-reading h3{font:normal 1.25rem Georgia,serif;margin:12px 0;overflow-wrap:anywhere}
+.mycelium-evidence{display:grid;gap:9px;min-width:0;max-height:425px;overflow-y:auto}
+.mycelium-evidence-item{background:#1b2b21;border-left:3px solid var(--copper);border-radius:7px;padding:10px;overflow-wrap:anywhere}
+.mycelium-evidence-item strong{font-size:.76rem;color:#e2d3ad;display:block;margin-bottom:3px}
+.mycelium-evidence-item code{display:block;overflow-wrap:anywhere;white-space:normal;font-size:.7rem;color:var(--moss);margin-top:5px}
+.mycelium-evidence-item p{font-size:.74rem;color:var(--muted);margin:6px 0 0}
+.mycelium-reading .button-row{margin-top:13px}
+.mycelium-threads{margin-top:19px;border-top:1px solid #3e5644;padding-top:13px}
+.mycelium-threads .heading h3{font:normal 1.1rem Georgia,serif;margin:0}
+.mycelium-thread-list{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-top:12px;max-height:330px;overflow-y:auto}
+.mycelium-thread{background:#15241b;border:1px solid #4a5d4d;border-radius:9px;color:var(--text);cursor:pointer;padding:10px 13px;text-align:left;display:flex;flex-direction:column;gap:4px;overflow-wrap:anywhere}
+.mycelium-thread[aria-pressed="true"],.mycelium-thread:hover{border-color:var(--copper);background:#314530}
+.mycelium-thread .small{font-size:.69rem;color:var(--moss)}
+.mycelium-thread strong{font-size:.82rem}
+.mycelium-thread code{font-size:.65rem;overflow-wrap:anywhere;color:#b9c8b3}
+.mycelium-stem{stroke:#607e61;stroke-opacity:.42;stroke-width:1.7;fill:none}
+.mycelium-stem.focused{stroke:#dfb98a;stroke-width:3.5;stroke-opacity:.95}
+.mycelium-node{cursor:pointer;outline:none}
+.mycelium-node circle{fill:#253f2c;stroke:#a8c39a;stroke-width:2}
+.mycelium-node text{fill:#edf0df;font-size:15px;font-weight:700;text-anchor:middle;pointer-events:none}
+.mycelium-node:focus circle,.mycelium-node.focused circle{stroke:var(--copper);stroke-width:4;fill:#426244}
+.mycelium-root{stroke:#6e936f;stroke-opacity:.10;stroke-dasharray:2 6;fill:none}
+@media(max-width:850px){.mycelium-layout{grid-template-columns:1fr}.mycelium-thread-list{grid-template-columns:1fr}.mycelium-world svg{min-height:230px}.mycelium-controls{align-items:stretch}}
 @media(prefers-reduced-motion:reduce){*{transition:none!important}}
