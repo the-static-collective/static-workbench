@@ -116,6 +116,7 @@ function renderBranchDeck() {
   });
   remoteTools.append(repoPicker, scan, remoteMessage);
   workspaceBody.appendChild(remoteTools);
+  branchHarborCard(workspaceBody);
 
   const controls = el('div', 'repo-tools branch-deck-controls');
   const search = el('input');
