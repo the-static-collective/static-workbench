@@ -1,0 +1,71 @@
+name: Workbench RETURN ROOM 001 — real Static OS docket to eleven dials
+on:
+  pull_request:
+    paths:
+      - 'static_workbench/web/return-room*'
+      - 'static_workbench/web/index.html'
+      - 'static_workbench/web/app.js'
+      - 'static_workbench/app.py'
+      - 'tests/return-room-001.test.mjs'
+      - 'tests/test_return_room_001.py'
+      - 'docs/RETURN-ROOM-WORKBENCH-001.md'
+      - '.github/workflows/return-room-001.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  signed-question-to-workbench:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - uses: actions/checkout@v4
+        with:
+          repository: the-static-collective/static-os
+          ref: 2201d09107c31e5823ef641643b269fbd765c0d1
+          path: .deps/static-os
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          repository: the-static-collective/reLATTE
+          ref: dcc8cdca84c440aa4294134f020fb7095bf87f24
+          path: .deps/reLATTE
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          repository: the-static-collective/national-treasure
+          ref: d6ff149a7a2d59dcb41c2c61606204b20b56a2fa
+          path: .deps/national-treasure
+          persist-credentials: false
+      - name: Install only reLATTE's pinned native JavaScript dependencies
+        run: npm install --prefix .deps/reLATTE --no-audit --no-fund
+      - name: Re-check native Question Box source
+        working-directory: .deps/national-treasure
+        run: |
+          node tools/question-box/test.mjs
+          node tools/question-box/memento.test.mjs
+      - name: Native signed P-256 receipt to Static OS session to Workbench 11-dial proof
+        env:
+          STATIC_OS_SRC: .deps/static-os
+          RELATTE_SRC: .deps/reLATTE
+          NATIONAL_TREASURE_SRC: .deps/national-treasure
+        run: |
+          node --test --experimental-strip-types tests/return-room-001.test.mjs
+          node --check static_workbench/web/return-room-core.mjs
+          node --check static_workbench/web/return-room-ui.mjs
+          node --check static_workbench/web/app.js
+      - name: Workbench host route and no-effect checks
+        run: |
+          python -m pip install -e '.[dev]'
+          python -m pytest -q tests/test_return_room_001.py tests/test_ghot_shell.py tests/test_ui.py
+      - name: No private donor or launcher installed
+        run: |
+          test ! -e .deps/MEMENTO
+          test ! -e static_workbench/web/receiver-key.json
+          test ! -e static_workbench/web/.env

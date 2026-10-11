@@ -220,6 +220,11 @@ def create_app(config: WorkbenchConfig | None = None) -> FastAPI:
     def index():
         return FileResponse(web_dir / "index.html")
 
+    @app.get("/return-room", include_in_schema=False)
+    def return_room_page():
+        # Local HTML; no server-side project reads, imports, or execution.
+        return FileResponse(web_dir / "return-room.html")
+
     @app.get("/lifestream", include_in_schema=False)
     def lifestream_page():
         return FileResponse(web_dir / "lifestream.html")

@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="color-scheme" content="dark"><meta name="referrer" content="no-referrer">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; connect-src 'none'; img-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'">
+<title>Return Room · Static Workbench</title><link rel="stylesheet" href="/assets/return-room.css">
+<script type="module" src="/assets/return-room-ui.mjs"></script></head>
+<body>
+<header class="top"><a class="back" href="/">← STATIC / WORKBENCH</a><span>RETURN ROOM · EXPERIMENT 001</span><small>OFFLINE · HUMAN-OPERATED</small></header>
+<main>
+<section class="intro">
+<p class="eyebrow">STATIC OS × RE-LATTE × MEMENTO × NATIONAL TREASURE</p>
+<h1>A room for<br><em>unfinished things.</em></h1>
+<p>Open a locally preserved STATIC-OS question docket. Explore eleven readings of what arrived, what remains unknown, and what the next reader might do. Nothing here executes a project action or rewrites its history.</p>
+</section>
+<section class="station" aria-labelledby="station-title">
+<div class="section-top"><h2 id="station-title">01 / Bring a preserved question</h2><span class="tag">READ-ONLY</span></div>
+<p class="small">Choose files produced by the STATIC-OS RETURN ROOM CLI. These files remain on your device; the browser checks the local session address, not the original reLATTE signatures.</p>
+<div class="files">
+<label>Required · session.json<input type="file" id="session" accept=".json,application/json"></label>
+<label>Optional · checkpoint.json<input type="file" id="checkpoint" accept=".json,application/json"></label>
+<label>Optional · read-only replay JSON<input type="file" id="replay" accept=".json,application/json"></label>
+</div>
+<div class="actions"><button id="inspect" class="primary" type="button">Inspect local session</button><button id="clear" type="button">Clear from this page</button></div>
+<p id="status" role="status" aria-live="polite">No session imported. All eleven dials are available for orientation but no evidence has been checked.</p>
+</section>
+<section class="desk" aria-labelledby="dial-title">
+<div class="section-top"><h2 id="dial-title">02 / The eleven dials</h2><span id="dial-caption" class="tag">SELECT A LENS</span></div>
+<div class="dials" id="dials" role="group" aria-label="Eleven interpretive lenses"></div>
+<article class="view" aria-live="polite">
+<p id="view-eyebrow" class="eyebrow">ORIENTATION 01/11</p>
+<h3 id="view-title">What arrived?</h3>
+<p id="view-description">The original belongs to its source. This room only holds a reading.</p>
+<ul id="view-details"><li>Load a preserved STATIC-OS session to inspect local identifiers.</li></ul>
+</article>
+</section>
+<section class="station" aria-labelledby="carry-title">
+<div class="section-top"><h2 id="carry-title">03 / Return to whoever comes next</h2><span class="tag">NEW SELECTION REQUIRED</span></div>
+<p class="small">Prepare a redacted question handoff. A handoff is not a new crossing, authenticated receiver identity, or automatic research action.</p>
+<div class="actions"><button id="carry" type="button" disabled>Download next-reader packet</button></div>
+<p class="boundary">SESSION ADDRESS ≠ NATIVE SIGNATURE · QUESTION ≠ COMMAND · ADJACENCY ≠ ANCESTRY · HOLD ≠ ADMIT</p>
+</section>
+</main>
+<footer><span>LOCAL FILES ONLY · NO UPLOAD · NO TELEMETRY</span><span>STATIC OS OWNS THE SESSION, NOT THE SOURCE</span></footer>
+</body></html>
