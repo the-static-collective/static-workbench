@@ -82,6 +82,15 @@ jobs:
           from app.tool.tool_collection import ToolCollection
           print("ORIGINAL_PINNED_TOOLCALLAGENT_IMPORT_PASS")
           PY
+          # Replicate the original LOADOUT OpenManusJsonStdioAdapter exact
+          # subprocess child environment, not the permissive CI shell.
+          env -i PYTHONPATH="$GITHUB_WORKSPACE/openmanus-source" "$RUNNER_TEMP/openmanus-venv/bin/python" - <<'PY'
+          from app.agent.toolcall import ToolCallAgent
+          from app.tool.base import BaseTool
+          from app.tool.terminate import Terminate
+          from app.tool.tool_collection import ToolCollection
+          print("ORIGINAL_PINNED_RESTRICTED_CHILD_IMPORT_PASS")
+          PY
         env:
           PYTHONPATH: ${{ github.workspace }}/openmanus-source
       - name: Start exact Ollama image with loopback-only service and no credentials
