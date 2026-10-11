@@ -37,6 +37,7 @@ from .living_main import CompositionError, preview_composition
 from .relation_chamber import RelationError, preview_relation
 from .house import build_house_status
 from .road_desk import RoadDeskError, road_desk_status
+from .receipt_porter import latest_summary, PorterRefusal
 from .ghot_shell import build_ghot_status
 from .launchpad import launchpad_router
 from .arrival import diagnose as diagnose_arrival
@@ -234,6 +235,33 @@ def create_app(config: WorkbenchConfig | None = None) -> FastAPI:
     def receipt_floor_page():
         # Browser-only interpretation of user-imported redacted public receipts.
         return FileResponse(web_dir / "receipt-floor.html")
+
+    @app.get("/receipt-verification", include_in_schema=False)
+    def receipt_verification_page():
+        # Only a static UI: native verifier is exclusively operator-invoked CLI.
+        return FileResponse(web_dir / "receipt-verification.html")
+
+    @app.get("/api/receipt-verification/latest", include_in_schema=False)
+    def receipt_verification_latest():
+        # No request parameters, no path selection, no native execution.
+        # Explicitly withheld if this Workbench is not bound to loopback.
+        if config.bind_host not in ("127.0.0.1", "::1", "localhost"):
+            raise HTTPException(status_code=403, detail="local-only verification summary")
+        try:
+            stored = latest_summary(config.state_dir)
+        except (PorterRefusal, OSError, ValueError):
+            payload = {"schema": "workbench.stack-squared-native-verification-state/v0",
+                       "available": False, "state": "INVALID_LOCAL_PORTER_ATTESTATION"}
+        else:
+            payload = {"schema": "workbench.stack-squared-native-verification-state/v0",
+                       "available": stored is not None,
+                       "state": "AVAILABLE" if stored else "NO_OPERATOR_VERIFICATION",
+                       "summary": stored} if stored else {
+                       "schema": "workbench.stack-squared-native-verification-state/v0",
+                       "available": False, "state": "NO_OPERATOR_VERIFICATION"}
+        return JSONResponse(
+            payload, headers={"Cache-Control": "no-store", "X-Content-Type-Options": "nosniff"}
+        )
 
     @app.get("/lifestream", include_in_schema=False)
     def lifestream_page():
