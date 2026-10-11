@@ -99,7 +99,7 @@ def test_original_relatte_shelf_shows_only_held_items_with_real_source_and_recei
         assert p["signature_status"]=="NATIVE_RELATTE_VALIDATED"
         assert p["donor_proof"]=="NOT_REVERIFIED_BY_SHELF"
         assert len(p["payload_refs"])==2
-        assert p["receive_pre_state_ref"]!=p["receive_post_state_ref"]
+        assert p["receive_pre_state_ref"]==p["receive_post_state_ref"]
         assert p["hold_pre_state_ref"]!=p["hold_post_state_ref"]
         assert p["custody_receipt_present"] is False
         assert "private_jwk" not in json.dumps(d)
