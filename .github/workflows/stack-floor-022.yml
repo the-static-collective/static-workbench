@@ -1,0 +1,68 @@
+name: "STACK² 022 — receiver-owned HOLD shelf cold replay"
+on:
+  push:
+    branches:
+      - experiment/stack-squared-022-hold-shelf
+  pull_request:
+    paths:
+      - "static_workbench/stack_floor_hold_shelf_022.py"
+      - "static_workbench/app.py"
+      - "static_workbench/web/stack-floor*"
+      - "scripts/stack-floor-022-shelf.mjs"
+      - "tests/test_stack_floor_022.py"
+      - "docs/STACK-SQUARED-022.md"
+      - ".github/workflows/stack-floor-022.yml"
+permissions:
+  contents: read
+jobs:
+  real-hold-shelf:
+    runs-on: ubuntu-latest
+    timeout-minutes: 18
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: workbench
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          repository: the-static-collective/GHoT
+          ref: b01758bee55d66d699160715ec377b45f7589707
+          path: ghot
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          repository: the-static-collective/planZ
+          ref: e8111fdb64c5587b33aece0fed639ed3d03375ac
+          path: planz
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          repository: the-static-collective/reLATTE
+          ref: dcc8cdca84c440aa4294134f020fb7095bf87f24
+          path: relatte
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install unchanged reLATTE tooling, Workbench tests, not original donor programs
+        run: |
+          npm install --prefix relatte --ignore-scripts --no-audit --no-fund
+          python -m pip install -e './workbench[dev]'
+          node --check workbench/scripts/stack-floor-022-shelf.mjs
+          node --check workbench/static_workbench/web/stack-floor-shelf-022.mjs
+      - name: Native sovereign receipt journal replay, shelf provenance, tampering and refusal matrix
+        run: |
+          export STACK2_020_GHOT_CHECKOUT="$PWD/ghot"
+          export STACK2_020_PLANZ_CHECKOUT="$PWD/planz"
+          export STACK2_021_RELATTE_CHECKOUT="$PWD/relatte"
+          cd workbench
+          python -m pytest -q tests/test_stack_floor_022.py tests/test_stack_floor_021.py tests/test_stack_floor_020.py tests/test_stack_floor_019.py
+      - name: Ensure no runtime keys, editable receiver permission or new ADMIT actions
+        run: |
+          test ! -e workbench/static_workbench/web/receiver-key.json
+          test ! -e workbench/static_workbench/web/.env
+          test ! -e workbench/static_workbench/web/ghot-identity.pem
+          ! grep -E 'createMortalitySeed|acceptSuccession|\\.dispose\\(|\\.receive\\(|\\.verifyPayloadBytes\\(' workbench/scripts/stack-floor-022-shelf.mjs
