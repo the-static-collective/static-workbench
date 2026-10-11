@@ -114,4 +114,21 @@ footer{border-top:1px solid #425447;border-bottom:none}
 .mycelium-node:focus circle,.mycelium-node.focused circle{stroke:var(--copper);stroke-width:4;fill:#426244}
 .mycelium-root{stroke:#6e936f;stroke-opacity:.10;stroke-dasharray:2 6;fill:none}
 @media(max-width:850px){.mycelium-layout{grid-template-columns:1fr}.mycelium-thread-list{grid-template-columns:1fr}.mycelium-world svg{min-height:230px}.mycelium-controls{align-items:stretch}}
+
+.useful-delight{margin-top:18px}
+.delight-024-deck{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:11px;margin:17px 0}
+.delight-024-card{background:#13241c;border:1px solid #465e4c;border-top:4px solid #c6a87c;color:var(--text);border-radius:9px;padding:15px;min-height:184px;display:flex;flex-direction:column;gap:9px;text-align:left;cursor:pointer;overflow-wrap:anywhere;transition:border-color .15s,transform .15s}
+.delight-024-card:hover:not(:disabled),.delight-024-card[aria-pressed="true"]{border-color:var(--copper);background:#304334;transform:translateY(-2px)}
+.delight-024-card:disabled{cursor:not-allowed;opacity:.56;border-style:dotted}
+.delight-024-card-num{font-family:Georgia,serif;font-size:2rem;color:var(--copper);line-height:1}
+.delight-024-card strong{font:normal 1.07rem Georgia,serif}
+.delight-024-card>span:not(.delight-024-card-num){font-size:.76rem;color:var(--muted)}
+.delight-024-card .delight-024-card-origin{font-size:.68rem;font-style:italic}
+.delight-024-card .delight-024-card-foot{margin-top:auto;font-size:.62rem;letter-spacing:.09em;color:#c2d4ae}
+.delight-024-display{display:grid;grid-template-columns:minmax(0,.45fr) minmax(0,.55fr);gap:16px;margin-top:15px}
+.delight-024-display h3{font:normal 1.42rem Georgia,serif;line-height:1.3;margin:9px 0}
+.delight-024-paper{border:1px solid #b99a74;background:#f3ebd7;color:#26382c;border-radius:9px;display:flex;align-items:center;justify-content:center;min-height:260px;padding:10px;overflow:hidden}
+.delight-024-paper svg{width:100%;height:auto;display:block;max-height:380px}
+@media(max-width:850px){.delight-024-deck{grid-template-columns:repeat(2,minmax(0,1fr))}.delight-024-display{grid-template-columns:1fr}}
+@media(max-width:540px){.delight-024-deck{grid-template-columns:1fr}.delight-024-card{min-height:150px}}
 @media(prefers-reduced-motion:reduce){*{transition:none!important}}
