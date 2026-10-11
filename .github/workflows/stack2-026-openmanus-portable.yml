@@ -14,9 +14,9 @@ on:
       - "static_workbench/web/receipt-floor.html"
       - "tests/*receipt_porter_025.py"
       - "tests/stack2-026-portable.test.mjs"
-      - "tests/stack2-026.browser.mjs"
+      - "tests/fixtures/fake_receipt_openmanus_026.py"
       - "docs/STACK-SQUARED-026.md"
-      - ".github/workflows/stack2-026.yml"
+      - ".github/workflows/stack2-026-openmanus-portable.yml"
 permissions:
   contents: read
 jobs:
@@ -40,7 +40,7 @@ jobs:
           node --test tests/stack2-026-portable.test.mjs
           node --check static_workbench/web/receipt-verification-core.mjs
           node --check static_workbench/web/receipt-verification-ui.mjs
-          node --test tests/stack2-026.test.mjs
+          node --test tests/receipt-verification-025.test.mjs
           node --test tests/receipt-floor-024.test.mjs
       - name: Workbench FastAPI host-only read and previous floor regression
         run: |
