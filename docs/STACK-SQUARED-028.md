@@ -39,7 +39,16 @@ base_url = "http://127.0.0.1:11434/v1"
 api_key = "ollama"
 max_tokens = 512
 temperature = 0.0
+
+[daytona]
+daytona_api_key = "disabled-local-placeholder"
 ```
+
+The unmodified 2025 OpenManus source eagerly constructs a Daytona settings
+object even when no Daytona tools are exposed. The fixed `daytona_api_key`
+value above is a deliberately invalid, nonsecret compatibility placeholder.
+Workbench refuses any substituted value; it grants no Daytona network or
+execution permission.
 
 The profile is restricted to this schema and exact loopback endpoint.
 `api_key` is a nonsecret Ollama placeholder. Other model credentials,
