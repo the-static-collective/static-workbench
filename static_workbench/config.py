@@ -40,6 +40,10 @@ class WorkbenchConfig:
     branch_radar_enabled: bool = False
     roadkit_house_root: Path | None = None
     branch_test_suites: tuple[BranchTestSuite, ...] = ()
+    stack_floor_native_enabled: bool = False
+    stack_floor_ghot_checkout: Path | None = None
+    stack_floor_planz_checkout: Path | None = None
+    stack_floor_ghot_home: Path | None = None
 
 
 def _expand_path(value: str | os.PathLike[str]) -> Path:
@@ -126,6 +130,27 @@ def load_config(path: Path | None = None) -> WorkbenchConfig:
             else None
         )
         branch_test_suites = _read_branch_test_suites(raw.get("branch_test_suites", []))
+        stack_floor_native_enabled = raw.get("stack_floor_native_enabled", False)
+        if type(stack_floor_native_enabled) is not bool:
+            raise ValueError("stack_floor_native_enabled must be boolean")
+        stack_floor_ghot_checkout = raw.get("stack_floor_ghot_checkout")
+        stack_floor_planz_checkout = raw.get("stack_floor_planz_checkout")
+        stack_floor_ghot_home = raw.get("stack_floor_ghot_home")
+        for name, value in (
+            ("stack_floor_ghot_checkout", stack_floor_ghot_checkout),
+            ("stack_floor_planz_checkout", stack_floor_planz_checkout),
+            ("stack_floor_ghot_home", stack_floor_ghot_home),
+        ):
+            if value is not None and (not isinstance(value, str) or not value.strip()):
+                raise ValueError(name + " must be a non-empty path")
+        stack_floor_ghot_checkout = _expand_path(stack_floor_ghot_checkout) if stack_floor_ghot_checkout else None
+        stack_floor_planz_checkout = _expand_path(stack_floor_planz_checkout) if stack_floor_planz_checkout else None
+        stack_floor_ghot_home = _expand_path(stack_floor_ghot_home) if stack_floor_ghot_home else None
+        if stack_floor_native_enabled and not all(
+            isinstance(p, Path) for p in
+            (stack_floor_ghot_checkout, stack_floor_planz_checkout, stack_floor_ghot_home)
+        ):
+            raise ValueError("native STACK² 020 requires three explicit local paths")
         if broadcast_port is not None and (type(broadcast_port) is not int):
             raise ValueError("broadcast_port must be an integer")
     else:
@@ -142,6 +167,10 @@ def load_config(path: Path | None = None) -> WorkbenchConfig:
         branch_radar_enabled = False
         roadkit_house_root = None
         branch_test_suites = ()
+        stack_floor_native_enabled = False
+        stack_floor_ghot_checkout = None
+        stack_floor_planz_checkout = None
+        stack_floor_ghot_home = None
 
     if bind_host not in {"127.0.0.1", "::1", "localhost"}:
         raise ValueError("v0.1 only supports loopback bind hosts")
@@ -172,4 +201,8 @@ def load_config(path: Path | None = None) -> WorkbenchConfig:
         branch_radar_enabled=branch_radar_enabled,
         roadkit_house_root=roadkit_house_root,
         branch_test_suites=branch_test_suites,
+        stack_floor_native_enabled=stack_floor_native_enabled,
+        stack_floor_ghot_checkout=stack_floor_ghot_checkout,
+        stack_floor_planz_checkout=stack_floor_planz_checkout,
+        stack_floor_ghot_home=stack_floor_ghot_home,
     )
