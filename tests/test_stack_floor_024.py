@@ -97,7 +97,7 @@ def test_original_toaster_move_deck_generates_six_attributed_non_acts(tmp_path):
                    v["original_toaster_move_address"].startswith("candidate-move:sha256:")
                    for v in record["cards"])
         assert sum(c["available"] for c in record["cards"] if c["kind"]=="cross")==1
-        assert any(c["refusal"]=="NO_CURRENT_SIGNED_RELATION_BETWEEN_CROSS_PARENTS"
+        assert any(c["refusal"]=="NO_SHARED_NONARRIVAL_SOURCE_EVIDENCE"
                    for c in record["cards"])
         assert record["original_toaster_renderer_executed"] is False
         assert record["original_toaster_source_media_loaded"] is False
