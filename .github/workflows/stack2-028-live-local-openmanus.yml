@@ -88,13 +88,11 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          mkdir -p "$RUNNER_TEMP/ollama-cache"
           docker pull ollama/ollama@sha256:e2f0af4a865c61b580cc17a7e2bda3c82083046b74c5a5402ce32a0d84454f9b
           docker run --detach --name stack28-ollama \
             --security-opt=no-new-privileges --cap-drop=ALL \
-            --memory=4g --cpus=2 \
+            --user 0:0 --memory=4g --cpus=2 \
             --network host --env OLLAMA_HOST=127.0.0.1:11434 \
-            -v "$RUNNER_TEMP/ollama-cache:/root/.ollama" \
             ollama/ollama@sha256:e2f0af4a865c61b580cc17a7e2bda3c82083046b74c5a5402ce32a0d84454f9b
           ready=0
           for _ in $(seq 1 50); do
