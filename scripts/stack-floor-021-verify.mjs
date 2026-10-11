@@ -7,7 +7,15 @@ import {resolve,join} from 'node:path';
 import {pathToFileURL} from 'node:url';
 const [mode,relattePath,receiverPath,requestPath,resultPath]=process.argv.slice(2);
 const fail=(condition,code)=>{if(!condition)throw Error(code)};
-const same=(a,b)=>JSON.stringify(a)===JSON.stringify(b);
+const canonical=v=>{
+  if(v===null||typeof v==='string'||typeof v==='boolean'||typeof v==='number')
+    return JSON.stringify(v);
+  if(Array.isArray(v))return '['+v.map(canonical).join(',')+']';
+  if(typeof v==='object')return '{'+Object.keys(v).sort().map(k=>
+    JSON.stringify(k)+':'+canonical(v[k])).join(',')+'}';
+  throw Error('UNSUPPORTED_CANONICAL_CLAIM');
+};
+const same=(a,b)=>canonical(a)===canonical(b);
 try{
   fail((mode==='receiver'&&process.argv.length===5)||
        (mode==='verify'&&process.argv.length===7),'INVALID_FIXED_VERIFICATION_ARGUMENTS');
