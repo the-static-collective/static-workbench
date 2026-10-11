@@ -93,7 +93,7 @@ jobs:
           docker run --detach --name stack28-ollama \
             --security-opt=no-new-privileges --cap-drop=ALL \
             --memory=4g --cpus=2 \
-            -p 127.0.0.1:11434:11434 \
+            --network host --env OLLAMA_HOST=127.0.0.1:11434 \
             -v "$RUNNER_TEMP/ollama-cache:/root/.ollama" \
             ollama/ollama@sha256:e2f0af4a865c61b580cc17a7e2bda3c82083046b74c5a5402ce32a0d84454f9b
           ready=0
@@ -103,9 +103,18 @@ jobs:
             fi
             sleep 2
           done
-          test "$ready" = 1
+          if test "$ready" != 1; then
+            echo "LOCAL_OLLAMA_HOLD: loopback API never became ready"
+            docker ps -a --filter "name=stack28-ollama"
+            docker inspect --format 'State={{.State.Status}} Exit={{.State.ExitCode}} Error={{.State.Error}}' stack28-ollama || true
+            docker logs --tail 100 stack28-ollama || true
+            ss -ltn || true
+            exit 1
+          fi
+          echo "LOCAL_OLLAMA_SERVER_READY"
           docker exec stack28-ollama ollama pull qwen2.5:1.5b
           docker exec stack28-ollama ollama list
+          curl --fail --show-error --max-time 10 http://127.0.0.1:11434/api/tags
           docker image inspect --format '{{index .RepoDigests 0}}' ollama/ollama@sha256:e2f0af4a865c61b580cc17a7e2bda3c82083046b74c5a5402ce32a0d84454f9b
       - name: Run genuine bounded original OpenManus ToolCallAgent against local model
         shell: bash
