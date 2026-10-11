@@ -61,6 +61,7 @@ def live_elf_probe(
     workspace: Path, output: Path, model_config_class: str,
     forwarded_env_names: tuple[str, ...], source_env: dict[str, str],
     timeout_seconds: int = 60, max_steps: int = 6,
+    provider_diagnostic_path: Path | None = None,
 ) -> dict:
     require(1 <= max_steps <= 10 and 10 <= timeout_seconds <= 90, "UNBOUNDED_AGENT_BUDGET")
     require(bool(re.fullmatch(r"[A-Za-z][A-Za-z0-9_.-]{0,80}", model_config_class)),
@@ -120,11 +121,30 @@ def live_elf_probe(
         run_live_specimen, verify_live_bundle, PINNED_OPENMANUS_SHA
     )
     require(PINNED_OPENMANUS_SHA == UPSTREAM_OPENMANUS, "LOADOUT_UPSTREAM_PROVIDER_PIN_CHANGED")
+    # Only the credential-free exact-loopback profile may use this temporary
+    # diagnostic relay. It runs the ORIGINAL pinned worker unmodified and
+    # preserves stdout/exit, but privately records stderr outside the child.
+    worker = root / "contrib/openmanus/worker.py"
+    provider_command = (str(interpreter), str(worker))
+    if provider_diagnostic_path is not None:
+        require(credentialless_ollama, "DIAGNOSTIC_RELAY_LOCAL_ONLY")
+        diagnostic = provider_diagnostic_path.resolve(strict=False)
+        require(not provider_diagnostic_path.is_symlink()
+                and not diagnostic.exists() and diagnostic.parent.is_dir()
+                and _outside(diagnostic, child)
+                and _outside(diagnostic, provider)
+                and _outside(diagnostic, root),
+                "PRIVATE_DIAGNOSTIC_PATH_REFUSED")
+        relay = Path(__file__).resolve().parents[1] / "scripts/stack2-028-provider-relay.py"
+        require(relay.is_file() and not relay.is_symlink(), "DIAGNOSTIC_RELAY_MISSING")
+        provider_command = (
+            str(interpreter), str(relay), str(worker), str(diagnostic)
+        )
     # run_live_specimen independently requires the exact original upstream
     # OpenManus git SHA and clean tracked tree before launch.
     bundle = run_live_specimen(
         provider_checkout=provider,
-        provider_command=(str(interpreter), str(root / "contrib/openmanus/worker.py")),
+        provider_command=provider_command,
         workspace_root=child,
         output_dir=out,
         model_config_class=model_config_class,
@@ -168,6 +188,7 @@ def main() -> None:
     parser.add_argument("--forward-env", action="append", default=[])
     parser.add_argument("--max-steps", type=int, default=6)
     parser.add_argument("--timeout-seconds", type=int, default=60)
+    parser.add_argument("--private-provider-diagnostic", type=Path)
     parser.add_argument("--approve-live-provider", required=True)
     args = parser.parse_args()
     try:
@@ -181,6 +202,7 @@ def main() -> None:
             forwarded_env_names=tuple(args.forward_env),
             source_env=dict(os.environ), timeout_seconds=args.timeout_seconds,
             max_steps=args.max_steps,
+            provider_diagnostic_path=args.private_provider_diagnostic,
         )
         print(json.dumps(result, sort_keys=True))
     except (LiveGateRefusal, ValueError, OSError) as error:
