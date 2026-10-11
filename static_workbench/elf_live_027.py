@@ -56,6 +56,15 @@ def verify_original_live_loadout_files(root: Path) -> None:
                 "LIVE_DONOR_SOURCE_CHANGED")
 
 
+def select_provider_interpreter(provider_python: Path) -> Path:
+    """Preserve virtualenv invocation identity; do not dereference symlinks."""
+    require(provider_python.is_absolute(),
+            "PROVIDER_INTERPRETER_MUST_BE_ABSOLUTE")
+    interpreter = provider_python.absolute()
+    require(interpreter.is_file(), "PINNED_PROVIDER_INTERPRETER_MISSING")
+    return interpreter
+
+
 def live_elf_probe(
     *, loadout_root: Path, provider_checkout: Path, provider_python: Path,
     workspace: Path, output: Path, model_config_class: str,
@@ -108,9 +117,7 @@ def live_elf_probe(
     # Executing its *resolved* realpath silently loses pyvenv.cfg detection,
     # runs system Python, and misses installed OpenManus dependencies.
     # Retain the explicitly operator-selected invocation path.
-    require(provider_python.is_absolute(), "PROVIDER_INTERPRETER_MUST_BE_ABSOLUTE")
-    interpreter = provider_python.absolute()
-    require(interpreter.is_file(), "PINNED_PROVIDER_INTERPRETER_MISSING")
+    interpreter = select_provider_interpreter(provider_python)
     child = workspace.resolve(strict=True)
     require(child.is_dir(), "CHILD_WORKSPACE_MISSING")
     # Local CLI requires a dedicated empty workspace, no incidental source
