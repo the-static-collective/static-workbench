@@ -130,6 +130,7 @@ class StackFloorPostOffice021:
               receipt.get("status")=="EXECUTED" and
               receipt.get("success") is True and
               receipt.get("ticket_spent") is True and
+              receipt.get("result_address")=="sha256:"+sha(result) and
               receipt.get("operation_attempted") is True and
               result.get("repository")==PLANZ_REPO and
               result.get("commit")==PLANZ_SHA and
@@ -262,7 +263,7 @@ class StackFloorPostOffice021:
             "execution_result":ghot["result"],
             "original_ghot_sha":GHOT_SHA,
             "original_planz_sha":PLANZ_SHA,
-            "original_rel at te_sha":RELATTE_SHA,
+            "original_relatte_sha":RELATTE_SHA,
             "source_blob_sha256":ghot["source_sha256"],
             "original_ghot_native_signature_verified":True,
             "receiver_policy_specific_hold":True,
@@ -270,8 +271,6 @@ class StackFloorPostOffice021:
             "human_identity_authenticated":False,
             "external_effects":0,"donor_programs_executed":0,
         }
-        # Domain-specific metadata key corrected before sealing.
-        record["original_relatte_sha"]=record.pop("original_rel at te_sha")
         recv={"world_id":policy["receiver_world"],
               "receiver_particular":policy["receiver_particular"],
               "contract_ref":policy["receiver_contract"]}
@@ -283,7 +282,7 @@ class StackFloorPostOffice021:
                 "donor_contract_ref":"ghot.branch-worker@0",
                 "artifact_kind":"original-ghot-030-signed-source-hash-execution",
                 "source_world":"world:stack-squared-021-workbench",
-                "source_particular":receipt["issuer_particular"],
+                "source_particular":"particular:workbench-stack2-021-sender",
                 "source_history_head":"sha256:"+ghot["receipt_hash"],
                 "payload_refs":[
                     {"address":"sha256:"+ghot["receipt_hash"],
@@ -338,7 +337,7 @@ class StackFloorPostOffice021:
             "receiver_state_ref":proof["receiver_state_ref"],
             "ghot_signature_verified":True,"relatte_signatures_verified":3,
             "receiver_admitted":False,"disposition":"HOLD",
-            "real_world_effects":"local_receiver_journal_REACIVE_AND_HOLD_ONLY",
+            "real_world_effects":"local_receiver_journal_RECEIVE_AND_HOLD_ONLY",
             "remote_effects":0,"source_programs_executed":0,
             "sender_identity_authenticated":False,
             "foreign_admission_authorized":False,
