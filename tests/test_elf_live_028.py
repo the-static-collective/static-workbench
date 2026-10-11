@@ -35,7 +35,7 @@ def _try(tmp_path,config):
             },timeout_seconds=60,max_steps=6)
 
 def test_local_ollama_profile_accepts_credentialless_gate_but_never_launches_bad_provider(tmp_path):
-    with pytest.raises(FileNotFoundError):
+    with pytest.raises(LiveGateRefusal,match="ORIGINAL_OPENMANUS_WORKER_MISSING"):
         _try(tmp_path,SAFE)
 
 @pytest.mark.parametrize("changed",[
