@@ -15,6 +15,7 @@ from pathlib import Path
 import re
 import subprocess
 import sys
+import tomllib
 
 from .openmanus_026 import pinned_loadout, LOADOUT_SHA, UPSTREAM_OPENMANUS
 
@@ -64,12 +65,36 @@ def live_elf_probe(
     require(1 <= max_steps <= 10 and 10 <= timeout_seconds <= 90, "UNBOUNDED_AGENT_BUDGET")
     require(bool(re.fullmatch(r"[A-Za-z][A-Za-z0-9_.-]{0,80}", model_config_class)),
             "MODEL_CONFIG_CLASS_REQUIRED")
-    require(forwarded_env_names and len(set(forwarded_env_names)) == len(forwarded_env_names) and
-            len(forwarded_env_names) <= 5 and all(re.fullmatch(
-                r"[A-Z][A-Z0-9_]{2,63}", n) and n in source_env for n in forwarded_env_names),
+    # New 028 credential-free local model exception: explicit pinned loopback
+    # profile, NEVER implicitly inherited runtime environment.
+    credentialless_ollama = model_config_class == "local-ollama"
+    require((credentialless_ollama and not forwarded_env_names) or
+            (not credentialless_ollama and bool(forwarded_env_names) and
+             len(set(forwarded_env_names)) == len(forwarded_env_names) and
+             len(forwarded_env_names) <= 5 and all(re.fullmatch(
+                 r"[A-Z][A-Z0-9_]{2,63}", n) and n in source_env
+                 for n in forwarded_env_names)),
             "EXPLICIT_MODEL_ENV_ALLOWLIST_REQUIRED")
     root = pinned_loadout(loadout_root)
     verify_original_live_loadout_files(root)
+    if credentialless_ollama:
+        config_path = provider_checkout / "config/config.toml"
+        require(config_path.is_file() and not config_path.is_symlink(),
+                "LOCAL_OLLAMA_CONFIG_MISSING")
+        require(config_path.stat().st_size <= 4096, "LOCAL_OLLAMA_CONFIG_TOO_LARGE")
+        with config_path.open("rb") as stream:
+            config = tomllib.load(stream)
+        require(set(config) == {"llm"} and set(config["llm"]) == {
+                "api_type", "model", "base_url", "api_key",
+                "max_tokens", "temperature"} and
+                config["llm"]["api_type"] == "ollama" and
+                config["llm"]["model"] == "qwen2.5:1.5b" and
+                config["llm"]["base_url"] == "http://127.0.0.1:11434/v1" and
+                config["llm"]["api_key"] == "ollama" and
+                type(config["llm"]["max_tokens"]) is int and
+                100 <= config["llm"]["max_tokens"] <= 1024 and
+                config["llm"]["temperature"] == 0.0,
+                "LOCAL_OLLAMA_NONLOCAL_OR_CREDENTIAL_CONFIGURATION")
     require(root.is_dir() and (root / "contrib/openmanus/worker.py").is_file(),
             "ORIGINAL_OPENMANUS_WORKER_MISSING")
     require(not provider_checkout.is_symlink() and not workspace.is_symlink() and
