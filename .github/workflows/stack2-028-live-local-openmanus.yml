@@ -25,7 +25,7 @@ jobs:
       - name: Fast negative gates before expensive local LLM startup
         run: |
           python -m pip install -e '.[dev]'
-          python -m pytest -q tests/test_elf_live_028.py tests/test_elf_receipt_027.py tests/test_elf_genesis.py
+          python -m pytest -q tests/test_elf_live_028.py tests/test_elf_relay_028.py tests/test_elf_receipt_027.py tests/test_elf_genesis.py
           python -m py_compile static_workbench/elf_live_027.py
   original-openmanus-with-real-local-model:
     needs: local-profile-contract
