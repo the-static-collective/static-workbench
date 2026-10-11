@@ -100,7 +100,7 @@ def live_elf_probe(
                 "api_type", "model", "base_url", "api_key",
                 "max_tokens", "temperature"} and
                 config["llm"]["api_type"] == "ollama" and
-                config["llm"]["model"] == "qwen2.5:1.5b" and
+                config["llm"]["model"] == "qwen2.5:3b" and
                 config["llm"]["base_url"] == "http://127.0.0.1:11434/v1" and
                 config["llm"]["api_key"] == "ollama" and
                 type(config["llm"]["max_tokens"]) is int and
