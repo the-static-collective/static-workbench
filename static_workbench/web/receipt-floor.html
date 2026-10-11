@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark"><meta name="referrer" content="no-referrer">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; connect-src 'none'; img-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'">
+<title>STACK² 024 · Living Receipt Floor · Static Workbench</title>
+<link rel="stylesheet" href="/assets/receipt-floor.css">
+<script type="module" src="/assets/receipt-floor-ui.mjs"></script>
+</head>
+<body>
+<header class="topbar">
+ <a href="/" class="back">← STATIC WORKBENCH</a><div class="brand">STACK<sup>2</sup> <span>/</span> 024</div>
+ <a href="/stack-floor" class="back alt">← LEGO FLOOR</a>
+</header>
+<main class="frame">
+  <section class="hero" aria-labelledby="title">
+    <p class="eyebrow">THE LIVING RECEIPT FLOOR · GHOT × CANNON × RELATTE</p>
+    <h1>Every crossing<br><em>leaves a particular.</em></h1>
+    <p class="lede">A processing receipt is not a crossing. A crossing is not a receiving world's decision. Bring their public identifiers together without collapsing their histories.</p>
+    <div class="laws"><span>RECEIPT ≠ ADMISSION</span><span>SIGNED ≠ TRUE</span><span>INSPECTION ≠ EXECUTION</span></div>
+  </section>
+
+  <section class="setup" aria-labelledby="import-title">
+    <div class="head"><h2 id="import-title"><span>01</span> Bring a public witness</h2><span class="tag">LOCAL FILE ONLY</span></div>
+    <p>Import <code>public-inspection.json</code> from the <a href="https://github.com/the-static-collective/CANNON/actions/runs/38165140352" target="_blank" rel="noopener noreferrer">actual STACK² 023 CI run ↗</a>. This should be the <strong>redacted artifact</strong>, never the private GHoT report, transport bundle, receiver journal, or keys. Nothing is uploaded, fetched, or retained by this page.</p>
+    <div class="importbar">
+      <label class="pick" for="receipt-file">Select public-inspection.json <input type="file" id="receipt-file" accept=".json,application/json"></label>
+      <button type="button" id="inspect">Inspect witness</button>
+      <button type="button" class="quietbtn" id="clear">Clear locally</button>
+    </div>
+    <div class="readouts">
+      <div><small>IMPORT STATUS</small><strong id="import-status" role="status" aria-live="polite">NO WITNESS LOADED</strong></div>
+      <div><small>STRUCTURAL CHECK</small><strong id="shape-status">NOT INSPECTED</strong></div>
+      <div><small>CRYPTOGRAPHIC CHECK</small><strong>NOT PERFORMED IN BROWSER</strong></div>
+    </div>
+  </section>
+
+  <section class="desk" aria-label="Receipt exploration">
+    <section class="panel chain" aria-labelledby="chain-title">
+      <div class="head"><h2 id="chain-title"><span>02</span> Walk the machine</h2><span class="tag">CLICK A PARTICULAR</span></div>
+      <div class="aperture" role="group" aria-label="Select receipt floor aperture">
+        <button type="button" class="view active" data-phase="all" aria-pressed="true">Whole crossing</button>
+        <button type="button" class="view" data-phase="processing" aria-pressed="false">01 · Processing</button>
+        <button type="button" class="view" data-phase="crossing" aria-pressed="false">02 · Crossing</button>
+        <button type="button" class="view" data-phase="receiver" aria-pressed="false">03 · Receiver</button>
+      </div>
+      <div id="chain" class="chain-steps" aria-label="Ordered evidence cards">
+        <div class="empty">Bring the redacted 023 witness to assemble the receipt chain. No sample signatures or fabricated work are shown.</div>
+      </div>
+      <div class="walkbar">
+        <button type="button" id="walk" disabled>Walk to next particular →</button>
+        <p id="chain-summary" role="status" aria-live="polite">No claim about execution, source ownership, or admission has been verified here.</p>
+      </div>
+    </section>
+
+    <aside class="panel microscope" aria-labelledby="particular-title">
+      <div class="head"><h2 id="particular-title"><span>03</span> Inspect the particular</h2><span class="tag">NO PRIVATE PAYLOAD</span></div>
+      <div class="specific">
+        <p class="eyebrow" id="part-kind">NO SELECTION</p>
+        <h3 id="part-name">A receipt is waiting.</h3>
+        <p id="part-detail">Choose a card on the left. Each card retains its own claimed role and full content address.</p>
+        <div class="pair"><small>EXACT ADDRESS</small><code id="part-id">—</code></div>
+        <div class="pair"><small>EVIDENCE CLASS</small><strong id="part-verification">FOREIGN PUBLIC SUMMARY ONLY</strong></div>
+        <div class="pair"><small>AFFECTS AUTHORITY?</small><strong id="part-authority">NONE</strong></div>
+        <button type="button" id="copy-address" disabled>Copy exact address</button>
+      </div>
+      <div class="sources">
+        <p class="eyebrow">Original code, at exact source commits</p>
+        <div id="sources"></div>
+        <p class="footnote">Source links are inspectable addresses, not a browser-side Git SHA verification or owner authentication.</p>
+      </div>
+    </aside>
+  </section>
+
+  <section class="panel conclusion" aria-labelledby="boundary-title">
+    <div class="head"><h2 id="boundary-title"><span>04</span> Make an inspection packet</h2><span class="tag">UNSIGNED / REVIEW ONLY</span></div>
+    <p>This optional local action checks the exact public report shape and generates a SHA-256-addressed <em>Workbench-owned, unsigned</em> inspection packet. It does not verify the P-256 signatures, reconstruct the receiver journal, or grant action authority.</p>
+    <label class="consent"><input id="consent" type="checkbox" disabled><span>I understand that the imported public report makes historical claims, and I authorize only a browser-local inspection receipt—not any native execution, signature, or admission.</span></label>
+    <div class="buttonbar">
+      <button id="make-packet" type="button" disabled>Compose inspection packet</button>
+      <button id="export-packet" type="button" disabled>Export unsigned JSON</button>
+    </div>
+    <p class="output" id="packet-status" role="status" aria-live="polite">Awaiting an explicitly reviewed public witness.</p>
+  </section>
+  <section class="ending">
+    <p><strong>What the independent CI established:</strong> the native GHoT processor, CANNON verifier, and original reLATTE R14 receiver executed and emitted signed RECEIVED and R3_HOLD. <strong>What this page establishes:</strong> a limited, local structural reading of imported public identifiers. The two are not interchangeable.</p>
+  </section>
+</main>
+<footer><span>THE GROUND HOLDS EACH HISTORY</span><span>NO NETWORK · NO EXECUTION · NO ADMIT</span></footer>
+</body>
+</html>

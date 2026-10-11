@@ -230,6 +230,11 @@ def create_app(config: WorkbenchConfig | None = None) -> FastAPI:
         # A static, browser-local inspection instrument. Never invokes native donors.
         return FileResponse(web_dir / "stack-floor.html")
 
+    @app.get("/receipt-floor", include_in_schema=False)
+    def receipt_floor_page():
+        # Browser-only interpretation of user-imported redacted public receipts.
+        return FileResponse(web_dir / "receipt-floor.html")
+
     @app.get("/lifestream", include_in_schema=False)
     def lifestream_page():
         return FileResponse(web_dir / "lifestream.html")
