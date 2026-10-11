@@ -119,7 +119,11 @@ class StackFloorUsefulDelight024:
                       "ORIGINAL_TOASTER_PARENT_IDS_NOT_BOUND")
                 other=nodes[parents[1]]["crossing_id"]
             evidenced=edge_by_pair.get(frozenset([anchor,other])) if other else None
-            possible=kind!="cross" or evidenced is not None
+            non_arrival=[f for f in (evidenced or {}).get("evidence",[])
+                         if f.get("lens")!="arrival"]
+            # Arrival adjacency is real history, but cannot alone promote
+            # two unrelated particulars into a creative CROSS invitation.
+            possible=kind!="cross" or bool(non_arrival)
             if kind=="cross":
                 possible=possible and raw.get("available") is True
             evidence=(evidenced if kind=="cross" else edge)["evidence"] if possible else []
@@ -141,7 +145,7 @@ class StackFloorUsefulDelight024:
                 "original_toaster_label":raw.get("label"),
                 "available":possible,
                 "refusal":None if possible else
-                          ("NO_CURRENT_SIGNED_RELATION_BETWEEN_CROSS_PARENTS"
+                          ("NO_SHARED_NONARRIVAL_SOURCE_EVIDENCE"
                            if raw.get("available") else
                            "TOASTER_HAS_NO_LAWFUL_SECOND_PARENT"),
                 "suggested_only":True,
