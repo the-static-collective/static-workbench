@@ -62,7 +62,7 @@ jobs:
           cat > "$GITHUB_WORKSPACE/openmanus-source/config/config.toml" <<'TOML'
           [llm]
           api_type = "ollama"
-          model = "qwen2.5:1.5b"
+          model = "qwen2.5:3b"
           base_url = "http://127.0.0.1:11434/v1"
           api_key = "ollama"
           max_tokens = 512
@@ -97,7 +97,7 @@ jobs:
           docker pull ollama/ollama@sha256:e2f0af4a865c61b580cc17a7e2bda3c82083046b74c5a5402ce32a0d84454f9b
           docker run --detach --name stack28-ollama \
             --security-opt=no-new-privileges --cap-drop=ALL \
-            --user 0:0 --memory=4g --cpus=2 \
+            --user 0:0 --memory=5g --cpus=2 \
             --network host --env OLLAMA_HOST=127.0.0.1:11434 \
             ollama/ollama@sha256:e2f0af4a865c61b580cc17a7e2bda3c82083046b74c5a5402ce32a0d84454f9b
           ready=0
@@ -116,7 +116,7 @@ jobs:
             exit 1
           fi
           echo "LOCAL_OLLAMA_SERVER_READY"
-          docker exec stack28-ollama ollama pull qwen2.5:1.5b
+          docker exec stack28-ollama ollama pull qwen2.5:3b
           docker exec stack28-ollama ollama list
           curl --fail --show-error --max-time 10 http://127.0.0.1:11434/api/tags
           docker image inspect --format '{{index .RepoDigests 0}}' ollama/ollama@sha256:e2f0af4a865c61b580cc17a7e2bda3c82083046b74c5a5402ce32a0d84454f9b
@@ -183,6 +183,8 @@ jobs:
                 "provider_disposition":p.get("disposition"),
                 "provider_termination":p.get("termination"),
                 "provider_steps":p.get("steps_executed"),
+                "observed_tools":p.get("observation_tools",[]),
+                "output_artifacts":p.get("artifact_paths",[]),
                 "provider_stderr_present":p.get("stderr_present"),
                 "effect_disposition":e.get("provider_disposition"),
                 "effect_semantic_authority":e.get("semantic_authority"),
