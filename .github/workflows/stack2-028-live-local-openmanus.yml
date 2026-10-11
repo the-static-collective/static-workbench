@@ -138,7 +138,6 @@ jobs:
             --model-config-class local-ollama \
             --timeout-seconds 90 \
             --max-steps 6 \
-            --private-provider-diagnostic "$RUNNER_TEMP/openmanus-private.stderr" \
             --approve-live-provider yes
           python3 - <<'PY'
           import json,os
