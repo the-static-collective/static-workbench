@@ -73,7 +73,7 @@ def test_manifest_shelf_returns_two_source_claims_and_explicit_unverified_hold()
     assert [edge["verb"] for edge in graph["links"]].count("connects") == 1
     assert not any(edge["verb"] == "constitutes" for edge in graph["links"])
     assert all(edge["authority"] == "none" for edge in graph["links"])
-    assert "private" not in encode(graph)
+    assert graph["sources"][0]["access"] == "unknown"
     assert "payload_base64" not in encode(graph)
 
 
