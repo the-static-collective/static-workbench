@@ -81,6 +81,7 @@ function render(){
     view.links.some(x=>x.status==='HOLD')?'HOLD · a socket mismatch prevents a local trial':
     view.slots.filter(Boolean).length+'/4 pieces placed · complete the floor to connect');
   updateButtons();
+  window.dispatchEvent(new CustomEvent('stack-floor:changed',{detail:{connected:view.connected}}));
 }
 function resetTrial(){
   trial=null;$('export').disabled=true;

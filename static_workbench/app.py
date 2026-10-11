@@ -38,6 +38,7 @@ from .relation_chamber import RelationError, preview_relation
 from .house import build_house_status
 from .road_desk import RoadDeskError, road_desk_status
 from .ghot_shell import build_ghot_status
+from .stack_floor_native_020 import StackFloorNative020, StackFloorActHold
 from .launchpad import launchpad_router
 from .arrival import diagnose as diagnose_arrival
 from .mirror import mirror_router
@@ -163,6 +164,13 @@ def create_app(config: WorkbenchConfig | None = None) -> FastAPI:
     return_desk = ReturnDesk(config.state_dir / "return.sqlite3")
     rocket_desk = RocketDesk(config.state_dir / "rockets.sqlite3", config, creator_shelf)
     moment_inbox = MomentInbox(config.state_dir / "lifestream.sqlite3", config)
+    stack_floor_native_020 = StackFloorNative020(
+        state_dir=config.state_dir,
+        enabled=config.stack_floor_native_enabled,
+        ghot_checkout=config.stack_floor_ghot_checkout,
+        planz_checkout=config.stack_floor_planz_checkout,
+        ghot_home=config.stack_floor_ghot_home,
+    )
     session_token = secrets.token_urlsafe(32)
     branch_radar = CollectiveRadar(config.state_dir) if config.branch_radar_enabled else None
 
@@ -198,6 +206,7 @@ def create_app(config: WorkbenchConfig | None = None) -> FastAPI:
     app.state.return_desk = return_desk
     app.state.rocket_desk = rocket_desk
     app.state.moment_inbox = moment_inbox
+    app.state.stack_floor_native_020 = stack_floor_native_020
     app.state.session_token = session_token
     app.include_router(launchpad_router())
     app.include_router(mirror_router(config.state_dir, session_token, journal))
@@ -423,6 +432,62 @@ def create_app(config: WorkbenchConfig | None = None) -> FastAPI:
         if not secrets.compare_digest(token, session_token):
             raise HTTPException(status_code=403, detail="creator write requires a local session token")
 
+
+    def _stack_floor_native_guard(request: Request) -> None:
+        # Additional gate beyond the session token: reject missing Origin on ACT.
+        _creator_write_guard(request)
+        expected = "http://" + request.headers.get("host", "")
+        if request.headers.get("origin") != expected:
+            raise HTTPException(status_code=403, detail="native ACT requires same-origin browser intent")
+        if request.headers.get("sec-fetch-site", "same-origin") not in ("same-origin", "none"):
+            raise HTTPException(status_code=403, detail="cross-site native ACT refused")
+
+    @app.get("/api/stack-floor/native/status")
+    def stack_floor_native_status():
+        return {
+            "schema": "workbench.stack-floor-020-status/v0",
+            "enabled": config.stack_floor_native_enabled,
+            "operation": "GHoT 030 hash-exact-source",
+            "source": "the-static-collective/planZ@e8111fdb64c5587b33aece0fed639ed3d03375ac",
+            "no_auto_relatte_admit": True,
+            "owner_identity_authenticated": False,
+        }
+
+    @app.post("/api/stack-floor/native/preview")
+    def stack_floor_native_preview(payload: dict, request: Request):
+        _stack_floor_native_guard(request)
+        if payload != {"card_ids": ["cannon", "planz", "ghot", "relatte"],
+                       "operation": "hash-exact-source"}:
+            raise HTTPException(status_code=422, detail="only the complete pinned native recipe is permitted")
+        try:
+            return stack_floor_native_020.preview()
+        except (StackFloorActHold, OSError, ValueError) as exc:
+            raise HTTPException(status_code=409, detail=str(exc)[:220]) from exc
+
+    @app.post("/api/stack-floor/native/act")
+    def stack_floor_native_act(payload: dict, request: Request):
+        _stack_floor_native_guard(request)
+        if not isinstance(payload, dict) or set(payload) != {
+            "consent_nonce", "proposal_address", "confirm_phrase", "acknowledge_single_use",
+            "card_ids",
+        } or payload.get("card_ids") != ["cannon", "planz", "ghot", "relatte"]:
+            raise HTTPException(status_code=422, detail="invalid or unapproved native ACT shape")
+        try:
+            response = stack_floor_native_020.act(
+                nonce=payload["consent_nonce"],
+                proposal_address=payload["proposal_address"],
+                phrase=payload["confirm_phrase"],
+                acknowledge=payload["acknowledge_single_use"],
+            )
+            journal.append("stack2.native.hash_act", {
+                "receipt_id": response["receipt_id"],
+                "ticket_id": response["ticket_id"],
+                "exact_source_commit": response["source_commit"],
+                "external_effects": 0,
+            })
+            return response
+        except (StackFloorActHold, OSError, ValueError) as exc:
+            raise HTTPException(status_code=409, detail=str(exc)[:220]) from exc
 
     # Return Desk is Workbench-owned local writing, not a GOATnote protocol
     # or a claim that a project checkout has been modified.

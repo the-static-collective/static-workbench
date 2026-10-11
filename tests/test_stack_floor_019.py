@@ -34,7 +34,7 @@ def test_living_lego_floor_is_linked_locally_but_does_not_create_an_execution_ap
         assert 'id="consent"' in page.text
         assert 'id="trial"' in page.text
         assert 'id="export"' in page.text
-        assert "connect-src 'none'" in page.text
+        assert "connect-src 'self'" in page.text
         assert "runLocalTrial" in ui.text
         assert "signature_verification:'NOT_REVERIFIED_IN_BROWSER'" in core.text
         assert "WEBCRYPTO_SHA256_ONLY" in core.text
