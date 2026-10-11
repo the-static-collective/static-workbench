@@ -3,12 +3,9 @@ on:
   push:
     branches:
       - experiment/stack-squared-028-elf-openmanus-local-model
-  pull_request:
-    paths:
-      - "static_workbench/elf_live_027.py"
-      - "tests/test_elf_live_028.py"
-      - "docs/STACK-SQUARED-028.md"
-      - ".github/workflows/stack2-028-live-local-openmanus.yml"
+concurrency:
+  group: stack2-028-live-${{ github.ref }}
+  cancel-in-progress: true
 permissions:
   contents: read
 jobs:
