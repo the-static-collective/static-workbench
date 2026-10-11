@@ -44,6 +44,9 @@ class WorkbenchConfig:
     stack_floor_ghot_checkout: Path | None = None
     stack_floor_planz_checkout: Path | None = None
     stack_floor_ghot_home: Path | None = None
+    stack_floor_postoffice_enabled: bool = False
+    stack_floor_relatte_checkout: Path | None = None
+    stack_floor_receiver_root: Path | None = None
 
 
 def _expand_path(value: str | os.PathLike[str]) -> Path:
@@ -146,6 +149,25 @@ def load_config(path: Path | None = None) -> WorkbenchConfig:
         stack_floor_ghot_checkout = _expand_path(stack_floor_ghot_checkout) if stack_floor_ghot_checkout else None
         stack_floor_planz_checkout = _expand_path(stack_floor_planz_checkout) if stack_floor_planz_checkout else None
         stack_floor_ghot_home = _expand_path(stack_floor_ghot_home) if stack_floor_ghot_home else None
+        stack_floor_postoffice_enabled = raw.get("stack_floor_postoffice_enabled", False)
+        if type(stack_floor_postoffice_enabled) is not bool:
+            raise ValueError("stack_floor_postoffice_enabled must be boolean")
+        relatte_value = raw.get("stack_floor_relatte_checkout")
+        receiver_value = raw.get("stack_floor_receiver_root")
+        for name, value in (
+            ("stack_floor_relatte_checkout", relatte_value),
+            ("stack_floor_receiver_root", receiver_value),
+        ):
+            if value is not None and (not isinstance(value, str) or not value.strip()):
+                raise ValueError(name + " must be a non-empty path")
+        stack_floor_relatte_checkout = _expand_path(relatte_value) if relatte_value else None
+        stack_floor_receiver_root = _expand_path(receiver_value) if receiver_value else None
+        if stack_floor_postoffice_enabled and (
+            not stack_floor_native_enabled or
+            not isinstance(stack_floor_relatte_checkout, Path) or
+            not isinstance(stack_floor_receiver_root, Path)
+        ):
+            raise ValueError("post office requires enabled native GHoT and separate reLATTE/receiver paths")
         if stack_floor_native_enabled and not all(
             isinstance(p, Path) for p in
             (stack_floor_ghot_checkout, stack_floor_planz_checkout, stack_floor_ghot_home)
@@ -171,6 +193,9 @@ def load_config(path: Path | None = None) -> WorkbenchConfig:
         stack_floor_ghot_checkout = None
         stack_floor_planz_checkout = None
         stack_floor_ghot_home = None
+        stack_floor_postoffice_enabled = False
+        stack_floor_relatte_checkout = None
+        stack_floor_receiver_root = None
 
     if bind_host not in {"127.0.0.1", "::1", "localhost"}:
         raise ValueError("v0.1 only supports loopback bind hosts")
@@ -205,4 +230,7 @@ def load_config(path: Path | None = None) -> WorkbenchConfig:
         stack_floor_ghot_checkout=stack_floor_ghot_checkout,
         stack_floor_planz_checkout=stack_floor_planz_checkout,
         stack_floor_ghot_home=stack_floor_ghot_home,
+        stack_floor_postoffice_enabled=stack_floor_postoffice_enabled,
+        stack_floor_relatte_checkout=stack_floor_relatte_checkout,
+        stack_floor_receiver_root=stack_floor_receiver_root,
     )
