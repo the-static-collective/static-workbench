@@ -1,0 +1,111 @@
+{
+  "schema": "orchard-capability-inventory/v0.1",
+  "notice": "Pointers are not installed code, execution permission, endorsement, or verified current readiness. Resolve and pin an exact revision inside an isolated experimental run.",
+  "capabilities": [
+    {
+      "id": "paula-story",
+      "source": "local:paula-story-workbench-v0.1",
+      "status": "bundled working baseline; existing Story Desk is outside kernel governance",
+      "adapter": "manual-story-to-video",
+      "effects": "manual-only"
+    },
+    {
+      "id": "blender-orchard",
+      "source": "https://github.com/the-static-collective/the-haunted-blender/pull/27",
+      "status": "experimental PR / capability composition",
+      "adapter": null,
+      "effects": "none"
+    },
+    {
+      "id": "blender-dream",
+      "source": "https://github.com/the-static-collective/the-haunted-blender/pull/24",
+      "status": "experimental PR / visual dreaming",
+      "adapter": null,
+      "effects": "none"
+    },
+    {
+      "id": "blender-memory",
+      "source": "https://github.com/the-static-collective/the-haunted-blender/pull/25",
+      "status": "experimental PR / remembered-image feedback",
+      "adapter": null,
+      "effects": "none"
+    },
+    {
+      "id": "memento",
+      "source": "https://github.com/the-static-collective/MEMENTO",
+      "status": "separately governed world-memory substrate; access may require authorization",
+      "adapter": null,
+      "effects": "none"
+    },
+    {
+      "id": "toaster",
+      "source": "https://github.com/the-static-collective/the-haunted-toaster",
+      "status": "local-first song-to-video renderer; verify beta release head before use",
+      "adapter": null,
+      "effects": "none"
+    },
+    {
+      "id": "workbench",
+      "source": "https://github.com/the-static-collective/static-workbench",
+      "status": "local-first composition experiments; does not execute neighboring projects by default",
+      "adapter": null,
+      "effects": "none"
+    },
+    {
+      "id": "loadout",
+      "source": "https://github.com/the-static-collective/LOADOUT",
+      "status": "bounded capability/effect-selection donor",
+      "adapter": null,
+      "effects": "none"
+    },
+    {
+      "id": "human-witness",
+      "source": "https://github.com/the-static-collective/Human-Witness",
+      "status": "bounded encounter-evidence donor, not an identity verifier",
+      "adapter": null,
+      "effects": "none"
+    },
+    {
+      "id": "project0",
+      "source": "https://github.com/the-static-collective/project0",
+      "status": "bounded crossing/provenance donor, not destination authority",
+      "adapter": null,
+      "effects": "none"
+    },
+    {
+      "id": "studio-economy",
+      "source": "local:unimplemented",
+      "status": "design frontier, no payments, orders, client authentication, or sharing adapter",
+      "adapter": null,
+      "effects": "none"
+    },
+    {
+      "id": "worldbody-local",
+      "source": "local:worldbody-kernel.mjs",
+      "status": "bundled runnable local genealogical specimen; no authenticated membership or cross-world authority",
+      "adapter": "local-only-declarations-and-orchard-receipt-projection",
+      "effects": "local-record-only"
+    },
+    {
+      "id": "founder-node",
+      "source": "https://github.com/the-static-collective/founder-node",
+      "status": "independent project routing and Pollen Scout donor; no registry adapter bound",
+      "adapter": null,
+      "effects": "none"
+    },
+    {
+      "id": "tranchnode",
+      "source": "https://github.com/the-static-collective/tranchnode",
+      "status": "independent source/continuity donor; no genealogy adapter bound",
+      "adapter": null,
+      "effects": "none"
+    },
+    {
+      "id": "corpus-os",
+      "source": "https://github.com/the-static-collective/corpus-os",
+      "status": "independent bounded authority and causal accountability donor; no remote warrant adapter bound",
+      "adapter": null,
+      "effects": "none"
+    }
+  ]
+}

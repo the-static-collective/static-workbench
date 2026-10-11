@@ -1,0 +1,191 @@
+{
+  "schema": "pk.paula-source-receipt/v1",
+  "source_archive": "paula-orchard-seed-003-tonight.zip",
+  "source_archive_sha256": "1bcdae74d8b396742e5565204ae7fad51a3c29caff047398ac84ed30bd8bf0cd",
+  "source_archive_size_bytes": 72966,
+  "source_file_count": 45,
+  "source_files": [
+    {
+      "path": "PK/paula-orchard-seed-003/app/server.mjs",
+      "sha256": "c83f920250cba458ffc48bad340522434aadbff6e9eaec151723ce61cfa23146"
+    },
+    {
+      "path": "PK/paula-orchard-seed-003/app/index.html",
+      "sha256": "ff3416240f9b7fc6ae048f97793c5c7fe214ed132973ff78b55774bd6a6866d5"
+    },
+    {
+      "path": "PK/paula-orchard-seed-003/package.json",
+      "sha256": "cd6148b20d142bc353530a59fcc5bb72e540fee015a9f4d399572378e088c003"
+    },
+    {
+      "path": "PK/paula-orchard-seed-003/.gitignore",
+      "sha256": "53aa1b5ae88715684cbfcddb6fc4f09049331e1444eecf1adadae8f11db7a195"
+    },
+    {
+      "path": "PK/paula-orchard-seed-003/tests/worldbody-kernel.test.mjs",
+      "sha256": "8b14ff3a882b804589c913b55b051d81cba824b7e2e091520140e848923c4f85"
+    },
+    {
+      "path": "PK/paula-orchard-seed-003/tests/orchard-kernel.test.mjs",
+      "sha256": "b1ebd04aa0ad47d7532e41ead0898f1dc18128365733b8e356514c9860666e5e"
+    },
+    {
+      "path": "PK/paula-orchard-seed-003/scripts/check.mjs",
+      "sha256": "420d124a71e433d55186deee1b2d1e8289a1cbc49ee82ce36fee89f850f9dc1b"
+    },
+    {
+      "path": "PK/paula-orchard-seed-003/scripts/build-flow-batch.mjs",
+      "sha256": "7dd7474f04bc5bfe7aec19420c2086d88c1dfc06c14394b329377d1cbe207bbc"
+    },
+    {
+      "path": "PK/paula-orchard-seed-003/scripts/assemble.mjs",
+      "sha256": "094f6c8cf59474a32c81189b8fcc4637fc7b23cd73cd9edf1ddd820100f014c9"
+    },
+    {
+      "path": "PK/paula-orchard-seed-003/stories/.gitkeep",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "PK/paula-orchard-seed-003/generated/boards/.gitkeep",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "PK/paula-orchard-seed-003/generated/assemblies/.gitkeep",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "PK/paula-orchard-seed-003/generated/assemblies/2026-09-22-example--concat.txt",
+      "sha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b"
+    },
+    {
+      "path": "PK/paula-orchard-seed-003/generated/clips/.gitkeep",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "PK/paula-orchard-seed-003/orchard-kernel.mjs",
+      "sha256": "a4306161dd78f16c7a62cf36652955d2e64bb3da7185ea71b30de0eb7f584661"
+    },
+    {
+      "path": "PK/paula-orchard-seed-003/TONIGHT_BUILD_MISSIONS.md",
+      "sha256": "6aa6450df1b1f0526e22def2566a604cd63ccde9d6bd5c574a20f5219a7ffa3e"
+    },
+    {
+      "path": "PK/paula-orchard-seed-003/bootstrap-git.sh",
+      "sha256": "fc56bbc340c01aa581db592887024688d0e12e787248eea57dcbd2939fa3ee5d"
+    },
+    {
+      "path": "PK/paula-orchard-seed-003/WORLDBODY_001.md",
+      "sha256": "50f0e9cf925e8baf66368ff999f38a1628998f679a9e2f0aee381df8cdf7d39f"
+    },
+    {
+      "path": "PK/paula-orchard-seed-003/worldbody-kernel.mjs",
+      "sha256": "4a8c76b7e83f83d12308ed8b28e73426287495a8ad76b4d82d1d31d8eab36673"
+    },
+    {
+      "path": "PK/paula-orchard-seed-003/TONIGHT_SESSION_CARD.md",
+      "sha256": "682f2476411201980a239fc4d2ef0f964006f2e8b2f33dbb9c37cd69ad38bc18"
+    },
+    {
+      "path": "PK/paula-orchard-seed-003/ORCHARD_WORLD_BODY_SEEDS_003.md",
+      "sha256": "f007707cbc6dfe3a6ef33bac7969d5eaaaa8d96f8f762a9ccdc5f7dd9285a2c3"
+    },
+    {
+      "path": "PK/paula-orchard-seed-003/BOOTSTRAP_GIT.bat",
+      "sha256": "712edb0a24ee1f58f4bf0efbdb1956a6d6f4f67cf67b8a4e788da984352eff17"
+    },
+    {
+      "path": "PK/paula-orchard-seed-003/TONIGHT_PAULA_OPEN_FIRST.md",
+      "sha256": "f422556bf19b21825143cc48c993ba7fc3f18394f39bac0026d09cd87e14f365"
+    },
+    {
+      "path": "PK/paula-orchard-seed-003/docs/CALL_RUNBOOK.md",
+      "sha256": "a3431782f6dba2f04e65c03d5af8b157889a58d7fed194525242c6d3588de8c8"
+    },
+    {
+      "path": "PK/paula-orchard-seed-003/docs/HOUSE_STYLE.md",
+      "sha256": "ee728f2d0032d1903124b7755b6823d4868883fa07053e13ae8f60dcfb4a9eb6"
+    },
+    {
+      "path": "PK/paula-orchard-seed-003/docs/ARCHITECTURE_RECEIPT.md",
+      "sha256": "3d25feb13859894dd995be47ef4d97efc19877ea29bf3bfff2dd62c7242c8939"
+    },
+    {
+      "path": "PK/paula-orchard-seed-003/docs/FLOW_STRATEGY.md",
+      "sha256": "3901ae364e20096bdd307bde83d998efeb518a127c317948e8c8052068709975"
+    },
+    {
+      "path": "PK/paula-orchard-seed-003/CHATGPT_PROJECT_INSTRUCTIONS.md",
+      "sha256": "635963425392809799b63c4cbea75d5d9ea25c8f8404669d40411168c409be5f"
+    },
+    {
+      "path": "PK/paula-orchard-seed-003/TONIGHT_ARCHITECTURE_RECEIPT.md",
+      "sha256": "c66e85dd3c18fb74a04de4062adf5573984af0f07910bdca9c9314f2d10dc6c1"
+    },
+    {
+      "path": "PK/paula-orchard-seed-003/prompts/storydrop-packet.md",
+      "sha256": "b76202febed7e7033be2b374ff0b245c92c4928372a77cfcbc837c1a234a33c2"
+    },
+    {
+      "path": "PK/paula-orchard-seed-003/PAULA_CALL_CARD.md",
+      "sha256": "baf44071b545beceb42bc38773065bdb59161ba7eb824c501986721e5b402c58"
+    },
+    {
+      "path": "PK/paula-orchard-seed-003/inbox/.gitkeep",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "PK/paula-orchard-seed-003/templates/story-card.example.json",
+      "sha256": "2495b8e0cd05df08b10c8689a6ad7f3c70cd409d257346e65e908344229213c8"
+    },
+    {
+      "path": "PK/paula-orchard-seed-003/start-paula.sh",
+      "sha256": "ae4f111e41c1933bc490a4313c267019457ea80db58799ff92db05459b807ac4"
+    },
+    {
+      "path": "PK/paula-orchard-seed-003/tonight/README.md",
+      "sha256": "7deea3f5c1393fd3060bb5ab2cf24c6cda3edaffd2a8ee241d7475fe1fe90e07"
+    },
+    {
+      "path": "PK/paula-orchard-seed-003/tonight/SESSION_BOARD.html",
+      "sha256": "8aef01ad76a9dc00b824b65c4a9aa9c41fc3bc11b8e349c567f6e9cdb03465f7"
+    },
+    {
+      "path": "PK/paula-orchard-seed-003/TONIGHT_HANDOFF.md",
+      "sha256": "08394946459b2e7550a4d455b95879c66ce3b91bbedbffb5af84a0ea2af486f0"
+    },
+    {
+      "path": "PK/paula-orchard-seed-003/START_PAULA.bat",
+      "sha256": "38db4662b07a7b3c9a0b8895e3fb7ad9703374d3b162e967378670e8856db3ec"
+    },
+    {
+      "path": "PK/paula-orchard-seed-003/GIVE_THIS_TO_CHATGPT.md",
+      "sha256": "78cf1463a91852dd43387486ef0a7fb7bfef576261e8c0a35aba07e803ad175f"
+    },
+    {
+      "path": "PK/paula-orchard-seed-003/artifacts/.gitkeep",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "PK/paula-orchard-seed-003/TONIGHT_START_HERE.md",
+      "sha256": "ebd011b136fd60d853568548d1974213398dfb74e67478df76ed8c8efa79049d"
+    },
+    {
+      "path": "PK/paula-orchard-seed-003/README.md",
+      "sha256": "331c488a144f96e3b445207be4f0edc85e2b2fd1050b22c10d68610351916e1e"
+    },
+    {
+      "path": "PK/paula-orchard-seed-003/ORCHARD_SEED_001.md",
+      "sha256": "7b64af28794fec66eb20585de0615dc5d809b1b8ab8591525340d2113361f286"
+    },
+    {
+      "path": "PK/paula-orchard-seed-003/TONIGHT_EXPERIMENT_RACK.md",
+      "sha256": "f94ca3dcb8f92069a1faf42d22e2b256d63d222a967f634357afb40688a9bc58"
+    },
+    {
+      "path": "PK/paula-orchard-seed-003/ORCHARD_CAPABILITIES.json",
+      "sha256": "6d8b8f53dce3f3f35a16df5d363f4af1d603f32f76830bb542f4f46d02756873"
+    }
+  ],
+  "status": "source-landing-not-runtime-adoption",
+  "note": "Full editable source stored in PK/paula-orchard-seed-003/; original ZIP byte stream is not committed."
+}

@@ -1,0 +1,23 @@
+node_modules/
+.DS_Store
+*.log
+
+# The orchard's default is private: a routine `git add .` must not stage stories,
+# raw witness material, generated media, client work, or approval receipts.
+.orchard-private/
+artifacts/
+inbox/*
+!inbox/.gitkeep
+stories/*
+!stories/.gitkeep
+generated/boards/*
+!generated/boards/.gitkeep
+generated/clips/*
+!generated/clips/.gitkeep
+generated/assemblies/*
+!generated/assemblies/.gitkeep
+# Live session material, session exports, customer source and local experiments
+/tonight-private/
+/tonight/*.session.json
+/tonight/*.private.md
+/tonight/exports/

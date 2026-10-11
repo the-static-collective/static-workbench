@@ -1,0 +1,62 @@
+{
+  "schema": "paula-story-card/v0.1",
+  "id": "2026-09-22-example",
+  "title": "Example title",
+  "status": "kept",
+  "source_mode": "ambiguous",
+  "source_trace_ref": "inbox/2026-09-22--example.md",
+  "privacy": {
+    "publication_mode": "fictionalized",
+    "notes": "Alias third parties by default."
+  },
+  "selected_kernel": {
+    "id": "K1",
+    "logline": "",
+    "desire": "",
+    "obstacle": "",
+    "turn": "",
+    "stakes": "",
+    "strongest_line_or_image": "",
+    "dramatic_engine": ""
+  },
+  "biblical_frames": [
+    {
+      "reference": "Luke 15",
+      "relation": "homecoming structure",
+      "illuminates": "",
+      "breaks": ""
+    }
+  ],
+  "character_ingredients": [
+    {
+      "id": "C1",
+      "label": "Lead",
+      "visual_card": "adult woman, expressive face, practical earth-toned period clothing, consistent hair and features"
+    }
+  ],
+  "episode": {
+    "hook": "",
+    "arc": "",
+    "ending_turn": "",
+    "target_seconds": 36
+  },
+  "shots": [
+    {
+      "id": "S01",
+      "class": "HERO",
+      "duration_s": 8,
+      "aspect_ratio": "9:16",
+      "subject": "",
+      "action": "",
+      "environment": "",
+      "camera": "",
+      "lighting": "",
+      "visual_texture": "",
+      "continuity_reference": "C1",
+      "dialogue": "",
+      "voiceover": "",
+      "sound_note": "",
+      "flow_prompt": ""
+    }
+  ]
+}
