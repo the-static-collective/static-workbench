@@ -12,7 +12,7 @@ Unlike a mock brainstorming list, \`scripts/stack-floor-024-toaster.cjs\` uses t
 
 Original Toaster's Candidate Move Deck requires media candidate-style fields. The 024 bridge **explicitly maps verified, held source particulars into a temporary *analogical* candidate family**, not real song/video scores or candidate genealogy. Each \`scoreAddress\` is prefixed \`shelf-particular:\`, not a genuine Toaster media score. No creative material is opened and the renderer is never invoked. The user sees these as *questions and local sketches*, not as an authorized output of the music/video Toaster's scoring model.
 
-The pinned Toaster adapter checks the actual Git HEAD and origin, verifies exact bytes of the original source file against Git's pinned commit, and limits invocation to this single module's pure planner. Missing pin/configuration or tampered source refuses; it never auto-installs anything or runs a script from a browser-selected path.
+The pinned Toaster adapter checks the actual Git HEAD and origin, verifies exact bytes of the original source file against Git's pinned commit, and limits invocation to this single module's pure planner. A neighbor-only arrival thread cannot enable CROSS; proximity never becomes creative compatibility. Missing pin/configuration or tampered source refuses; it never auto-installs anything or runs a script from a browser-selected path.
 
 ## What a real person gets
 
@@ -20,7 +20,7 @@ Section **10 / The Toaster's Useful Delight** in Workbench's existing \`/stack-f
 
 1. Find an actual HELD/HELD relationship in the Mycelium Shelf and select its evidenced filament.
 2. Click **Deal six possibilities**. Workbench replays its local receiver's native reLATTE signatures and regenerates the entire current bounded Mycelium graph. A source proposal missing from the current graph cannot be selected.
-3. The original pinned Toaster deck produces six addressed suggestions bound to the current receiver state and original graph proposal. A CROSS suggestion is **disabled** if the proposed two particulars have no evidence-backed relation in the present receiver journal, even if the original Toaster candidate deck would ordinarily permit a two-parent cross.
+3. The original pinned Toaster deck produces six addressed suggestions bound to the current receiver state and original graph proposal. A CROSS suggestion is **disabled** if the proposed two particulars have no shared non-arrival evidence-backed relation in the present receiver journal, even if the original Toaster candidate deck would ordinarily permit a two-parent cross.
 4. Pick a suggestion to show a small **archival paper-style postcard** with an original Toaster move address, a declared evidence category and the two receiving worlds' source labels.
 5. Optionally export an actual \`image/svg+xml\` postcard—locally composed in the browser, source-attributed and explicitly **UNSIGNED**. It is an artifact that can be saved, without pretending it is a Toaster-rendered video, a signed crossing, or an accepted relationship.
 6. **Deal another six** asks the same real original Toaster planner for the next deterministic deal (maximum nine positions). It cannot execute, persist, cross, or admit.
@@ -33,7 +33,7 @@ The five Mycelium lenses remain just *discovery*; this adapter cannot promote a 
 - **MUTATE:** a small, unsent note or question in a different form.
 - **CONVERGE:** a compact pairwise archive/field-guide card.
 - **STOMP:** consider a counterfactual and what a missing relation would change, without inventing history.
-- **CROSS 1 / CROSS 2:** side-by-side poster-card comparison, permitted **as a preview only** if current native Mycelium evidence actually links these two held entries.
+- **CROSS 1 / CROSS 2:** side-by-side poster-card comparison, permitted **as a preview only** if current native Mycelium evidence actually links these two held entries through something stronger than consecutive arrival alone.
 
 Original 023 proposal evidence is attached, and each source pair is spelled out. The human is free to enjoy the preview or discard it. Neither the Toaster's nor Workbench's suggestion is a selection or authorization.
 
