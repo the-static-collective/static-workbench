@@ -225,6 +225,11 @@ def create_app(config: WorkbenchConfig | None = None) -> FastAPI:
         # Local HTML; no server-side project reads, imports, or execution.
         return FileResponse(web_dir / "return-room.html")
 
+    @app.get("/stack-floor", include_in_schema=False)
+    def stack_floor_page():
+        # A static, browser-local inspection instrument. Never invokes native donors.
+        return FileResponse(web_dir / "stack-floor.html")
+
     @app.get("/lifestream", include_in_schema=False)
     def lifestream_page():
         return FileResponse(web_dir / "lifestream.html")

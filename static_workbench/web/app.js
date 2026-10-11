@@ -133,6 +133,11 @@ function renderGhot() {
   returnDoor.href = '/return-room';
   returnDoor.append(el('strong', '', 'Return Room · 11 dials'),
     el('span', 'muted', 'Inspect a preserved STATIC OS question session; browser checks its local address only. No automatic action.'));
+  const stackDoor = el('a', 'action-card');
+  stackDoor.href = '/stack-floor';
+  stackDoor.append(el('strong', '', 'STACK² · Living Lego Floor'),
+    el('span', 'muted', 'Snap together source-pinned capabilities. Examine native CANNON 018 evidence and authorize one browser-only local hash comparison.'));
+  workspaceBody.appendChild(stackDoor);
   workspaceBody.appendChild(returnDoor);
 
   const resourceGrid = el('div', 'metric-grid ghot-resources');
