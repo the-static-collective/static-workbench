@@ -138,6 +138,11 @@ function renderGhot() {
   stackDoor.append(el('strong', '', 'STACK² · Living Lego Floor'),
     el('span', 'muted', 'Snap together source-pinned capabilities. Examine native CANNON 018 evidence and authorize one browser-only local hash comparison.'));
   workspaceBody.appendChild(stackDoor);
+  const receiptDoor = el('a', 'action-card');
+  receiptDoor.href = '/receipt-floor';
+  receiptDoor.append(el('strong', '', 'STACK² · Living Receipt Floor'),
+    el('span', 'muted', 'Walk a source-pinned GHoT → CANNON → reLATTE RECEIVED / R3_HOLD chain using only a locally imported redacted public witness. No native execution.'));
+  workspaceBody.appendChild(receiptDoor);
   workspaceBody.appendChild(returnDoor);
 
   const resourceGrid = el('div', 'metric-grid ghot-resources');
