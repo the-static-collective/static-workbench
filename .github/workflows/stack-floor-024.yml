@@ -1,0 +1,139 @@
+name: "STACK² 024 — original Haunted Toaster brains into useful delight"
+on:
+  push:
+    branches:
+      - experiment/stack-squared-024-toaster-useful-delight
+  pull_request:
+    paths:
+      - "scripts/stack-floor-024-toaster.cjs"
+      - "static_workbench/stack_floor_useful_delight_024.py"
+      - "static_workbench/app.py"
+      - "static_workbench/config.py"
+      - "static_workbench/web/stack-floor*"
+      - "tests/test_stack_floor_024.py"
+      - "tests/stack-floor-024.browser.mjs"
+      - "docs/STACK-SQUARED-024.md"
+      - ".github/workflows/stack-floor-024.yml"
+permissions:
+  contents: read
+jobs:
+  native-toaster-delight:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: workbench
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          repository: the-static-collective/GHoT
+          ref: b01758bee55d66d699160715ec377b45f7589707
+          path: ghot
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          repository: the-static-collective/planZ
+          ref: e8111fdb64c5587b33aece0fed639ed3d03375ac
+          path: planz
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          repository: the-static-collective/reLATTE
+          ref: dcc8cdca84c440aa4294134f020fb7095bf87f24
+          path: relatte
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          repository: the-static-collective/the-haunted-toaster
+          ref: 74365daa3351555d17482662a9a13cc6a316f1e1
+          path: toaster
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install native reLATTE and Workbench tests (no Toaster media dependencies)
+        run: |
+          npm install --prefix relatte --ignore-scripts --no-audit --no-fund
+          python -m pip install -e './workbench[dev]'
+          node --check workbench/scripts/stack-floor-024-toaster.cjs
+          node --check workbench/static_workbench/web/stack-floor-delight-024.mjs
+      - name: Test original source-pinned Toaster candidate brain against real receiver-signed HOLD and refusal cases
+        run: |
+          export STACK2_020_GHOT_CHECKOUT="$PWD/ghot"
+          export STACK2_020_PLANZ_CHECKOUT="$PWD/planz"
+          export STACK2_021_RELATTE_CHECKOUT="$PWD/relatte"
+          export STACK2_024_TOASTER_CHECKOUT="$PWD/toaster"
+          cd workbench
+          python -m pytest -q tests/test_stack_floor_024.py tests/test_stack_floor_023.py tests/test_stack_floor_022.py tests/test_stack_floor_021.py tests/test_stack_floor_020.py tests/test_stack_floor_019.py
+      - name: Refuse new execution and uncontrolled source binaries
+        run: |
+          test ! -e workbench/static_workbench/web/receiver-key.json
+          test ! -e workbench/static_workbench/web/.env
+          ! grep -E '(\.dispose\(|\.receive\(|\.verifyPayloadBytes\(|\.exec\(|\.spawn\()' workbench/scripts/stack-floor-024-toaster.cjs
+
+  browser-toaster-delight:
+    needs: native-toaster-delight
+    runs-on: ubuntu-latest
+    timeout-minutes: 23
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: workbench
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          repository: the-static-collective/GHoT
+          ref: b01758bee55d66d699160715ec377b45f7589707
+          path: ghot
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          repository: the-static-collective/planZ
+          ref: e8111fdb64c5587b33aece0fed639ed3d03375ac
+          path: planz
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          repository: the-static-collective/reLATTE
+          ref: dcc8cdca84c440aa4294134f020fb7095bf87f24
+          path: relatte
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          repository: the-static-collective/the-haunted-toaster
+          ref: 74365daa3351555d17482662a9a13cc6a316f1e1
+          path: toaster
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install original receiver dependencies and Chromium; no Toaster render libraries
+        run: |
+          npm install --prefix relatte --ignore-scripts --no-audit --no-fund
+          python -m pip install -e './workbench[dev]'
+          cd workbench
+          npm install --no-save --ignore-scripts --no-audit --no-fund playwright@1.56.1
+          npx playwright install --with-deps chromium
+      - name: Actual Chrome ACT → CROSS → HOLD → Mycelium → original Toaster six moves → SVG
+        run: |
+          export STACK2_020_GHOT_CHECKOUT="$PWD/ghot"
+          export STACK2_020_PLANZ_CHECKOUT="$PWD/planz"
+          export STACK2_021_RELATTE_CHECKOUT="$PWD/relatte"
+          export STACK2_024_TOASTER_CHECKOUT="$PWD/toaster"
+          export STACK2_BROWSER_OUTPUT="/tmp/stack-floor-024-chromium"
+          cd workbench
+          node tests/stack-floor-024.browser.mjs
+      - name: Preserve desktop/mobile actual Toaster-linked delight proof
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: stack-floor-024-toaster-useful-delight-desktop-mobile
+          if-no-files-found: warn
+          path: /tmp/stack-floor-024-chromium/*.png
