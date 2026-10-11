@@ -40,6 +40,7 @@ from .road_desk import RoadDeskError, road_desk_status
 from .ghot_shell import build_ghot_status
 from .stack_floor_native_020 import StackFloorNative020, StackFloorActHold
 from .stack_floor_postoffice_021 import StackFloorPostOffice021
+from .stack_floor_hold_shelf_022 import StackFloorHoldShelf022
 from .launchpad import launchpad_router
 from .arrival import diagnose as diagnose_arrival
 from .mirror import mirror_router
@@ -183,6 +184,10 @@ def create_app(config: WorkbenchConfig | None = None) -> FastAPI:
         receiver_root=config.stack_floor_receiver_root,
     )
 
+    stack_floor_hold_shelf_022 = StackFloorHoldShelf022(
+        postoffice=stack_floor_postoffice_021
+    )
+
     @asynccontextmanager
     async def lifespan(app: FastAPI):
         journal.append("workbench.started", {"version": __version__})
@@ -217,6 +222,7 @@ def create_app(config: WorkbenchConfig | None = None) -> FastAPI:
     app.state.moment_inbox = moment_inbox
     app.state.stack_floor_native_020 = stack_floor_native_020
     app.state.stack_floor_postoffice_021 = stack_floor_postoffice_021
+    app.state.stack_floor_hold_shelf_022 = stack_floor_hold_shelf_022
     app.state.session_token = session_token
     app.include_router(launchpad_router())
     app.include_router(mirror_router(config.state_dir, session_token, journal))
@@ -546,6 +552,37 @@ def create_app(config: WorkbenchConfig | None = None) -> FastAPI:
             return result
         except (StackFloorActHold, OSError, ValueError) as exc:
             raise HTTPException(status_code=409, detail=str(exc)[:230]) from exc
+
+    @app.get("/api/stack-floor/shelf/status")
+    def stack_floor_shelf_status():
+        # Intentionally does not expose configured local filesystem paths.
+        return {
+            "schema": "workbench.stack-squared-022-shelf-status/v0",
+            "enabled": stack_floor_hold_shelf_022.enabled,
+            "read_only": True,
+            "held_only": True,
+            "crossing_or_admission_api": False,
+        }
+
+    @app.post("/api/stack-floor/shelf/list")
+    def stack_floor_shelf_list(payload: dict, request: Request):
+        _stack_floor_native_guard(request)
+        if payload != {}:
+            raise HTTPException(status_code=422, detail="shelf list accepts no selector")
+        try:
+            return stack_floor_hold_shelf_022.read()
+        except (StackFloorActHold, OSError, ValueError) as exc:
+            raise HTTPException(status_code=409, detail=str(exc)[:220]) from exc
+
+    @app.post("/api/stack-floor/shelf/detail")
+    def stack_floor_shelf_detail(payload: dict, request: Request):
+        _stack_floor_native_guard(request)
+        if not isinstance(payload, dict) or set(payload) != {"crossing_id"}:
+            raise HTTPException(status_code=422, detail="shelf detail needs one exact crossing ID")
+        try:
+            return stack_floor_hold_shelf_022.read(crossing_id=payload["crossing_id"])
+        except (StackFloorActHold, OSError, ValueError) as exc:
+            raise HTTPException(status_code=409, detail=str(exc)[:220]) from exc
 
     # Return Desk is Workbench-owned local writing, not a GOATnote protocol
     # or a claim that a project checkout has been modified.
