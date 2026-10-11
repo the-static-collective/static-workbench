@@ -30,6 +30,7 @@ from .paths import PathOutsideRoot, resolve_under_root
 from .repos import discover_repositories
 from .branch_deck import build_branch_deck
 from .branch_remote import inspect_github_repo, RemoteDiscoveryError
+from .branch_harbor import HarborError, MAX_MANIFEST_BYTES, preview_branch_harbor
 from .schemas import (
     ApertureAnalyzeRequest,
     CreatorPackRequest,
@@ -249,6 +250,25 @@ def create_app(config: WorkbenchConfig | None = None) -> FastAPI:
         token = request.headers.get("x-workbench-session", "")
         if not secrets.compare_digest(token, session_token):
             raise HTTPException(status_code=403, detail="creator write requires a local session token")
+
+    @app.post("/api/branches/freeport/preview")
+    async def branch_harbor_preview(request: Request):
+        # Session-scoped manual paste. Never consult a remote, save source,
+        # import branches, execute payloads, or promote Freeport's reported HOLD.
+        _creator_write_guard(request)
+        if request.headers.get("content-type", "").split(";")[0].strip() != "application/json":
+            raise HTTPException(status_code=415, detail="FREEPORT manifest requires application/json")
+        chunks = bytearray()
+        async for chunk in request.stream():
+            chunks.extend(chunk)
+            if len(chunks) > MAX_MANIFEST_BYTES:
+                raise HTTPException(status_code=413, detail="FREEPORT manifest exceeds 16 KiB")
+        try:
+            result = preview_branch_harbor(chunks.decode("utf-8"))
+        except (HarborError, UnicodeError, ValueError) as exc:
+            raise HTTPException(status_code=400, detail=str(exc)[:180]) from exc
+        # No raw manifest or selected source bytes enter Journal or Creator Shelf.
+        return result
 
     @app.post("/api/dogram/impact/preview")
     def dogram_impact_preview(payload: DogramImpactRequest, request: Request):
