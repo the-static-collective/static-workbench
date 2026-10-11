@@ -149,9 +149,9 @@ def _validate_state(obj: Any) -> dict[str, Any]:
 def latest_summary(state_dir: Path) -> dict[str, Any] | None:
     directory = state_dir / "receipt-porter"
     target = directory / "latest.json"
+    require(not target.is_symlink() and not directory.is_symlink(), "PORTER_SYMLINK_REFUSED")
     if not target.exists():
         return None
-    require(not target.is_symlink() and not directory.is_symlink(), "PORTER_SYMLINK_REFUSED")
     return _validate_state(_json_file(target, limit=4096)[0])
 
 
