@@ -110,6 +110,7 @@ function chooseCard(card){
   $('delight-024-paper').replaceChildren(drawCard(card));
   $('delight-024-export').disabled=false;
   renderDeck();
+  window.dispatchEvent(new CustomEvent('stack-floor:toaster-delight-choice', {detail:{preview,card}}));
 }
 function renderDeck(){
   const deck=$('delight-024-deck');deck.replaceChildren();
