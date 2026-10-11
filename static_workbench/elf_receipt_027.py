@@ -9,7 +9,6 @@ from __future__ import annotations
 import argparse
 import json
 from pathlib import Path
-import shutil
 from typing import Any
 
 from .elf_genesis import hatch, verify, _write_seed, digest
@@ -63,8 +62,7 @@ def hatch_public_certificate(
     require(not certificate.is_symlink(), "PUBLIC_CERTIFICATE_SYMLINK")
     content = _only_public(source)
     require(not output.exists(), "ELF_OUTPUT_ALREADY_EXISTS")
-    require(_outside(output, source.parent) or output.parent != source.parent,
-            "ELF_OUTPUT_SOURCE_COLLISION")
+    require(_outside(output, source.parent), "ELF_OUTPUT_SOURCE_COLLISION")
     before = native_verify(source, verification_script=VERIFIER,
                            trust_fingerprint=trust_fingerprint)
     # A signed certificate carries an issuer's claim, not a new ELF identity.
