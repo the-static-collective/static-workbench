@@ -104,7 +104,12 @@ def live_elf_probe(
             not output.is_symlink(), "LIVE_SYMLINK_REFUSED")
     provider = provider_checkout.resolve(strict=True)
     require(provider.is_dir(), "OPENMANUS_CHECKOUT_MISSING")
-    interpreter = provider_python.resolve(strict=True)
+    # A venv/bin/python is commonly a symlink to the base Python binary.
+    # Executing its *resolved* realpath silently loses pyvenv.cfg detection,
+    # runs system Python, and misses installed OpenManus dependencies.
+    # Retain the explicitly operator-selected invocation path.
+    require(provider_python.is_absolute(), "PROVIDER_INTERPRETER_MUST_BE_ABSOLUTE")
+    interpreter = provider_python.absolute()
     require(interpreter.is_file(), "PINNED_PROVIDER_INTERPRETER_MISSING")
     child = workspace.resolve(strict=True)
     require(child.is_dir(), "CHILD_WORKSPACE_MISSING")
