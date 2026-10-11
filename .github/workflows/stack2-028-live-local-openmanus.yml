@@ -59,6 +59,22 @@ jobs:
           python3 -m venv "$RUNNER_TEMP/openmanus-venv"
           "$RUNNER_TEMP/openmanus-venv/bin/python" -m pip install --disable-pip-version-check --no-cache-dir -r "$GITHUB_WORKSPACE/openmanus-source/requirements.txt"
           python3 -m pip install -e .
+          # Pinned 2025 OpenManus eagerly constructs DaytonaSettings even when
+          # unused. A fixed, noncredential placeholder prevents that unrelated
+          # import error; strict local profile refuses any changed value.
+          cat > "$GITHUB_WORKSPACE/openmanus-source/config/config.toml" <<'TOML'
+          [llm]
+          api_type = "ollama"
+          model = "qwen2.5:1.5b"
+          base_url = "http://127.0.0.1:11434/v1"
+          api_key = "ollama"
+          max_tokens = 512
+          temperature = 0.0
+
+          [daytona]
+          daytona_api_key = "disabled-local-placeholder"
+          TOML
+          chmod 0600 "$GITHUB_WORKSPACE/openmanus-source/config/config.toml"
           "$RUNNER_TEMP/openmanus-venv/bin/python" - <<'PY'
           from app.agent.toolcall import ToolCallAgent
           from app.tool.base import BaseTool
@@ -95,16 +111,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          cat > "$GITHUB_WORKSPACE/openmanus-source/config/config.toml" <<'TOML'
-          [llm]
-          api_type = "ollama"
-          model = "qwen2.5:1.5b"
-          base_url = "http://127.0.0.1:11434/v1"
-          api_key = "ollama"
-          max_tokens = 512
-          temperature = 0.0
-          TOML
-          chmod 0600 "$GITHUB_WORKSPACE/openmanus-source/config/config.toml"
+          test -f "$GITHUB_WORKSPACE/openmanus-source/config/config.toml"
           mkdir -p "$RUNNER_TEMP/elf-live-child"
           python3 -m static_workbench.elf_live_027 \
             --loadout-root "$GITHUB_WORKSPACE/loadout-source" \
