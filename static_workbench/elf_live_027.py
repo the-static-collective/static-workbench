@@ -84,7 +84,9 @@ def live_elf_probe(
         require(config_path.stat().st_size <= 4096, "LOCAL_OLLAMA_CONFIG_TOO_LARGE")
         with config_path.open("rb") as stream:
             config = tomllib.load(stream)
-        require(set(config) == {"llm"} and set(config["llm"]) == {
+        require(set(config) == {"llm", "daytona"} and
+                config["daytona"] == {"daytona_api_key": "disabled-local-placeholder"} and
+                set(config["llm"]) == {
                 "api_type", "model", "base_url", "api_key",
                 "max_tokens", "temperature"} and
                 config["llm"]["api_type"] == "ollama" and
