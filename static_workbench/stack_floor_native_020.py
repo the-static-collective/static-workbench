@@ -92,7 +92,7 @@ def _context(source: dict[str, str]) -> dict[str, str]:
 
 
 def _native(argv: list[str], *, checkout: Path, home: Path) -> dict[str, Any]:
-    check(len(argv) in (2, 3, 7, 9), "INVALID_FIXED_NATIVE_INVOCATION")
+    check(len(argv) in (2, 8), "INVALID_FIXED_NATIVE_INVOCATION")
     run = subprocess.run(
         [sys.executable, str(checkout / "ghot/branch_worker.py"), *argv],
         cwd=checkout, env={**os.environ, "GHOT_HOME": str(home)},
