@@ -68,3 +68,35 @@ def test_ollama_must_have_explicit_config_without_hidden_fallback(tmp_path):
     with pytest.raises(LiveGateRefusal,match="LOCAL_OLLAMA_NONLOCAL_OR_CREDENTIAL_CONFIGURATION"):
         _try(tmp_path,SAFE.replace("base_url = \"http://127.0.0.1:11434/v1\"",
                                    "base_url = \"http://localhost:11434/v1\""))
+
+
+
+def test_venv_symlink_path_is_not_collapsed_to_system_python(tmp_path):
+    import subprocess
+    import sys
+    from static_workbench.elf_live_027 import select_provider_interpreter
+
+    venv = tmp_path / "isolated-original-provider"
+    subprocess.run([sys.executable, "-m", "venv", str(venv)],
+                   capture_output=True, check=True)
+    executable = venv / "bin" / "python"
+    assert executable.is_symlink()
+    selected = select_provider_interpreter(executable)
+    assert selected == executable
+    assert selected != executable.resolve()
+    invocation = subprocess.check_output(
+        [str(selected), "-c", "import sys;print(sys.prefix)"], text=True
+    ).strip()
+    resolved = subprocess.check_output(
+        [str(executable.resolve()), "-c", "import sys;print(sys.prefix)"], text=True
+    ).strip()
+    assert Path(invocation) == venv
+    assert Path(resolved) != venv
+
+
+def test_venv_invocation_must_be_explicit_existing_absolute_path(tmp_path):
+    from static_workbench.elf_live_027 import select_provider_interpreter
+    with pytest.raises(LiveGateRefusal,match="PROVIDER_INTERPRETER_MUST_BE_ABSOLUTE"):
+        select_provider_interpreter(Path("relative/bin/python"))
+    with pytest.raises(LiveGateRefusal,match="PINNED_PROVIDER_INTERPRETER_MISSING"):
+        select_provider_interpreter(tmp_path / "missing/bin/python")
