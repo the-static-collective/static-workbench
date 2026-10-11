@@ -20,7 +20,7 @@ publication/admission/merge authority or a general OS sandbox proof.
 - Local inference server: Docker Ollama image pinned by **index digest**
   `sha256:e2f0af4a865c61b580cc17a7e2bda3c82083046b74c5a5402ce32a0d84454f9b`
   (Ollama 0.12.4, linux/amd64). Exact model requested
-  `qwen2.5:1.5b`; model digest is printed during the ephemeral run.
+  `qwen2.5:3b`; model digest is printed during the ephemeral run.
 - Child workspace: new, empty, benign temp directory. Original LOADOUT
   creates `specimen/input.txt`, allows only `loadout_read_text` and
   `loadout_write_text` and `Terminate`, and checks exact output bytes,
@@ -34,7 +34,7 @@ is exactly:
 ```toml
 [llm]
 api_type = "ollama"
-model = "qwen2.5:1.5b"
+model = "qwen2.5:3b"
 base_url = "http://127.0.0.1:11434/v1"
 api_key = "ollama"
 max_tokens = 512
@@ -60,7 +60,7 @@ receives only `PYTHONPATH`.
 
 1. The original clean pinned OpenManus source and original LOADOUT code
    really ran, rather than merely passing a fake JSON-stdio adapter test.
-2. Ollama hosted local Qwen2.5:1.5b model inference, with actual generated
+2. Ollama hosted local Qwen2.5:3b model inference, with actual generated
    tool calls in the original OpenManus reasoning loop.
 3. The agent wrote one exact expected test artifact using only the LOADOUT
    declared narrow tool collection.
@@ -114,7 +114,7 @@ python -m static_workbench.elf_live_027 \
   --workspace /runner/fresh-child \
   --output /runner/new-live-evidence \
   --model-config-class local-ollama \
-  --max-steps 6 \
+  --max-steps 8 \
   --timeout-seconds 90 \
   --approve-live-provider yes
 ```
