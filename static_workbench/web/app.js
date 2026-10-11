@@ -143,6 +143,11 @@ function renderGhot() {
   receiptDoor.append(el('strong', '', 'STACK² · Living Receipt Floor'),
     el('span', 'muted', 'Walk a source-pinned GHoT → CANNON → reLATTE RECEIVED / R3_HOLD chain using only a locally imported redacted public witness. No native execution.'));
   workspaceBody.appendChild(receiptDoor);
+  const verifyDoor = el('a', 'action-card');
+  verifyDoor.href = '/receipt-verification';
+  verifyDoor.append(el('strong', '', 'STACK² · Native Verification Porter'),
+    el('span', 'muted', 'Inspect bounded host-verified signatures, match a redacted public artifact, and keep private records and execution outside the browser.'));
+  workspaceBody.appendChild(verifyDoor);
   workspaceBody.appendChild(returnDoor);
 
   const resourceGrid = el('div', 'metric-grid ghot-resources');
