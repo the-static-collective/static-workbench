@@ -66,11 +66,25 @@ def _root(path: Path | None, repository: str, commit: str) -> Path:
 
 
 def _files(ghot_root: Path, planz_root: Path) -> dict[str, str]:
-    for relative in ["ghot/branch_worker.py", "ghot/activation_ticket.py", "ghot/branch_work.py"]:
-        check(_git(ghot_root, "cat-file", "-t", f"{GHOT_SHA}:{relative}") == "blob",
-              "GHOT_ORIGINAL_PROGRAM_UNAVAILABLE")
-        # Refuse locally modified or replaced original native executable.
-        actual = (ghot_root / relative).read_bytes()
+    # Pin every imported native GHoT Python module, not merely the entrypoint.
+    all_original = str(_git(
+        ghot_root, "ls-tree", "-r", "--name-only", GHOT_SHA, "--", "ghot"
+    )).splitlines()
+    modules = {name for name in all_original if name.endswith(".py")}
+    check("ghot/branch_worker.py" in modules and
+          "ghot/activation_ticket.py" in modules and
+          "ghot/branch_work.py" in modules, "GHOT_ORIGINAL_PROGRAM_UNAVAILABLE")
+    check(0 < len(modules) <= 256, "GHOT_MODULE_INVENTORY_TOO_LARGE")
+    for file in (ghot_root / "ghot").rglob("*.py"):
+        check(not file.is_symlink() and file.relative_to(ghot_root).as_posix() in modules,
+              "UNPINNED_GHOT_PYTHON_MODULE")
+    check(not any((ghot_root / "ghot").rglob("*.pyc")),
+          "GHOT_UNVERIFIED_PYTHON_BYTECODE")
+    for relative in sorted(modules):
+        actual_path = ghot_root / relative
+        check(actual_path.is_file() and not actual_path.is_symlink(),
+              "GHOT_SOURCE_MODULE_MISSING_OR_SYMLINK")
+        actual = actual_path.read_bytes()
         expected = _git(ghot_root, "show", f"{GHOT_SHA}:{relative}", binary=True)
         check(actual == expected, "GHOT_EXECUTABLE_WORKTREE_TAMPERED")
     check(_git(planz_root, "cat-file", "-t", f"{PLANZ_SHA}:{PLANZ_PATH}") == "blob",
@@ -95,7 +109,7 @@ def _native(argv: list[str], *, checkout: Path, home: Path) -> dict[str, Any]:
     check(len(argv) in (2, 8), "INVALID_FIXED_NATIVE_INVOCATION")
     run = subprocess.run(
         [sys.executable, str(checkout / "ghot/branch_worker.py"), *argv],
-        cwd=checkout, env={**os.environ, "GHOT_HOME": str(home)},
+        cwd=checkout, env={**os.environ, "GHOT_HOME": str(home), "PYTHONDONTWRITEBYTECODE": "1"},
         stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
         timeout=35, check=False,
     )
