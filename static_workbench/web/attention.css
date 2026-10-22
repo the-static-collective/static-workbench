@@ -1,0 +1,7 @@
+.attention-bar{display:flex;align-items:center;flex-wrap:wrap;gap:6px 12px;margin-top:12px;padding-top:10px;border-top:1px solid var(--line-soft,#405047)}
+.attention-controls{display:flex;gap:6px;flex-wrap:wrap}
+.attention-button{border:1px solid var(--line,#596459);border-radius:999px;background:transparent;color:var(--ink,#e7f0e8);font:inherit;font-size:12px;cursor:pointer;padding:5px 9px}
+.attention-button.selected{background:#42584b;color:white;border-color:#a8d9b5}
+.attention-button:focus-visible{outline:2px solid #b7e6be;outline-offset:2px}
+.attention-button:disabled{opacity:.5;cursor:wait}
+.attention-status{color:var(--muted,#b3c0b8);font-size:11px;overflow-wrap:anywhere}
