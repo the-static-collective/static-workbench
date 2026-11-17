@@ -145,7 +145,8 @@ jobs:
 
   webz_browser:
     name: webZ desktop/mobile browser witness
-    runs-on: ubuntu-latest
+    # Playwright 1.56.0 Chromium binary currently rejects ubuntu26.04 runners.
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
